@@ -16,7 +16,7 @@ Living progress record for the Daybook build. Source of truth remains `Requireme
 
 | # | Issue | Type | Status |
 | --- | --- | --- | --- |
-| 001 | walking-skeleton | HITL | built — HITL review pending |
+| 001 | walking-skeleton | HITL | built — HITL review paused (client) |
 | 002 | tenant-isolation-org-switching | AFK | not started |
 | 003 | members-rbac | AFK | not started |
 | 004 | org-settings-audit-log | AFK | not started |
@@ -60,7 +60,8 @@ Living progress record for the Daybook build. Source of truth remains `Requireme
 | 2026-11-13 | Planning | Spec reconciled; PRD derived; 36 issue slices written; AGENTS.md + this spine | — | initial planning commit |
 | 2026-11-13 | 001 | Walking skeleton: 6-service Compose stack, NestJS+Prisma JWT auth (login/refresh/logout/me, refresh rotation), seeded owner, Daybook login page + three-column shell, README/env examples | Jest 7 passed (health + auth); Playwright 2 passed (login/session/wrong-password) | github.com/furqaniq/ai-accounting |
 | 2026-11-13 | 001 | Shell aligned to the `ui/` design sample per HITL feedback: `styles.css` ported as the app stylesheet, Overview markup (spine/topbar/clerk margin), drawers, toasts, favicon | Playwright 2 passed after restyle | github.com/furqaniq/ai-accounting |
+| 2026-11-14 | 001 | Login polish per HITL feedback (3 rounds): editorial split layout (ruled ledger-green panel + red-ink margin rule + pale-paper form), Daybook tile logo, demo-account picker (6 seed logins, click-to-fill), copy tightened to "Today's page awaits." | Playwright 3 passed (login/session, wrong-password, demo-picker) | github.com/furqaniq/ai-accounting |
 
 ## Open items
 
-- HITL gate on 001: architecture and shell design must be reviewed and approved before dependent slices start.
+- HITL gate on 001: client paused review after the login-copy round; resume by approving, then start 002. Latest login state is in the log above.
