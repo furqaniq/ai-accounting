@@ -9,8 +9,8 @@ test('seeded owner can sign in, keep the session, and sign out', async ({ page }
   await page.getByRole('button', { name: 'Sign in' }).click();
 
   await expect(page.getByRole('heading', { name: /Overview/ })).toBeVisible();
-  await expect(page.getByText('owner@acme.test')).toBeVisible();
-  await expect(page.getByText('Acme Services Co.')).toBeVisible();
+  await expect(page.getByText('Olive Owner')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Acme Services Co.' })).toBeVisible();
 
   await page.reload();
   await expect(page.getByRole('heading', { name: /Overview/ })).toBeVisible();

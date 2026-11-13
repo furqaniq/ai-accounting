@@ -1,0 +1,19 @@
+/* Production shell additions on top of the ui/ design sample (globals.css). */
+
+.spine-signout {
+  justify-self: start;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #dfe9df;
+  border-radius: 3px;
+  padding: 5px 12px;
+  font-size: 13px;
+}
+
+.spine-signout:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.spine__foot-actions {
+  margin-top: 8px;
+}

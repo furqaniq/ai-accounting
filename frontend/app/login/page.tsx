@@ -39,7 +39,17 @@ export default function LoginPage() {
   return (
     <main className="login-page">
       <section className="login-block">
-        <div className="wordmark">Daybook</div>
+        <div className="brand">
+          <svg className="brand__mark" viewBox="0 0 32 32" aria-hidden="true">
+            <rect className="mark-paper" x="4.5" y="3" width="23" height="26" rx="1" />
+            <path className="mark-rule" d="M9 9h14M9 14h14M9 19h9" />
+            <path className="mark-margin" d="M12 3v26" />
+          </svg>
+          <span>
+            <span className="brand__name">Daybook</span>
+            <span className="brand__sub">AI accounting</span>
+          </span>
+        </div>
         <h1>Sign in</h1>
         <form onSubmit={submit}>
           <label htmlFor="email">Email</label>
@@ -65,7 +75,7 @@ export default function LoginPage() {
               {error}
             </p>
           ) : null}
-          <button className="btn" type="submit" disabled={busy}>
+          <button className="btn btn--primary" type="submit" disabled={busy}>
             {busy ? 'Signing in…' : 'Sign in'}
           </button>
         </form>

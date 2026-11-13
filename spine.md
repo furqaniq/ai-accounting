@@ -59,6 +59,7 @@ Living progress record for the Daybook build. Source of truth remains `Requireme
 | --- | --- | --- | --- | --- |
 | 2026-11-13 | Planning | Spec reconciled; PRD derived; 36 issue slices written; AGENTS.md + this spine | — | initial planning commit |
 | 2026-11-13 | 001 | Walking skeleton: 6-service Compose stack, NestJS+Prisma JWT auth (login/refresh/logout/me, refresh rotation), seeded owner, Daybook login page + three-column shell, README/env examples | Jest 7 passed (health + auth); Playwright 2 passed (login/session/wrong-password) | github.com/furqaniq/ai-accounting |
+| 2026-11-13 | 001 | Shell aligned to the `ui/` design sample per HITL feedback: `styles.css` ported as the app stylesheet, Overview markup (spine/topbar/clerk margin), drawers, toasts, favicon | Playwright 2 passed after restyle | github.com/furqaniq/ai-accounting |
 
 ## Open items
 
