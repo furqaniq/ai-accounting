@@ -1,8 +1,27 @@
 'use client';
 
-import { FormEvent, useState } from 'react';
+import { FormEvent, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { API_URL, REFRESH_TOKEN_KEY, TOKEN_KEY } from '@/lib/api';
+
+const DEMO_GROUPS = [
+  {
+    org: 'Acme Services Co.',
+    accounts: [
+      { email: 'owner@acme.test', role: 'Owner' },
+      { email: 'accountant@acme.test', role: 'Accountant' },
+      { email: 'staff@acme.test', role: 'Staff' },
+      { email: 'viewer@acme.test', role: 'Viewer' },
+    ],
+  },
+  {
+    org: 'Nimbus Retail LLC',
+    accounts: [
+      { email: 'owner@nimbus.test', role: 'Owner' },
+      { email: 'accountant@nimbus.test', role: 'Accountant' },
+    ],
+  },
+];
 
 export default function LoginPage() {
   const router = useRouter();
@@ -10,6 +29,13 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const passwordRef = useRef<HTMLInputElement>(null);
+
+  function pickDemo(demoEmail: string) {
+    setEmail(demoEmail);
+    setError(null);
+    passwordRef.current?.focus();
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -38,8 +64,8 @@ export default function LoginPage() {
 
   return (
     <main className="login">
-      <section className="login-ledger" aria-hidden="true">
-        <div className="login-brand">
+      <section className="login-ledger">
+        <div className="login-brand" aria-hidden="true">
           <img className="login-logo" src="/icon.svg" width={38} height={38} alt="" />
           <span>
             <span className="brand__name">Daybook</span>
@@ -47,38 +73,41 @@ export default function LoginPage() {
           </span>
         </div>
 
-        <div className="login-statement">
+        <div className="login-statement" aria-hidden="true">
           <p className="login-kicker">Open books</p>
-          <h2>Every entry, in its place.</h2>
+          <h2>Open the daybook.</h2>
           <p>
-            Sign in to your ledger — invoices, bills, reconciliation and Clerk,
-            the agent that keeps the page tidy.
+            Two organizations, five roles, one set of books — with Clerk, your
+            agent, keeping every entry in its place.
           </p>
         </div>
 
-        <div className="login-excerpt">
-          <p className="login-excerpt__kicker">Today&apos;s page — 13 Nov</p>
-          <div className="login-excerpt__row">
-            <span>Opening balance</span>
-            <span>84,290.16</span>
-          </div>
-          <div className="login-excerpt__row">
-            <span>Entries posted</span>
-            <span>14</span>
-          </div>
-          <div className="login-excerpt__row">
-            <span>Reconciled to date</span>
-            <span>100%</span>
-          </div>
-          <div className="login-excerpt__total">
-            <span>Balance c/d</span>
-            <span>84,290.16</span>
-          </div>
+        <div className="login-demo">
+          <p className="login-demo__kicker" id="demo-accounts-label">
+            Demo accounts
+          </p>
+          {DEMO_GROUPS.map((group) => (
+            <div key={group.org} className="login-demo__group">
+              <p className="login-demo__org">{group.org}</p>
+              {group.accounts.map((account) => (
+                <button
+                  key={account.email}
+                  type="button"
+                  className="login-demo__row"
+                  onClick={() => pickDemo(account.email)}
+                >
+                  <span className="login-demo__email">{account.email}</span>
+                  <span className="login-demo__role">{account.role}</span>
+                </button>
+              ))}
+            </div>
+          ))}
+          <p className="login-demo__password">
+            Password for all accounts — <strong>Passw0rd!2026</strong>
+          </p>
         </div>
 
-        <p className="login-ledger__foot">
-          Local demo · synthetic data only
-        </p>
+        <p className="login-ledger__foot">Local demo · synthetic data only</p>
       </section>
 
       <section className="login-form-pane">
@@ -86,7 +115,7 @@ export default function LoginPage() {
           <p className="login-welcome">Welcome back</p>
           <h1>Sign in</h1>
           <p className="login-lede">
-            Open the ledger to your organization&apos;s books.
+            Enter your credentials, or choose a demo account to fill them in.
           </p>
 
           <form onSubmit={submit}>
@@ -111,6 +140,7 @@ export default function LoginPage() {
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                ref={passwordRef}
                 required
               />
             </div>
@@ -124,10 +154,6 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <p className="login-note">
-            <span className="login-note__demo">Demo entry</span> —{' '}
-            <strong>owner@acme.test</strong> · <strong>Passw0rd!2026</strong>
-          </p>
           <p className="login-foot">Daybook · local demo build</p>
         </div>
       </section>

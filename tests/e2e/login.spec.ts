@@ -28,3 +28,16 @@ test('wrong password shows a clear error', async ({ page }) => {
   await expect(page.getByText('Invalid email or password.')).toBeVisible();
   await expect(page).toHaveURL(/\/login$/);
 });
+
+test('demo account row fills the form and signs in', async ({ page }) => {
+  await page.goto('/login');
+  await page.getByRole('button', { name: /owner@acme\.test/ }).click();
+
+  await expect(page.getByLabel('Email')).toHaveValue('owner@acme.test');
+  await expect(page.getByLabel('Password')).toBeFocused();
+
+  await page.getByLabel('Password').fill('Passw0rd!2026');
+  await page.getByRole('button', { name: 'Sign in' }).click();
+
+  await expect(page.getByRole('heading', { name: /Overview/ })).toBeVisible();
+});
