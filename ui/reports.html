@@ -1,0 +1,599 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Reports | Daybook</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@400;500;600;700&family=Petrona:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <div class="app-shell">
+      <aside class="spine" id="spine">
+        <a class="brand" href="index.html">
+          <svg class="brand__mark" viewBox="0 0 32 32" aria-hidden="true">
+            <rect class="mark-paper" x="4.5" y="3" width="23" height="26" rx="1" />
+            <path class="mark-rule" d="M9 9h14M9 14h14M9 19h9" />
+            <path class="mark-margin" d="M12 3v26" />
+          </svg>
+          <span>
+            <span class="brand__name">Daybook</span>
+            <span class="brand__sub">AI accounting</span>
+          </span>
+        </a>
+
+        <div class="org">
+          <button
+            class="org__button"
+            id="org-button"
+            type="button"
+            aria-expanded="false"
+            aria-controls="org-menu"
+          >
+            <span>
+              <span class="org__name">Acme Services Co.</span>
+              <span class="org__meta">Owner</span>
+            </span>
+            <svg class="icon icon--sm org__chevron" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </button>
+          <div class="org__menu" id="org-menu" hidden>
+            <button class="org__option" type="button" data-org="Acme Services Co.">
+              Acme Services Co.
+              <span>Owner</span>
+            </button>
+            <button class="org__option" type="button" data-org="Nimbus Retail LLC">
+              Nimbus Retail LLC
+              <span>Owner</span>
+            </button>
+          </div>
+        </div>
+
+        <nav class="nav" aria-label="Primary">
+          <a class="nav__item" href="index.html">
+            <svg class="icon nav__icon" viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="3" y="3" width="7" height="7" rx="1" />
+              <rect x="14" y="3" width="7" height="7" rx="1" />
+              <rect x="3" y="14" width="7" height="7" rx="1" />
+              <rect x="14" y="14" width="7" height="7" rx="1" />
+            </svg>
+            Overview
+          </a>
+          <a class="nav__item" href="invoices.html">
+            <svg class="icon nav__icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z" />
+              <path d="M14 3v6h6M8 13h8M8 17h5" />
+            </svg>
+            Invoices
+          </a>
+          <a class="nav__item" href="reconcile.html">
+            <svg class="icon nav__icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M3 21h18M5 21V9l7-5 7 5v12M9 21v-6h6v6" />
+            </svg>
+            Banking
+          </a>
+          <a class="nav__item is-active" href="reports.html" aria-current="page">
+            <svg class="icon nav__icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
+            </svg>
+            Reports
+          </a>
+          <a
+            class="nav__item"
+            href="agent.html"
+            id="nav-clerk-link"
+            aria-label="Clerk, 2 pending approvals"
+          >
+            <svg class="icon nav__icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 20h9" />
+              <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+            </svg>
+            Clerk
+            <span class="nav__badge" id="nav-approval-count">2</span>
+          </a>
+        </nav>
+
+        <div class="spine__foot">
+          <div class="user">
+            <div class="avatar" aria-hidden="true">MC</div>
+            <div>
+              <div class="user__name">Maya Chen</div>
+              <div class="user__role">Owner</div>
+            </div>
+            <div class="user__actions">
+              <button
+                class="icon-btn"
+                type="button"
+                aria-label="Account settings"
+                data-toast="Account settings are not part of this UI sample."
+              >
+                <svg class="icon icon--sm" viewBox="0 0 24 24" aria-hidden="true">
+                  <circle cx="12" cy="12" r="3" />
+                  <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.7 2.7-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6V21h-4v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.4 17l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H3v-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.3 7 7 4.3l.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.6V3h4v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.7 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.1v4h-.1a1.7 1.7 0 0 0-1.5 1Z" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <div class="workspace">
+        <header class="topbar">
+          <button
+            class="icon-btn menu-toggle"
+            id="menu-toggle"
+            type="button"
+            aria-label="Open navigation"
+            aria-expanded="false"
+            aria-controls="spine"
+          >
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 7h16M4 12h16M4 17h16" />
+            </svg>
+          </button>
+
+          <form class="search" role="search" data-search>
+            <span class="search__icon">
+              <svg class="icon icon--sm" viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="11" cy="11" r="7" />
+                <path d="m20 20-4-4" />
+              </svg>
+            </span>
+            <label class="sr-only" for="global-search">Search</label>
+            <input
+              id="global-search"
+              type="search"
+              placeholder="Search invoices, bills, contacts"
+              autocomplete="off"
+            />
+          </form>
+
+          <div class="topbar__right">
+            <button
+              class="btn btn--outline btn--sm clerk-toggle"
+              id="clerk-toggle"
+              type="button"
+              aria-controls="margin"
+              aria-expanded="false"
+            >
+              <svg class="icon icon--sm" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 20h9" />
+                <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+              </svg>
+              <span>Clerk</span>
+              <span class="clerk-toggle__count" id="clerk-approval-count">2</span>
+            </button>
+          </div>
+        </header>
+
+        <main class="page" id="main">
+          <header class="page-head">
+            <div>
+              <h1>Reports</h1>
+              <p class="page-head__meta">Acme Services Co. Oct 1 to Nov 13, 2026.</p>
+            </div>
+            <div class="page-head__actions">
+              <button class="btn btn--outline" type="button" id="export-report">Export CSV</button>
+              <button class="btn btn--primary" type="button" id="print-report">Print</button>
+            </div>
+          </header>
+
+          <div class="report-tabs" role="tablist" aria-label="Financial reports">
+            <button
+              class="report-tab"
+              id="tab-pnl"
+              type="button"
+              role="tab"
+              aria-selected="true"
+              aria-controls="panel-pnl"
+              data-report-tab="pnl"
+              tabindex="0"
+            >
+              Profit &amp; Loss
+            </button>
+            <button
+              class="report-tab"
+              id="tab-balance"
+              type="button"
+              role="tab"
+              aria-selected="false"
+              aria-controls="panel-balance"
+              data-report-tab="balance"
+              tabindex="-1"
+            >
+              Balance Sheet
+            </button>
+            <button
+              class="report-tab"
+              id="tab-cash"
+              type="button"
+              role="tab"
+              aria-selected="false"
+              aria-controls="panel-cash"
+              data-report-tab="cash"
+              tabindex="-1"
+            >
+              Cash Flow
+            </button>
+            <button
+              class="report-tab"
+              id="tab-trial"
+              type="button"
+              role="tab"
+              aria-selected="false"
+              aria-controls="panel-trial"
+              data-report-tab="trial"
+              tabindex="-1"
+            >
+              Trial Balance
+            </button>
+          </div>
+
+          <section
+            class="report-panel"
+            id="panel-pnl"
+            role="tabpanel"
+            aria-labelledby="tab-pnl"
+            data-report-panel="pnl"
+          >
+            <div class="report-sheet">
+              <div class="report-sheet__head">
+                <div>
+                  <h2>Profit &amp; Loss</h2>
+                  <p class="report-sheet__meta">Acme Services Co. Oct 1 to Nov 13, 2026.</p>
+                </div>
+                <p class="report-sheet__meta">Compared to Aug 18 to Sep 30, 2026.</p>
+              </div>
+              <table class="report-table">
+                <caption class="sr-only">
+                  Profit and loss for the current and prior period
+                </caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Account</th>
+                    <th scope="col" class="num">This period</th>
+                    <th scope="col" class="num">Prior period</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr class="section-row"><td colspan="3">Income</td></tr>
+                  <tr class="indent">
+                    <td>Consulting revenue</td>
+                    <td class="num">$42,800.00</td>
+                    <td class="num">$38,200.00</td>
+                  </tr>
+                  <tr class="indent">
+                    <td>Product sales</td>
+                    <td class="num">$8,240.00</td>
+                    <td class="num">$7,100.00</td>
+                  </tr>
+                  <tr class="is-subtotal">
+                    <td>Total income</td>
+                    <td class="num">$51,040.00</td>
+                    <td class="num">$45,300.00</td>
+                  </tr>
+                  <tr class="indent">
+                    <td>Cost of sales</td>
+                    <td class="num">$6,120.00</td>
+                    <td class="num">$5,400.00</td>
+                  </tr>
+                  <tr class="is-subtotal">
+                    <td>Gross profit</td>
+                    <td class="num">$44,920.00</td>
+                    <td class="num">$39,900.00</td>
+                  </tr>
+                  <tr class="section-row"><td colspan="3">Expenses</td></tr>
+                  <tr class="indent">
+                    <td>Payroll</td>
+                    <td class="num">$18,400.00</td>
+                    <td class="num">$17,800.00</td>
+                  </tr>
+                  <tr class="indent">
+                    <td>Rent</td>
+                    <td class="num">$4,200.00</td>
+                    <td class="num">$4,200.00</td>
+                  </tr>
+                  <tr class="indent">
+                    <td>Software</td>
+                    <td class="num">$1,860.00</td>
+                    <td class="num">$1,620.00</td>
+                  </tr>
+                  <tr class="indent">
+                    <td>Travel</td>
+                    <td class="num">$980.00</td>
+                    <td class="num">$1,240.00</td>
+                  </tr>
+                  <tr class="indent">
+                    <td>Bank fees</td>
+                    <td class="num">$124.00</td>
+                    <td class="num">$110.00</td>
+                  </tr>
+                  <tr class="is-subtotal">
+                    <td>Total expenses</td>
+                    <td class="num">$25,564.00</td>
+                    <td class="num">$24,970.00</td>
+                  </tr>
+                  <tr class="is-total">
+                    <td>Net income</td>
+                    <td class="num is-positive">$19,356.00</td>
+                    <td class="num">$14,930.00</td>
+                  </tr>
+                </tbody>
+              </table>
+              <p class="report-note">
+                Net income is up 29.6% from the prior period. Consulting revenue grew by $4,600.00
+                while expenses rose $594.00.
+              </p>
+            </div>
+          </section>
+
+          <section
+            class="report-panel"
+            id="panel-balance"
+            role="tabpanel"
+            aria-labelledby="tab-balance"
+            data-report-panel="balance"
+            hidden
+          >
+            <div class="report-sheet">
+              <div class="report-sheet__head">
+                <div>
+                  <h2>Balance Sheet</h2>
+                  <p class="report-sheet__meta">Acme Services Co. As of Nov 13, 2026.</p>
+                </div>
+              </div>
+              <table class="report-table">
+                <caption class="sr-only">Balance sheet as of November 13, 2026</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Account</th>
+                    <th scope="col" class="num">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr class="section-row"><td colspan="2">Assets</td></tr>
+                  <tr class="indent"><td>Checking</td><td class="num">$65,890.16</td></tr>
+                  <tr class="indent"><td>Savings</td><td class="num">$18,400.00</td></tr>
+                  <tr class="indent"><td>Accounts receivable</td><td class="num">$16,920.00</td></tr>
+                  <tr class="indent"><td>Equipment</td><td class="num">$12,000.00</td></tr>
+                  <tr class="is-subtotal">
+                    <td>Total assets</td>
+                    <td class="num">$113,210.16</td>
+                  </tr>
+                  <tr class="section-row"><td colspan="2">Liabilities</td></tr>
+                  <tr class="indent"><td>Accounts payable</td><td class="num">$7,840.00</td></tr>
+                  <tr class="indent"><td>Credit card</td><td class="num">$3,480.00</td></tr>
+                  <tr class="is-subtotal">
+                    <td>Total liabilities</td>
+                    <td class="num">$11,320.00</td>
+                  </tr>
+                  <tr class="section-row"><td colspan="2">Equity</td></tr>
+                  <tr class="indent"><td>Owner's equity</td><td class="num">$82,534.16</td></tr>
+                  <tr class="indent"><td>Retained earnings</td><td class="num">$19,356.00</td></tr>
+                  <tr class="is-subtotal">
+                    <td>Total equity</td>
+                    <td class="num">$101,890.16</td>
+                  </tr>
+                  <tr class="is-total">
+                    <td>Total liabilities and equity</td>
+                    <td class="num">$113,210.16</td>
+                  </tr>
+                </tbody>
+              </table>
+              <p class="report-note">
+                Assets equal liabilities plus equity. Receivables reflect the $16,920.00 outstanding
+                on customer invoices before the Nov 12 bank deposits are applied.
+              </p>
+            </div>
+          </section>
+
+          <section
+            class="report-panel"
+            id="panel-cash"
+            role="tabpanel"
+            aria-labelledby="tab-cash"
+            data-report-panel="cash"
+            hidden
+          >
+            <div class="report-sheet">
+              <div class="report-sheet__head">
+                <div>
+                  <h2>Cash Flow</h2>
+                  <p class="report-sheet__meta">Acme Services Co. Oct 1 to Nov 13, 2026.</p>
+                </div>
+              </div>
+              <table class="report-table">
+                <caption class="sr-only">Cash flow statement for October 1 to November 13, 2026</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Account</th>
+                    <th scope="col" class="num">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr class="section-row"><td colspan="2">Operating activities</td></tr>
+                  <tr class="indent"><td>Net income</td><td class="num">$19,356.00</td></tr>
+                  <tr class="indent"><td>Increase in accounts receivable</td><td class="num">−$4,800.00</td></tr>
+                  <tr class="indent"><td>Increase in accounts payable</td><td class="num">$2,140.00</td></tr>
+                  <tr class="is-subtotal">
+                    <td>Net cash from operating activities</td>
+                    <td class="num">$16,696.00</td>
+                  </tr>
+                  <tr class="section-row"><td colspan="2">Investing activities</td></tr>
+                  <tr class="indent"><td>Equipment purchase</td><td class="num">−$4,486.00</td></tr>
+                  <tr class="is-subtotal">
+                    <td>Net cash from investing activities</td>
+                    <td class="num">−$4,486.00</td>
+                  </tr>
+                  <tr class="section-row"><td colspan="2">Financing activities</td></tr>
+                  <tr class="indent"><td>Owner draw</td><td class="num">−$6,000.00</td></tr>
+                  <tr class="is-subtotal">
+                    <td>Net cash from financing activities</td>
+                    <td class="num">−$6,000.00</td>
+                  </tr>
+                  <tr class="is-total">
+                    <td>Net change in cash</td>
+                    <td class="num is-positive">$6,210.00</td>
+                  </tr>
+                  <tr class="indent"><td>Beginning cash</td><td class="num">$78,080.16</td></tr>
+                  <tr class="is-subtotal">
+                    <td>Ending cash</td>
+                    <td class="num">$84,290.16</td>
+                  </tr>
+                </tbody>
+              </table>
+              <p class="report-note">
+                Operating cash covers the month's payroll and rent. The equipment purchase and owner
+                draw account for the rest of the change.
+              </p>
+            </div>
+          </section>
+
+          <section
+            class="report-panel"
+            id="panel-trial"
+            role="tabpanel"
+            aria-labelledby="tab-trial"
+            data-report-panel="trial"
+            hidden
+          >
+            <div class="report-sheet">
+              <div class="report-sheet__head">
+                <div>
+                  <h2>Trial Balance</h2>
+                  <p class="report-sheet__meta">Acme Services Co. As of Nov 13, 2026.</p>
+                </div>
+              </div>
+              <table class="report-table">
+                <caption class="sr-only">Trial balance as of November 13, 2026</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Account</th>
+                    <th scope="col" class="num">Debit</th>
+                    <th scope="col" class="num">Credit</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr class="indent"><td>Checking</td><td class="num">$65,890.16</td><td class="num"></td></tr>
+                  <tr class="indent"><td>Savings</td><td class="num">$18,400.00</td><td class="num"></td></tr>
+                  <tr class="indent"><td>Accounts receivable</td><td class="num">$16,920.00</td><td class="num"></td></tr>
+                  <tr class="indent"><td>Equipment</td><td class="num">$12,000.00</td><td class="num"></td></tr>
+                  <tr class="indent"><td>Cost of sales</td><td class="num">$6,120.00</td><td class="num"></td></tr>
+                  <tr class="indent"><td>Payroll</td><td class="num">$18,400.00</td><td class="num"></td></tr>
+                  <tr class="indent"><td>Rent</td><td class="num">$4,200.00</td><td class="num"></td></tr>
+                  <tr class="indent"><td>Software</td><td class="num">$1,860.00</td><td class="num"></td></tr>
+                  <tr class="indent"><td>Travel</td><td class="num">$980.00</td><td class="num"></td></tr>
+                  <tr class="indent"><td>Bank fees</td><td class="num">$124.00</td><td class="num"></td></tr>
+                  <tr class="indent"><td>Accounts payable</td><td class="num"></td><td class="num">$7,840.00</td></tr>
+                  <tr class="indent"><td>Credit card</td><td class="num"></td><td class="num">$3,480.00</td></tr>
+                  <tr class="indent"><td>Owner's equity</td><td class="num"></td><td class="num">$82,534.16</td></tr>
+                  <tr class="indent"><td>Consulting revenue</td><td class="num"></td><td class="num">$42,800.00</td></tr>
+                  <tr class="indent"><td>Product sales</td><td class="num"></td><td class="num">$8,240.00</td></tr>
+                  <tr class="is-total">
+                    <td>Totals</td>
+                    <td class="num">$144,894.16</td>
+                    <td class="num">$144,894.16</td>
+                  </tr>
+                </tbody>
+              </table>
+              <p class="report-note">Debits and credits agree at $144,894.16.</p>
+            </div>
+          </section>
+        </main>
+      </div>
+
+      <aside class="margin" id="margin" aria-label="Clerk">
+        <div class="margin__head">
+          <span class="msg__icon" aria-hidden="true">
+            <svg class="icon icon--sm" viewBox="0 0 24 24">
+              <path d="M12 20h9" />
+              <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+            </svg>
+          </span>
+          <h2 class="margin__title">Clerk</h2>
+          <span class="margin__status"><span class="dot dot--green"></span>Ready</span>
+          <button class="icon-btn margin__close" id="close-margin" type="button" aria-label="Close clerk">
+            <svg class="icon icon--sm" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div class="margin-note">
+          <div class="margin-note__kicker margin-note__kicker--quiet">From the books</div>
+          <p class="margin-note__body">
+            Net income is <strong>up 29.6%</strong> from the prior period. Want me to draft a summary
+            you can send the team?
+          </p>
+          <div class="margin-note__actions">
+            <a
+              class="btn btn--primary btn--sm"
+              href="agent.html?ask=Summarize%20the%20P%26L%20for%20the%20team"
+            >
+              Draft summary
+            </a>
+            <button class="btn btn--ghost btn--sm" type="button" data-dismiss-note>Not now</button>
+          </div>
+        </div>
+
+        <div class="margin-note">
+          <div class="margin-note__kicker margin-note__kicker--quiet">Scheduled</div>
+          <div class="mini-list">
+            <div class="mini-row">
+              <div>
+                <div class="mini-row__title">Monthly P&amp;L</div>
+                <div class="mini-row__meta">First of the month at 8:00</div>
+              </div>
+              <button
+                class="switch"
+                type="button"
+                role="switch"
+                aria-checked="true"
+                aria-label="Pause monthly P&amp;L"
+                data-on="Monthly P&amp;L resumed."
+                data-off="Monthly P&amp;L paused."
+              ></button>
+            </div>
+          </div>
+          <div class="margin__foot">
+            <a class="link" href="agent.html#automations">Manage automations</a>
+          </div>
+        </div>
+
+        <div class="margin-note">
+          <div class="margin-note__kicker margin-note__kicker--quiet">Ask the clerk</div>
+          <form class="ask" id="ask-clerk-form">
+            <label class="sr-only" for="ask-clerk-input">Ask the clerk about your books</label>
+            <div class="ask__row">
+              <input
+                id="ask-clerk-input"
+                name="ask"
+                type="text"
+                placeholder="Ask about these reports"
+                autocomplete="off"
+              />
+              <button class="btn btn--primary btn--sm" type="submit">Ask</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="margin__foot">
+          <a class="link" href="agent.html#activity">View activity</a>
+        </div>
+      </aside>
+    </div>
+
+    <div class="scrim" id="scrim" aria-hidden="true"></div>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="app.js"></script>
+  </body>
+</html>

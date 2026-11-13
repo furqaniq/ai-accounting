@@ -1,0 +1,421 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Reconcile checking | Daybook</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@400;500;600;700&family=Petrona:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <div class="app-shell">
+      <aside class="spine" id="spine">
+        <a class="brand" href="index.html">
+          <svg class="brand__mark" viewBox="0 0 32 32" aria-hidden="true">
+            <rect class="mark-paper" x="4.5" y="3" width="23" height="26" rx="1" />
+            <path class="mark-rule" d="M9 9h14M9 14h14M9 19h9" />
+            <path class="mark-margin" d="M12 3v26" />
+          </svg>
+          <span>
+            <span class="brand__name">Daybook</span>
+            <span class="brand__sub">AI accounting</span>
+          </span>
+        </a>
+
+        <div class="org">
+          <button
+            class="org__button"
+            id="org-button"
+            type="button"
+            aria-expanded="false"
+            aria-controls="org-menu"
+          >
+            <span>
+              <span class="org__name">Acme Services Co.</span>
+              <span class="org__meta">Owner</span>
+            </span>
+            <svg class="icon icon--sm org__chevron" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </button>
+          <div class="org__menu" id="org-menu" hidden>
+            <button class="org__option" type="button" data-org="Acme Services Co.">
+              Acme Services Co.
+              <span>Owner</span>
+            </button>
+            <button class="org__option" type="button" data-org="Nimbus Retail LLC">
+              Nimbus Retail LLC
+              <span>Owner</span>
+            </button>
+          </div>
+        </div>
+
+        <nav class="nav" aria-label="Primary">
+          <a class="nav__item" href="index.html">
+            <svg class="icon nav__icon" viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="3" y="3" width="7" height="7" rx="1" />
+              <rect x="14" y="3" width="7" height="7" rx="1" />
+              <rect x="3" y="14" width="7" height="7" rx="1" />
+              <rect x="14" y="14" width="7" height="7" rx="1" />
+            </svg>
+            Overview
+          </a>
+          <a class="nav__item" href="invoices.html">
+            <svg class="icon nav__icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z" />
+              <path d="M14 3v6h6M8 13h8M8 17h5" />
+            </svg>
+            Invoices
+          </a>
+          <a class="nav__item is-active" href="reconcile.html" aria-current="page">
+            <svg class="icon nav__icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M3 21h18M5 21V9l7-5 7 5v12M9 21v-6h6v6" />
+            </svg>
+            Banking
+          </a>
+          <a class="nav__item" href="reports.html">
+            <svg class="icon nav__icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
+            </svg>
+            Reports
+          </a>
+          <a
+            class="nav__item"
+            href="agent.html"
+            id="nav-clerk-link"
+            aria-label="Clerk, 2 pending approvals"
+          >
+            <svg class="icon nav__icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 20h9" />
+              <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+            </svg>
+            Clerk
+            <span class="nav__badge" id="nav-approval-count">2</span>
+          </a>
+        </nav>
+
+        <div class="spine__foot">
+          <div class="user">
+            <div class="avatar" aria-hidden="true">MC</div>
+            <div>
+              <div class="user__name">Maya Chen</div>
+              <div class="user__role">Owner</div>
+            </div>
+            <div class="user__actions">
+              <button
+                class="icon-btn"
+                type="button"
+                aria-label="Account settings"
+                data-toast="Account settings are not part of this UI sample."
+              >
+                <svg class="icon icon--sm" viewBox="0 0 24 24" aria-hidden="true">
+                  <circle cx="12" cy="12" r="3" />
+                  <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.7 2.7-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6V21h-4v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.4 17l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H3v-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.3 7 7 4.3l.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.6V3h4v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.7 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.1v4h-.1a1.7 1.7 0 0 0-1.5 1Z" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <div class="workspace">
+        <header class="topbar">
+          <button
+            class="icon-btn menu-toggle"
+            id="menu-toggle"
+            type="button"
+            aria-label="Open navigation"
+            aria-expanded="false"
+            aria-controls="spine"
+          >
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 7h16M4 12h16M4 17h16" />
+            </svg>
+          </button>
+
+          <form class="search" role="search" data-search>
+            <span class="search__icon">
+              <svg class="icon icon--sm" viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="11" cy="11" r="7" />
+                <path d="m20 20-4-4" />
+              </svg>
+            </span>
+            <label class="sr-only" for="global-search">Search</label>
+            <input
+              id="global-search"
+              type="search"
+              placeholder="Search invoices, bills, contacts"
+              autocomplete="off"
+            />
+          </form>
+
+          <div class="topbar__right">
+            <button
+              class="btn btn--outline btn--sm clerk-toggle"
+              id="clerk-toggle"
+              type="button"
+              aria-controls="margin"
+              aria-expanded="false"
+            >
+              <svg class="icon icon--sm" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 20h9" />
+                <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+              </svg>
+              <span>Clerk</span>
+              <span class="clerk-toggle__count" id="clerk-approval-count">2</span>
+            </button>
+          </div>
+        </header>
+
+        <main class="page" id="main">
+          <header class="page-head">
+            <div>
+              <h1>Reconcile checking</h1>
+              <p class="page-head__meta">
+                Statement period Nov 1 to Nov 12, 2026. Checking 2480.
+              </p>
+            </div>
+            <div class="page-head__actions">
+              <button
+                class="btn btn--outline"
+                type="button"
+                data-toast="CSV import is not part of this UI sample."
+              >
+                Import CSV
+              </button>
+            </div>
+          </header>
+
+          <div class="steps" aria-label="Reconciliation steps">
+            <div class="step is-done" id="step-import">
+              <span class="step__number">1</span>
+              Import
+            </div>
+            <span class="step__line" aria-hidden="true"></span>
+            <div class="step is-active" id="step-match">
+              <span class="step__number">2</span>
+              Match
+            </div>
+            <span class="step__line" aria-hidden="true"></span>
+            <div class="step" id="step-finish">
+              <span class="step__number">3</span>
+              Finish
+            </div>
+          </div>
+
+          <div class="reconcile-summary">
+            <div class="reconcile-summary__item">
+              <div class="reconcile-summary__label">Statement ending balance</div>
+              <div class="reconcile-summary__value">$42,180.22</div>
+            </div>
+            <div class="reconcile-summary__item">
+              <div class="reconcile-summary__label">Cleared balance</div>
+              <div class="reconcile-summary__value" id="cleared-value">$40,920.22</div>
+            </div>
+            <div class="reconcile-summary__item">
+              <div class="reconcile-summary__label">Difference</div>
+              <div class="reconcile-summary__value is-difference" id="difference-value">
+                $1,260.00
+              </div>
+            </div>
+          </div>
+
+          <section class="section" aria-labelledby="transactions-title">
+            <div class="section__head">
+              <h2 class="section__title" id="transactions-title">Transactions</h2>
+              <span class="section__meta">Nov 1 to Nov 12</span>
+            </div>
+
+            <div class="table-scroll">
+              <table class="data-table">
+                <caption class="sr-only">
+                  Imported bank transactions with suggested matches and cleared state
+                </caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Date</th>
+                    <th scope="col">Description</th>
+                    <th scope="col" class="num">Amount</th>
+                    <th scope="col">Match</th>
+                    <th scope="col" class="action">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Nov 12</td>
+                    <td>ACME WIRE 4471</td>
+                    <td class="num">+$1,000.00</td>
+                    <td>
+                      <span class="match-suggested"><span class="dot dot--amber"></span>Suggested</span>
+                      <span class="match-detail">Invoice #1038, Northwind Supply</span>
+                    </td>
+                    <td class="action">
+                      <button
+                        class="btn btn--outline btn--sm js-match"
+                        type="button"
+                        data-amount="1000"
+                        data-target="Invoice #1038, Northwind Supply"
+                      >
+                        Match
+                      </button>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Nov 12</td>
+                    <td>CHECK 2041</td>
+                    <td class="num">+$160.00</td>
+                    <td>
+                      <span class="match-suggested"><span class="dot dot--amber"></span>Suggested</span>
+                      <span class="match-detail">Invoice #1041, Harbor Studio</span>
+                    </td>
+                    <td class="action">
+                      <button
+                        class="btn btn--outline btn--sm js-match"
+                        type="button"
+                        data-amount="160"
+                        data-target="Invoice #1041, Harbor Studio"
+                      >
+                        Match
+                      </button>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Nov 11</td>
+                    <td>CARD CREDIT</td>
+                    <td class="num">+$100.00</td>
+                    <td>
+                      <span class="match-suggested"><span class="dot dot--amber"></span>Suggested</span>
+                      <span class="match-detail">Halden Paper refund</span>
+                    </td>
+                    <td class="action">
+                      <button
+                        class="btn btn--outline btn--sm js-match"
+                        type="button"
+                        data-amount="100"
+                        data-target="Halden Paper refund"
+                      >
+                        Match
+                      </button>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Nov 11</td>
+                    <td>FUEL STOP 882</td>
+                    <td class="num">−$64.20</td>
+                    <td><span class="match-detail">Rule applied: Fuel</span></td>
+                    <td class="action">
+                      <span class="status status--paid"><span class="dot"></span>Cleared</span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Nov 10</td>
+                    <td>BANK FEE</td>
+                    <td class="num">−$18.00</td>
+                    <td><span class="match-detail">Rule applied: Bank fees</span></td>
+                    <td class="action">
+                      <span class="status status--paid"><span class="dot"></span>Cleared</span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Nov 9</td>
+                    <td>PAYROLL NOV</td>
+                    <td class="num">−$8,400.00</td>
+                    <td><span class="match-detail">Matched to payroll run</span></td>
+                    <td class="action">
+                      <span class="status status--paid"><span class="dot"></span>Cleared</span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="reconcile-foot">
+              <p class="reconcile-foot__text">
+                The difference must be $0.00 before you can finish.
+              </p>
+              <button class="btn btn--primary" type="button" id="finish-reconcile" disabled>
+                Finish reconciliation
+              </button>
+            </div>
+          </section>
+        </main>
+      </div>
+
+      <aside class="margin" id="margin" aria-label="Clerk">
+        <div class="margin__head">
+          <span class="msg__icon" aria-hidden="true">
+            <svg class="icon icon--sm" viewBox="0 0 24 24">
+              <path d="M12 20h9" />
+              <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+            </svg>
+          </span>
+          <h2 class="margin__title">Clerk</h2>
+          <span class="margin__status"><span class="dot dot--green"></span>Ready</span>
+          <button class="icon-btn margin__close" id="close-margin" type="button" aria-label="Close clerk">
+            <svg class="icon icon--sm" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div class="margin-note">
+          <div class="margin-note__kicker margin-note__kicker--amber">
+            <span class="dot dot--amber"></span>Matches ready
+          </div>
+          <p class="margin-note__body" id="match-note">
+            I found 3 matches for the Nov 12 deposits. Applying them will bring the difference to
+            $0.00.
+          </p>
+          <div class="margin-note__actions">
+            <button class="btn btn--primary btn--sm" type="button" data-apply-all>
+              Apply all three
+            </button>
+            <button class="btn btn--ghost btn--sm" type="button" data-review-match>
+              Review one by one
+            </button>
+          </div>
+        </div>
+
+        <div class="margin-note">
+          <div class="margin-note__kicker margin-note__kicker--quiet">Rules applied</div>
+          <p class="margin-note__body">
+            Fuel Stop 882 and the monthly bank fee were categorized on import. Both are cleared.
+          </p>
+        </div>
+
+        <div class="margin-note">
+          <div class="margin-note__kicker margin-note__kicker--quiet">Ask the clerk</div>
+          <form class="ask" id="ask-clerk-form">
+            <label class="sr-only" for="ask-clerk-input">Ask the clerk about your books</label>
+            <div class="ask__row">
+              <input
+                id="ask-clerk-input"
+                name="ask"
+                type="text"
+                placeholder="Ask about this reconciliation"
+                autocomplete="off"
+              />
+              <button class="btn btn--primary btn--sm" type="submit">Ask</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="margin__foot">
+          <a class="link" href="agent.html#activity">View activity</a>
+        </div>
+      </aside>
+    </div>
+
+    <div class="scrim" id="scrim" aria-hidden="true"></div>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="app.js"></script>
+  </body>
+</html>

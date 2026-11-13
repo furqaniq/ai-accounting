@@ -1,0 +1,387 @@
+:root {
+  --paper: #edf1e8;
+  --surface: #f8faf4;
+  --surface-2: #e3eade;
+  --ink: #16251d;
+  --ink-soft: #526257;
+  --ink-faint: #7b8a80;
+  --rule: #c9d2c6;
+  --rule-strong: #a7b6a5;
+  --ledger: #1f5a43;
+  --ledger-deep: #123a2c;
+  --red-ink: #b23a2f;
+  --red-wash: #f3e5e1;
+  --font-ui: 'Familjen Grotesk', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Petrona', ui-serif, Georgia, serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+:focus-visible {
+  outline: 2px solid var(--red-ink);
+  outline-offset: 2px;
+}
+
+/* ---------- shared ---------- */
+
+.wordmark {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--ledger-deep);
+}
+
+.btn {
+  display: inline-block;
+  border: 1px solid var(--ledger);
+  background: var(--ledger);
+  color: #f4f7f1;
+  border-radius: 3px;
+  padding: 9px 18px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+.btn:hover {
+  background: var(--ledger-deep);
+  text-decoration: none;
+}
+
+.btn[disabled] {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.btn-quiet {
+  background: transparent;
+  color: var(--ledger);
+}
+
+.btn-quiet:hover {
+  background: var(--surface-2);
+  color: var(--ledger-deep);
+}
+
+/* ---------- login ---------- */
+
+.login-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 32px 16px;
+}
+
+.login-block {
+  width: min(380px, 100%);
+  background: var(--surface);
+  border: 1px solid var(--rule-strong);
+  border-top: 4px solid var(--ledger);
+  padding: 32px 30px 26px;
+}
+
+.login-block h1 {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 500;
+  margin: 10px 0 20px;
+}
+
+.login-block form {
+  display: grid;
+  gap: 14px;
+}
+
+.login-block label {
+  display: grid;
+  gap: 5px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-soft);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.login-block input {
+  border: none;
+  border-bottom: 1.5px solid var(--rule-strong);
+  background: transparent;
+  padding: 8px 2px;
+  font-size: 15px;
+}
+
+.login-block input:focus {
+  outline: none;
+  border-bottom-color: var(--ledger);
+}
+
+.login-error {
+  color: var(--red-ink);
+  background: var(--red-wash);
+  border-left: 3px solid var(--red-ink);
+  padding: 8px 10px;
+  font-size: 14px;
+}
+
+.login-block .btn {
+  margin-top: 6px;
+  width: 100%;
+  padding: 11px;
+}
+
+.login-hint {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--rule);
+  font-size: 13px;
+  color: var(--ink-faint);
+}
+
+/* ---------- shell ---------- */
+
+.shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 224px minmax(0, 1fr) 304px;
+}
+
+.spine {
+  background: var(--ledger-deep);
+  color: #dfe9df;
+  display: flex;
+  flex-direction: column;
+  padding: 22px 0 16px;
+}
+
+.spine .wordmark {
+  color: #f2f6ee;
+  padding: 0 20px 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.spine nav {
+  display: grid;
+  gap: 2px;
+  padding: 14px 10px;
+  flex: 1;
+  align-content: start;
+}
+
+.spine nav a {
+  padding: 8px 12px;
+  border-radius: 3px;
+  font-size: 14px;
+  color: #c6d4c7;
+}
+
+.spine nav a:hover {
+  background: rgba(255, 255, 255, 0.08);
+  text-decoration: none;
+}
+
+.spine nav a[aria-current='page'] {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  font-weight: 500;
+}
+
+.spine-foot {
+  padding: 14px 20px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+  font-size: 13px;
+  color: #9db3a2;
+  display: grid;
+  gap: 8px;
+}
+
+.spine-foot button {
+  justify-self: start;
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #dfe9df;
+  border-radius: 3px;
+  padding: 5px 12px;
+  font-size: 13px;
+}
+
+.spine-foot button:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.main {
+  padding: 30px 36px 48px;
+  background: var(--paper);
+  min-width: 0;
+}
+
+.page-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 2px double var(--rule-strong);
+  padding-bottom: 14px;
+  margin-bottom: 22px;
+}
+
+.page-head h1 {
+  font-family: var(--font-display);
+  font-size: 30px;
+  font-weight: 500;
+}
+
+.page-head .org {
+  font-size: 14px;
+  color: var(--ink-soft);
+}
+
+.role-pill {
+  display: inline-block;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ledger-deep);
+  background: var(--surface-2);
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  padding: 2px 10px;
+  margin-left: 8px;
+}
+
+.ruled {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+}
+
+.ruled-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 13px 18px;
+  border-bottom: 1px solid var(--rule);
+  font-size: 14px;
+}
+
+.ruled-row:last-child {
+  border-bottom: none;
+}
+
+.ruled-row .label {
+  color: var(--ink-soft);
+}
+
+.ruled-row .value {
+  font-family: var(--font-display);
+  font-size: 17px;
+}
+
+.note {
+  margin-top: 22px;
+  font-size: 14px;
+  color: var(--ink-soft);
+  max-width: 56ch;
+}
+
+.clerk {
+  border-left: 2px solid var(--red-ink);
+  background: var(--surface);
+  padding: 30px 24px;
+}
+
+.clerk-head {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--red-ink);
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: 12px;
+  margin-bottom: 14px;
+}
+
+.clerk-note {
+  font-size: 14px;
+  color: var(--ink-soft);
+}
+
+/* ---------- responsive ---------- */
+
+@media (max-width: 1120px) {
+  .shell {
+    grid-template-columns: 224px minmax(0, 1fr);
+  }
+
+  .clerk {
+    display: none;
+  }
+}
+
+@media (max-width: 860px) {
+  .shell {
+    grid-template-columns: 1fr;
+  }
+
+  .spine {
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap;
+    padding: 12px 14px;
+    gap: 10px;
+  }
+
+  .spine .wordmark {
+    padding: 0;
+    border-bottom: none;
+    font-size: 19px;
+  }
+
+  .spine nav {
+    display: flex;
+    flex-wrap: wrap;
+    padding: 0;
+    gap: 4px;
+  }
+
+  .spine-foot {
+    border-top: none;
+    padding: 0;
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .main {
+    padding: 22px 18px 40px;
+  }
+}

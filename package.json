@@ -1,0 +1,14 @@
+{
+  "name": "daybook",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "test:e2e": "playwright test",
+    "backend:test": "npm --prefix backend test",
+    "backend:build": "npm --prefix backend run build",
+    "frontend:build": "npm --prefix frontend run build"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.65.0"
+  }
+}

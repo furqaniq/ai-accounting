@@ -1,0 +1,501 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Invoices | Daybook</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@400;500;600;700&family=Petrona:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body class="page-print-invoice">
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <div class="app-shell">
+      <aside class="spine" id="spine">
+        <a class="brand" href="index.html">
+          <svg class="brand__mark" viewBox="0 0 32 32" aria-hidden="true">
+            <rect class="mark-paper" x="4.5" y="3" width="23" height="26" rx="1" />
+            <path class="mark-rule" d="M9 9h14M9 14h14M9 19h9" />
+            <path class="mark-margin" d="M12 3v26" />
+          </svg>
+          <span>
+            <span class="brand__name">Daybook</span>
+            <span class="brand__sub">AI accounting</span>
+          </span>
+        </a>
+
+        <div class="org">
+          <button
+            class="org__button"
+            id="org-button"
+            type="button"
+            aria-expanded="false"
+            aria-controls="org-menu"
+          >
+            <span>
+              <span class="org__name">Acme Services Co.</span>
+              <span class="org__meta">Owner</span>
+            </span>
+            <svg class="icon icon--sm org__chevron" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </button>
+          <div class="org__menu" id="org-menu" hidden>
+            <button class="org__option" type="button" data-org="Acme Services Co.">
+              Acme Services Co.
+              <span>Owner</span>
+            </button>
+            <button class="org__option" type="button" data-org="Nimbus Retail LLC">
+              Nimbus Retail LLC
+              <span>Owner</span>
+            </button>
+          </div>
+        </div>
+
+        <nav class="nav" aria-label="Primary">
+          <a class="nav__item" href="index.html">
+            <svg class="icon nav__icon" viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="3" y="3" width="7" height="7" rx="1" />
+              <rect x="14" y="3" width="7" height="7" rx="1" />
+              <rect x="3" y="14" width="7" height="7" rx="1" />
+              <rect x="14" y="14" width="7" height="7" rx="1" />
+            </svg>
+            Overview
+          </a>
+          <a class="nav__item is-active" href="invoices.html" aria-current="page">
+            <svg class="icon nav__icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z" />
+              <path d="M14 3v6h6M8 13h8M8 17h5" />
+            </svg>
+            Invoices
+          </a>
+          <a class="nav__item" href="reconcile.html">
+            <svg class="icon nav__icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M3 21h18M5 21V9l7-5 7 5v12M9 21v-6h6v6" />
+            </svg>
+            Banking
+          </a>
+          <a class="nav__item" href="reports.html">
+            <svg class="icon nav__icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
+            </svg>
+            Reports
+          </a>
+          <a
+            class="nav__item"
+            href="agent.html"
+            id="nav-clerk-link"
+            aria-label="Clerk, 2 pending approvals"
+          >
+            <svg class="icon nav__icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 20h9" />
+              <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+            </svg>
+            Clerk
+            <span class="nav__badge" id="nav-approval-count">2</span>
+          </a>
+        </nav>
+
+        <div class="spine__foot">
+          <div class="user">
+            <div class="avatar" aria-hidden="true">MC</div>
+            <div>
+              <div class="user__name">Maya Chen</div>
+              <div class="user__role">Owner</div>
+            </div>
+            <div class="user__actions">
+              <button
+                class="icon-btn"
+                type="button"
+                aria-label="Account settings"
+                data-toast="Account settings are not part of this UI sample."
+              >
+                <svg class="icon icon--sm" viewBox="0 0 24 24" aria-hidden="true">
+                  <circle cx="12" cy="12" r="3" />
+                  <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.7 2.7-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6V21h-4v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.4 17l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H3v-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.3 7 7 4.3l.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.6V3h4v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.7 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.1v4h-.1a1.7 1.7 0 0 0-1.5 1Z" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <div class="workspace">
+        <header class="topbar">
+          <button
+            class="icon-btn menu-toggle"
+            id="menu-toggle"
+            type="button"
+            aria-label="Open navigation"
+            aria-expanded="false"
+            aria-controls="spine"
+          >
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 7h16M4 12h16M4 17h16" />
+            </svg>
+          </button>
+
+          <form class="search" role="search" data-search>
+            <span class="search__icon">
+              <svg class="icon icon--sm" viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="11" cy="11" r="7" />
+                <path d="m20 20-4-4" />
+              </svg>
+            </span>
+            <label class="sr-only" for="global-search">Search</label>
+            <input
+              id="global-search"
+              type="search"
+              placeholder="Search invoices, bills, contacts"
+              autocomplete="off"
+            />
+          </form>
+
+          <div class="topbar__right">
+            <button
+              class="btn btn--outline btn--sm clerk-toggle"
+              id="clerk-toggle"
+              type="button"
+              aria-controls="margin"
+              aria-expanded="false"
+            >
+              <svg class="icon icon--sm" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 20h9" />
+                <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+              </svg>
+              <span>Clerk</span>
+              <span class="clerk-toggle__count" id="clerk-approval-count">2</span>
+            </button>
+          </div>
+        </header>
+
+        <main class="page" id="main">
+          <header class="page-head">
+            <div>
+              <h1>Invoices</h1>
+              <p class="page-head__meta">
+                9 invoices. $16,920.00 outstanding. As of November 13.
+              </p>
+            </div>
+            <div class="page-head__actions">
+              <button
+                class="btn btn--outline"
+                type="button"
+                data-toast="Invoice export is not part of this UI sample."
+              >
+                Export
+              </button>
+              <button
+                class="btn btn--primary"
+                type="button"
+                data-toast="The invoice editor is not part of this UI sample."
+              >
+                New invoice
+              </button>
+            </div>
+          </header>
+
+          <div class="stats">
+            <div class="stat">
+              <div class="stat__label">Outstanding</div>
+              <div class="stat__value">$16,920.00</div>
+            </div>
+            <div class="stat">
+              <div class="stat__label">Overdue</div>
+              <div class="stat__value is-negative">$4,800.00</div>
+            </div>
+            <div class="stat">
+              <div class="stat__label">Paid this month</div>
+              <div class="stat__value is-positive">$12,600.00</div>
+            </div>
+          </div>
+
+          <section class="invoice-list" aria-labelledby="invoice-list-title">
+            <h2 class="sr-only" id="invoice-list-title">Invoice list</h2>
+            <div class="filters" role="group" aria-label="Filter invoices">
+              <button class="filter" type="button" data-filter="all" aria-pressed="true">All</button>
+              <button class="filter" type="button" data-filter="Draft" aria-pressed="false">Draft</button>
+              <button class="filter" type="button" data-filter="Sent" aria-pressed="false">Sent</button>
+              <button class="filter" type="button" data-filter="Overdue" aria-pressed="false">Overdue</button>
+              <button class="filter" type="button" data-filter="Paid" aria-pressed="false">Paid</button>
+            </div>
+
+            <div class="table-scroll">
+              <table class="data-table invoice-table">
+                <caption class="sr-only">Invoices with status and amount due</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Invoice</th>
+                    <th scope="col">Customer</th>
+                    <th scope="col">Issued</th>
+                    <th scope="col">Due</th>
+                    <th scope="col">Status</th>
+                    <th scope="col" class="num">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    class="invoice-row is-selected"
+                    data-invoice="1042"
+                    data-status="Overdue"
+                    tabindex="0"
+                    aria-selected="true"
+                  >
+                    <td><button class="invoice-link" type="button">#1042</button></td>
+                    <td>Northwind Supply</td>
+                    <td>Oct 1, 2026</td>
+                    <td>Nov 1, 2026</td>
+                    <td><span class="status status--overdue"><span class="dot"></span>Overdue</span></td>
+                    <td class="num">$4,800.00</td>
+                  </tr>
+                  <tr class="invoice-row" data-invoice="1041" data-status="Sent" tabindex="0" aria-selected="false">
+                    <td><button class="invoice-link" type="button">#1041</button></td>
+                    <td>Harbor Studio</td>
+                    <td>Sep 28, 2026</td>
+                    <td>Nov 27, 2026</td>
+                    <td><span class="status status--sent"><span class="dot"></span>Sent</span></td>
+                    <td class="num">$3,200.00</td>
+                  </tr>
+                  <tr class="invoice-row" data-invoice="1040" data-status="Sent" tabindex="0" aria-selected="false">
+                    <td><button class="invoice-link" type="button">#1040</button></td>
+                    <td>Meridian Foods</td>
+                    <td>Sep 24, 2026</td>
+                    <td>Nov 23, 2026</td>
+                    <td><span class="status status--sent"><span class="dot"></span>Sent</span></td>
+                    <td class="num">$2,640.00</td>
+                  </tr>
+                  <tr class="invoice-row" data-invoice="1039" data-status="Sent" tabindex="0" aria-selected="false">
+                    <td><button class="invoice-link" type="button">#1039</button></td>
+                    <td>Juniper Design</td>
+                    <td>Sep 20, 2026</td>
+                    <td>Nov 19, 2026</td>
+                    <td><span class="status status--sent"><span class="dot"></span>Sent</span></td>
+                    <td class="num">$5,280.00</td>
+                  </tr>
+                  <tr class="invoice-row" data-invoice="1038" data-status="Sent" tabindex="0" aria-selected="false">
+                    <td><button class="invoice-link" type="button">#1038</button></td>
+                    <td>Northwind Supply</td>
+                    <td>Sep 15, 2026</td>
+                    <td>Nov 14, 2026</td>
+                    <td><span class="status status--sent"><span class="dot"></span>Sent</span></td>
+                    <td class="num">$1,000.00</td>
+                  </tr>
+                  <tr class="invoice-row" data-invoice="1034" data-status="Draft" tabindex="0" aria-selected="false">
+                    <td><button class="invoice-link" type="button">#1034</button></td>
+                    <td>Juniper Design</td>
+                    <td>Sep 3, 2026</td>
+                    <td>Nov 17, 2026</td>
+                    <td><span class="status status--draft"><span class="dot"></span>Draft</span></td>
+                    <td class="num">$1,500.00</td>
+                  </tr>
+                  <tr class="invoice-row" data-invoice="1037" data-status="Paid" tabindex="0" aria-selected="false">
+                    <td><button class="invoice-link" type="button">#1037</button></td>
+                    <td>Cedar &amp; Co.</td>
+                    <td>Sep 12, 2026</td>
+                    <td>Oct 12, 2026</td>
+                    <td><span class="status status--paid"><span class="dot"></span>Paid</span></td>
+                    <td class="num">$2,300.00</td>
+                  </tr>
+                  <tr class="invoice-row" data-invoice="1036" data-status="Paid" tabindex="0" aria-selected="false">
+                    <td><button class="invoice-link" type="button">#1036</button></td>
+                    <td>Meridian Foods</td>
+                    <td>Sep 8, 2026</td>
+                    <td>Oct 8, 2026</td>
+                    <td><span class="status status--paid"><span class="dot"></span>Paid</span></td>
+                    <td class="num">$1,860.00</td>
+                  </tr>
+                  <tr class="invoice-row" data-invoice="1033" data-status="Paid" tabindex="0" aria-selected="false">
+                    <td><button class="invoice-link" type="button">#1033</button></td>
+                    <td>Meridian Foods</td>
+                    <td>Aug 30, 2026</td>
+                    <td>Sep 30, 2026</td>
+                    <td><span class="status status--paid"><span class="dot"></span>Paid</span></td>
+                    <td class="num">$8,440.00</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="invoice-detail" aria-labelledby="detail-number">
+            <div class="invoice-detail__head">
+              <div>
+                <h2 id="detail-number">Invoice #1042</h2>
+                <p class="invoice-detail__meta">
+                  <span id="detail-issued">Issued Oct 1, 2026</span>.
+                  <span id="detail-due">Due Nov 1, 2026</span>.
+                  <span class="status status--overdue" id="detail-status"><span class="dot"></span>Overdue</span>
+                </p>
+              </div>
+              <div class="invoice-detail__actions">
+                <button class="btn btn--outline" type="button" id="print-invoice">Print or save PDF</button>
+                <button
+                  class="btn btn--outline"
+                  type="button"
+                  data-toast="Payment entry is not part of this UI sample."
+                >
+                  Record payment
+                </button>
+                <a class="btn btn--primary" href="agent.html#approvals">Send reminder</a>
+              </div>
+            </div>
+
+            <div class="invoice-parties">
+              <div>
+                <div class="party-label">Bill to</div>
+                <div class="party-name" id="detail-customer">Northwind Supply</div>
+                <div id="detail-address">
+                  <div class="party-line">Accounts payable</div>
+                  <div class="party-line">410 Cedar Street</div>
+                  <div class="party-line">Portland, OR 97205</div>
+                </div>
+              </div>
+              <div>
+                <div class="party-label">From</div>
+                <div class="party-name">Acme Services Co.</div>
+                <div class="party-line">88 Market Street</div>
+                <div class="party-line">Portland, OR 97205</div>
+                <div class="party-line">accounts@acme.test</div>
+              </div>
+            </div>
+
+            <table class="line-table">
+              <caption class="sr-only">Invoice line items</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Description</th>
+                  <th scope="col" class="num">Qty</th>
+                  <th scope="col" class="num">Rate</th>
+                  <th scope="col" class="num">Amount</th>
+                </tr>
+              </thead>
+              <tbody id="detail-lines">
+                <tr>
+                  <td>Consulting, October</td>
+                  <td class="num">32 h</td>
+                  <td class="num">$150.00</td>
+                  <td class="num">$4,800.00</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <div class="invoice-total">
+              <div class="invoice-total__box">
+                <div class="invoice-total__row">
+                  <span>Subtotal</span>
+                  <span id="detail-subtotal">$4,800.00</span>
+                </div>
+                <div class="invoice-total__row">
+                  <span>Tax</span>
+                  <span id="detail-tax">$0.00</span>
+                </div>
+                <div class="invoice-total__row invoice-total__row--total">
+                  <span>Total</span>
+                  <span id="detail-total">$4,800.00</span>
+                </div>
+              </div>
+            </div>
+
+            <p class="report-note" id="detail-payment">No payments recorded.</p>
+
+            <div class="timeline">
+              <div class="timeline__title">Activity</div>
+              <div class="timeline__list" id="detail-timeline">
+                <div class="timeline__item is-done">
+                  <div class="timeline__date">Oct 1, 2026</div>
+                  <div class="timeline__label">Draft</div>
+                </div>
+                <div class="timeline__item is-done">
+                  <div class="timeline__date">Oct 2, 2026</div>
+                  <div class="timeline__label">Sent</div>
+                </div>
+                <div class="timeline__item is-done">
+                  <div class="timeline__date">Nov 1, 2026</div>
+                  <div class="timeline__label">Due</div>
+                </div>
+                <div class="timeline__item is-done is-overdue">
+                  <div class="timeline__date">Nov 13, 2026</div>
+                  <div class="timeline__label">Overdue</div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </main>
+      </div>
+
+      <aside class="margin" id="margin" aria-label="Clerk">
+        <div class="margin__head">
+          <span class="msg__icon" aria-hidden="true">
+            <svg class="icon icon--sm" viewBox="0 0 24 24">
+              <path d="M12 20h9" />
+              <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+            </svg>
+          </span>
+          <h2 class="margin__title">Clerk</h2>
+          <span class="margin__status"><span class="dot dot--green"></span>Ready</span>
+          <button class="icon-btn margin__close" id="close-margin" type="button" aria-label="Close clerk">
+            <svg class="icon icon--sm" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div class="margin-note">
+          <div class="margin-note__kicker"><span class="dot dot--red"></span>Needs your approval</div>
+          <p class="margin-note__body">
+            Northwind Supply is <strong>12 days overdue</strong>. I drafted a reminder that links to
+            invoice #1042.
+          </p>
+          <div class="margin-note__actions">
+            <a class="btn btn--primary btn--sm" href="agent.html#approvals">Review draft</a>
+            <button class="btn btn--ghost btn--sm" type="button" data-dismiss-note>Not now</button>
+          </div>
+        </div>
+
+        <div class="margin-note">
+          <div class="margin-note__kicker margin-note__kicker--amber">
+            <span class="dot dot--amber"></span>Payment waiting
+          </div>
+          <p class="margin-note__body">
+            The ACME wire for <strong>$1,000.00</strong> matches invoice #1038. The check for
+            <strong>$160.00</strong> matches #1041.
+          </p>
+          <div class="margin-note__actions">
+            <a class="btn btn--outline btn--sm" href="reconcile.html">Open reconciliation</a>
+          </div>
+        </div>
+
+        <div class="margin-note">
+          <div class="margin-note__kicker margin-note__kicker--quiet">Ask the clerk</div>
+          <form class="ask" id="ask-clerk-form">
+            <label class="sr-only" for="ask-clerk-input">Ask the clerk about your books</label>
+            <div class="ask__row">
+              <input
+                id="ask-clerk-input"
+                name="ask"
+                type="text"
+                placeholder="Ask about this invoice"
+                autocomplete="off"
+              />
+              <button class="btn btn--primary btn--sm" type="submit">Ask</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="margin__foot">
+          <a class="link" href="agent.html#activity">View activity</a>
+        </div>
+      </aside>
+    </div>
+
+    <div class="scrim" id="scrim" aria-hidden="true"></div>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="app.js"></script>
+  </body>
+</html>
