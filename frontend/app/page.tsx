@@ -116,8 +116,8 @@ export default function OverviewPage() {
 
   if (!user) {
     return (
-      <main className="login-page">
-        <p className="login-hint">Loading…</p>
+      <main className="app-loading">
+        <p className="app-loading__hint">Loading…</p>
       </main>
     );
   }
