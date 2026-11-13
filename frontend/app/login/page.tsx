@@ -75,10 +75,10 @@ export default function LoginPage() {
 
         <div className="login-statement" aria-hidden="true">
           <p className="login-kicker">Open books</p>
-          <h2>Open the daybook.</h2>
+          <h2>Today&apos;s page is waiting.</h2>
           <p>
-            Two organizations, five roles, one set of books — with Clerk, your
-            agent, keeping every entry in its place.
+            Invoices, bills, and bank reconciliation in one ledger — with
+            Clerk, your agent, keeping every entry in its place.
           </p>
         </div>
 
