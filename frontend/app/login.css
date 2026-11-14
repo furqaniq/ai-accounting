@@ -30,7 +30,7 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  right: 30px;
+  left: 30px;
   width: 2px;
   background: rgba(178, 58, 47, 0.9);
 }
