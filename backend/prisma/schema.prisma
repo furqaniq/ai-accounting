@@ -40,6 +40,7 @@ model Organization {
   items                Item[]
   invoices             Invoice[]
   estimates            Estimate[]
+  payments             Payment[]
 }
 
 model Account {
@@ -130,6 +131,7 @@ model Customer {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   invoices       Invoice[]
   estimates      Estimate[]
+  payments       Payment[]
 
   @@unique([organizationId, code])
   @@index([organizationId, name])
@@ -164,27 +166,28 @@ enum InvoiceStatus {
 }
 
 model Invoice {
-  id             String        @id @default(cuid())
-  organizationId String
-  number         String
-  customerId     String
-  status         InvoiceStatus @default(DRAFT)
-  issueDate      DateTime      @db.Date
-  dueDate        DateTime      @db.Date
-  sentAt         DateTime?
-  paidAt         DateTime?
-  taxRate        Decimal       @default(0) @db.Decimal(5, 4)
-  subtotal       Decimal       @default(0) @db.Decimal(14, 2)
-  taxTotal       Decimal       @default(0) @db.Decimal(14, 2)
-  total          Decimal       @default(0) @db.Decimal(14, 2)
-  amountPaid     Decimal       @default(0) @db.Decimal(14, 2)
-  notes          String?
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  customer       Customer      @relation(fields: [customerId], references: [id])
-  lines          InvoiceLine[]
-  sourceEstimate Estimate?
+  id                  String               @id @default(cuid())
+  organizationId      String
+  number              String
+  customerId          String
+  status              InvoiceStatus        @default(DRAFT)
+  issueDate           DateTime             @db.Date
+  dueDate             DateTime             @db.Date
+  sentAt              DateTime?
+  paidAt              DateTime?
+  taxRate             Decimal              @default(0) @db.Decimal(5, 4)
+  subtotal            Decimal              @default(0) @db.Decimal(14, 2)
+  taxTotal            Decimal              @default(0) @db.Decimal(14, 2)
+  total               Decimal              @default(0) @db.Decimal(14, 2)
+  amountPaid          Decimal              @default(0) @db.Decimal(14, 2)
+  notes               String?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  organization        Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer            Customer             @relation(fields: [customerId], references: [id])
+  lines               InvoiceLine[]
+  sourceEstimate      Estimate?
+  paymentApplications PaymentApplication[]
 
   @@unique([organizationId, number])
   @@index([organizationId, status, dueDate])
@@ -262,6 +265,56 @@ model EstimateLine {
 
   @@index([organizationId, estimateId])
   @@index([organizationId, itemId])
+}
+
+enum PaymentDirection {
+  RECEIVED
+  SENT
+}
+
+enum PaymentMethod {
+  CASH
+  CHECK
+  BANK_TRANSFER
+  CARD
+  OTHER
+}
+
+model Payment {
+  id             String               @id @default(cuid())
+  organizationId String
+  number         String
+  direction      PaymentDirection     @default(RECEIVED)
+  customerId     String
+  date           DateTime             @db.Date
+  amount         Decimal              @db.Decimal(14, 2)
+  method         PaymentMethod        @default(BANK_TRANSFER)
+  reference      String?
+  notes          String?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  organization   Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer       Customer             @relation(fields: [customerId], references: [id])
+  applications   PaymentApplication[]
+
+  @@unique([organizationId, number])
+  @@index([organizationId, date])
+  @@index([organizationId, customerId])
+}
+
+model PaymentApplication {
+  id             String   @id @default(cuid())
+  organizationId String
+  paymentId      String
+  invoiceId      String
+  amount         Decimal  @db.Decimal(14, 2)
+  createdAt      DateTime @default(now())
+  payment        Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  invoice        Invoice  @relation(fields: [invoiceId], references: [id])
+
+  @@unique([paymentId, invoiceId])
+  @@index([organizationId, paymentId])
+  @@index([organizationId, invoiceId])
 }
 
 model User {

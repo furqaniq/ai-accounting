@@ -7,7 +7,9 @@ function cleanTestRows(): void {
     `(SELECT "convertedInvoiceId" FROM "Estimate" WHERE notes LIKE 'E2E estimate%'); ` +
     `UPDATE "Estimate" SET "convertedInvoiceId" = NULL WHERE notes LIKE 'E2E estimate%'; ` +
     `DELETE FROM "Invoice" WHERE notes LIKE 'E2E estimate%'; ` +
-    `DELETE FROM "Estimate" WHERE notes LIKE 'E2E estimate%';`;
+    `DELETE FROM "Estimate" WHERE notes LIKE 'E2E estimate%'; ` +
+    `DELETE FROM "JournalEntry" WHERE "sourceType" = 'INVOICE' AND "sourceId" IS NOT NULL ` +
+    `AND NOT EXISTS (SELECT 1 FROM "Invoice" i WHERE i.id = "JournalEntry"."sourceId");`;
   execFileSync(
     'docker',
     ['compose', 'exec', '-T', 'postgres', 'psql', '-U', 'daybook', '-d', 'daybook', '-c', sql],

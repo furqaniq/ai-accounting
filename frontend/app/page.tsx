@@ -428,6 +428,14 @@ export default function OverviewPage() {
               </svg>
               Invoices
             </a>
+            <a className="nav__item" href="/payments">
+              <svg className="icon nav__icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M3 7h18v10H3z" />
+                <path d="M3 10h18" />
+                <circle cx="17" cy="14" r="1.2" />
+              </svg>
+              Payments
+            </a>
             <a
               className="nav__item"
               href="#"

@@ -8,13 +8,21 @@ import { CustomersController } from './customers.controller';
 import { CustomersService } from './customers.service';
 import { ItemsController } from './items.controller';
 import { ItemsService } from './items.service';
+import { PaymentsController } from './payments.controller';
+import { PaymentsService } from './payments.service';
 import { InvoicePdfService } from './invoice-pdf.service';
 import { InvoicesController } from './invoices.controller';
 import { InvoicesService } from './invoices.service';
 
 @Module({
   imports: [TenantModule, LedgerModule],
-  controllers: [CustomersController, ItemsController, InvoicesController, EstimatesController],
+  controllers: [
+    CustomersController,
+    ItemsController,
+    InvoicesController,
+    EstimatesController,
+    PaymentsController,
+  ],
   providers: [
     CustomerBalanceService,
     CustomersService,
@@ -22,6 +30,7 @@ import { InvoicesService } from './invoices.service';
     InvoicesService,
     InvoicePdfService,
     EstimatesService,
+    PaymentsService,
   ],
 })
 export class SalesModule {}

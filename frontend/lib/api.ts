@@ -832,3 +832,89 @@ export async function downloadInvoicePdf(
   const filename = /filename="([^"]+)"/.exec(disposition)?.[1] ?? 'invoice.pdf';
   return { blob: await res.blob(), filename };
 }
+
+export type PaymentMethod = 'CASH' | 'CHECK' | 'BANK_TRANSFER' | 'CARD' | 'OTHER';
+
+export interface PaymentApplication {
+  id: string;
+  invoiceId: string;
+  amount: number;
+  invoice: {
+    id: string;
+    number: string;
+    status: InvoiceStatus;
+    total: number;
+    amountPaid: number;
+    balanceDue: number;
+  };
+}
+
+export interface Payment {
+  id: string;
+  number: string;
+  direction: 'RECEIVED' | 'SENT';
+  customerId: string;
+  customer: {
+    id: string;
+    code: string;
+    name: string;
+    email: string | null;
+  };
+  date: string;
+  amount: number;
+  method: PaymentMethod;
+  reference: string | null;
+  notes: string | null;
+  applications: PaymentApplication[];
+  createdAt: string;
+}
+
+export interface PaymentInput {
+  customerId: string;
+  date?: string;
+  amount: number;
+  method?: PaymentMethod;
+  reference?: string;
+  notes?: string;
+  applications: Array<{ invoiceId: string; amount: number }>;
+}
+
+export async function fetchPayments(
+  organizationId: string,
+  filters: { customerId?: string; search?: string } = {},
+): Promise<Payment[]> {
+  const params = new URLSearchParams();
+  if (filters.customerId) params.set('customerId', filters.customerId);
+  if (filters.search) params.set('search', filters.search);
+  const query = params.toString();
+  const res = await fetch(`${API_URL}/payments${query ? `?${query}` : ''}`, {
+    headers: authHeaders(organizationId),
+  });
+  if (!res.ok) throw new Error('Payments are not available');
+  const body = (await res.json()) as { payments: Payment[] };
+  return body.payments;
+}
+
+export async function fetchPayment(
+  organizationId: string,
+  paymentId: string,
+): Promise<Payment> {
+  const res = await fetch(`${API_URL}/payments/${paymentId}`, {
+    headers: authHeaders(organizationId),
+  });
+  if (!res.ok) throw new Error('That payment is not available');
+  return res.json();
+}
+
+export async function createPayment(
+  organizationId: string,
+  input: PaymentInput,
+): Promise<Payment> {
+  const res = await fetch(`${API_URL}/payments`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders(organizationId) },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not record that payment'));
+  return res.json();
+}

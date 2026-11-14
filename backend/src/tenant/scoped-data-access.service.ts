@@ -13,7 +13,9 @@ type ScopedModel =
   | 'invoice'
   | 'invoiceLine'
   | 'estimate'
-  | 'estimateLine';
+  | 'estimateLine'
+  | 'payment'
+  | 'paymentApplication';
 
 interface FindArgs {
   where?: Record<string, unknown>;
