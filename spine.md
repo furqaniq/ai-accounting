@@ -20,8 +20,8 @@ Living progress record for the Daybook build. Source of truth remains `Requireme
 | 002 | tenant-isolation-org-switching | AFK | done — approved, 003 in progress |
 | 003 | members-rbac | AFK | done |
 | 004 | org-settings-audit-log | AFK | done |
-| 005 | chart-of-accounts | AFK | done — awaiting go-ahead for 006 |
-| 006 | manual-journals-register | AFK | not started |
+| 005 | chart-of-accounts | AFK | done |
+| 006 | manual-journals-register | AFK | done — awaiting go-ahead for 007 |
 | 007 | customers-items | AFK | not started |
 | 008 | invoices | AFK | not started |
 | 009 | estimates-to-invoice | AFK | not started |
@@ -66,9 +66,10 @@ Living progress record for the Daybook build. Source of truth remains `Requireme
 | 2026-11-14 | 003 | Members & RBAC: role→permission matrix enforced in `JwtAuthGuard` via `@RequirePermission` (owner/admin manage; accountant/staff/viewer read-only), `POST/PATCH/DELETE /memberships` with unknown-user 404, duplicate 409, last-owner 400, `AuditLogEntry` model + request-scoped `AuditService` recording membership.create/role_change/delete, tenant-scoped `GET /audit-log` guarded by `audit:read`, ledger-styled members drawer with role selects, add form and remove; read-only view for non-managers | Jest 30 passed (13 members + 10 tenant + 7 auth); Playwright 5 passed (members drawer + org switching + login) | github.com/furqaniq/ai-accounting |
 | 2026-11-14 | 004 | Org settings + audit log: Organization gains fiscal-year month/day, base currency, default tax rate (validated DTO, owner/admin only), `GET/PATCH /organizations/settings`; append-only `GET /audit-log` with action/entityType/limit filters (no update/delete routes); settings changes audited with from→to diff; ledger-styled Settings and Audit log drawers from the org menu, read-only view for non-managers | Jest 38 passed (8 settings + 13 members + 10 tenant + 7 auth); Playwright 6 passed (settings → audit log flow) | github.com/furqaniq/ai-accounting |
 | 2026-11-14 | 005 | Chart of accounts: `Account` model with per-org unique codes and `AccountType`; idempotent industry-neutral default chart (17 accounts, 1000–6900) provisioned with each organization; `GET/POST/PATCH /accounts` with validation, 409 duplicates, deactivation (no delete), type/active filters, staff/viewer read-only; audited create/update; `/accounts` ledger page with type tabs, show-inactive toggle and create/edit drawer | Jest 47 passed (9 accounts + 8 settings + 13 members + 10 tenant + 7 auth); Playwright 7 passed (account list/form + prior flows) | github.com/furqaniq/ai-accounting |
+| 2026-11-14 | 006 | Manual journals + register: `LedgerEngine` (post/reverse/balance) as the sole journal-table writer with atomic balanced posting, two-decimal validation, per-org `JE-0001` references and immutable reversals; `JournalEntry`/`JournalLine` schema + migration; `POST/GET /journal-entries`, `GET /journal-entries/:id`, `POST /journal-entries/:id/reverse`, `GET /ledger/register` with account/date filters, opening/closing balances and running balance; ledger read for all roles, post for owner/admin/accountant; posting and reversal audited; seeded opening balances per org; `/ledger` page with entry list, new-entry drawer showing live debit/credit totals (post disabled while unbalanced), account register with drill-down and two-step reversal | Jest 53 passed (6 ledger + 47 prior); Playwright 8 passed (journal post/register/reversal + prior flows) | github.com/furqaniq/ai-accounting |
 
 ## Open items
 
-- Client asked to confirm before starting each next issue; 005 complete, 006 (manual-journals-register) awaiting go-ahead.
-- Jest runs with `maxWorkers: 1` and Playwright `workers: 1`: suites share one database and mutate org state.
+- Client asked to confirm before starting each next issue; 006 complete, 007 (customers-items) awaiting go-ahead.
+- Jest runs with `maxWorkers: 1` and Playwright `workers: 1`: suites share one database and mutate org state. Never run `backend test` and `playwright test` at the same time — they post and delete against the same database.
 - Test fixtures normalize seed roles in `members.spec.ts` `beforeAll` (direct Prisma cleanup of test-added memberships); revisit if a fixtures helper lands in 034.

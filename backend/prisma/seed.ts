@@ -1,12 +1,18 @@
 import { PrismaClient, Role } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { ensureDefaultChart } from '../src/accounts/default-chart';
+import { postEntry } from '../src/ledger/ledger-engine';
 
 const prisma = new PrismaClient();
 
 const PASSWORD = 'Passw0rd!2026';
 
 const ORGANIZATIONS = ['Acme Services Co.', 'Nimbus Retail LLC'] as const;
+
+const OPENING_BALANCES: Record<(typeof ORGANIZATIONS)[number], number> = {
+  'Acme Services Co.': 5000,
+  'Nimbus Retail LLC': 3200,
+};
 
 interface SeedUser {
   email: string;
@@ -81,6 +87,29 @@ async function main(): Promise<void> {
     }
 
     console.log(`Seeded ${seed.email} (${seed.memberships.map((m) => m.organization).join(', ')})`);
+  }
+
+  for (const name of ORGANIZATIONS) {
+    const organizationId = orgs.get(name);
+    if (!organizationId) throw new Error(`Missing organization ${name}`);
+    const existing = await prisma.journalEntry.findFirst({
+      where: { organizationId, memo: 'Opening balance' },
+    });
+    if (existing) continue;
+
+    const [cash, equity] = await Promise.all([
+      prisma.account.findFirstOrThrow({ where: { organizationId, code: '1000' } }),
+      prisma.account.findFirstOrThrow({ where: { organizationId, code: '3000' } }),
+    ]);
+    await postEntry(prisma, organizationId, {
+      date: '2026-01-02',
+      memo: 'Opening balance',
+      lines: [
+        { accountId: cash.id, debit: OPENING_BALANCES[name], description: 'Cash brought forward' },
+        { accountId: equity.id, credit: OPENING_BALANCES[name], description: 'Owner equity' },
+      ],
+    });
+    console.log(`Seeded opening balance for ${name}`);
   }
 }
 

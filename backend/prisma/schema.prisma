@@ -35,6 +35,7 @@ model Organization {
   memberships          OrgMembership[]
   auditLog             AuditLogEntry[]
   accounts             Account[]
+  journalEntries       JournalEntry[]
 }
 
 model Account {
@@ -47,10 +48,57 @@ model Account {
   active         Boolean      @default(true)
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  journalLines   JournalLine[]
 
   @@unique([organizationId, code])
   @@index([organizationId, type])
+}
+
+enum JournalSourceType {
+  MANUAL
+  INVOICE
+  BILL
+  EXPENSE
+  PAYMENT
+  BANK
+  REVERSAL
+}
+
+model JournalEntry {
+  id             String            @id @default(cuid())
+  organizationId String
+  reference      String
+  date           DateTime          @db.Date
+  memo           String?
+  sourceType     JournalSourceType @default(MANUAL)
+  sourceId       String?
+  createdAt      DateTime          @default(now())
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  lines          JournalLine[]
+  reversalOfId   String?           @unique
+  reversalOf     JournalEntry?     @relation("JournalReversal", fields: [reversalOfId], references: [id])
+  reversedBy     JournalEntry?     @relation("JournalReversal")
+
+  @@unique([organizationId, reference])
+  @@index([organizationId, date])
+  @@index([organizationId, sourceType, sourceId])
+}
+
+model JournalLine {
+  id             String       @id @default(cuid())
+  organizationId String
+  entryId        String
+  accountId      String
+  description    String?
+  debit          Decimal      @default(0) @db.Decimal(14, 2)
+  credit         Decimal      @default(0) @db.Decimal(14, 2)
+  createdAt      DateTime     @default(now())
+  entry          JournalEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  account        Account      @relation(fields: [accountId], references: [id])
+
+  @@index([organizationId, accountId])
+  @@index([entryId])
 }
 
 model User {

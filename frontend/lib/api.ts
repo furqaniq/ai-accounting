@@ -266,3 +266,144 @@ export async function updateAccount(
   if (!res.ok) throw new Error(await failureMessage(res, 'Could not save that account'));
   return res.json();
 }
+
+export type JournalSourceType =
+  | 'MANUAL'
+  | 'INVOICE'
+  | 'BILL'
+  | 'EXPENSE'
+  | 'PAYMENT'
+  | 'BANK'
+  | 'REVERSAL';
+
+export interface JournalLine {
+  id: string;
+  accountId: string;
+  account: { id: string; code: string; name: string; type: AccountType };
+  description: string | null;
+  debit: number;
+  credit: number;
+}
+
+export interface JournalEntry {
+  id: string;
+  reference: string;
+  date: string;
+  memo: string | null;
+  sourceType: JournalSourceType;
+  sourceId: string | null;
+  reversalOfId: string | null;
+  reversalOfReference: string | null;
+  reversedById: string | null;
+  reversedByReference: string | null;
+  createdAt: string;
+  lines: JournalLine[];
+}
+
+export interface JournalLineInput {
+  accountId: string;
+  description?: string;
+  debit?: number;
+  credit?: number;
+}
+
+export interface JournalEntryInput {
+  date: string;
+  memo?: string;
+  lines: JournalLineInput[];
+}
+
+export interface RegisterLine {
+  id: string;
+  entryId: string;
+  reference: string;
+  date: string;
+  memo: string | null;
+  description: string | null;
+  sourceType: JournalSourceType;
+  debit: number;
+  credit: number;
+  runningBalance: number;
+}
+
+export interface AccountRegister {
+  account: { id: string; code: string; name: string; type: AccountType };
+  from: string | null;
+  to: string | null;
+  openingBalance: number;
+  closingBalance: number;
+  totalDebit: number;
+  totalCredit: number;
+  lines: RegisterLine[];
+}
+
+export async function fetchJournalEntries(
+  organizationId: string,
+  filters: { from?: string; to?: string; accountId?: string; limit?: number } = {},
+): Promise<JournalEntry[]> {
+  const params = new URLSearchParams();
+  if (filters.from) params.set('from', filters.from);
+  if (filters.to) params.set('to', filters.to);
+  if (filters.accountId) params.set('accountId', filters.accountId);
+  if (filters.limit) params.set('limit', String(filters.limit));
+  const query = params.toString();
+  const res = await fetch(`${API_URL}/journal-entries${query ? `?${query}` : ''}`, {
+    headers: authHeaders(organizationId),
+  });
+  if (!res.ok) throw new Error('Journal entries are not available');
+  const body = (await res.json()) as { entries: JournalEntry[] };
+  return body.entries;
+}
+
+export async function fetchJournalEntry(
+  organizationId: string,
+  entryId: string,
+): Promise<JournalEntry> {
+  const res = await fetch(`${API_URL}/journal-entries/${entryId}`, {
+    headers: authHeaders(organizationId),
+  });
+  if (!res.ok) throw new Error('That journal entry is not available');
+  return res.json();
+}
+
+export async function createJournalEntry(
+  organizationId: string,
+  input: JournalEntryInput,
+): Promise<JournalEntry> {
+  const res = await fetch(`${API_URL}/journal-entries`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders(organizationId) },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not post that entry'));
+  return res.json();
+}
+
+export async function reverseJournalEntry(
+  organizationId: string,
+  entryId: string,
+  input: { date?: string; memo?: string } = {},
+): Promise<JournalEntry> {
+  const res = await fetch(`${API_URL}/journal-entries/${entryId}/reverse`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders(organizationId) },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not reverse that entry'));
+  return res.json();
+}
+
+export async function fetchRegister(
+  organizationId: string,
+  accountId: string,
+  filters: { from?: string; to?: string } = {},
+): Promise<AccountRegister> {
+  const params = new URLSearchParams({ accountId });
+  if (filters.from) params.set('from', filters.from);
+  if (filters.to) params.set('to', filters.to);
+  const res = await fetch(`${API_URL}/ledger/register?${params.toString()}`, {
+    headers: authHeaders(organizationId),
+  });
+  if (!res.ok) throw new Error('That register is not available');
+  return res.json();
+}

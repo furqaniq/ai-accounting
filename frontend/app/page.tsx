@@ -391,6 +391,13 @@ export default function OverviewPage() {
               </svg>
               Accounts
             </a>
+            <a className="nav__item" href="/ledger">
+              <svg className="icon nav__icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 4h16v16H4z" />
+                <path d="M8 8h8M8 12h8M8 16h5" />
+              </svg>
+              Journal
+            </a>
             <a
               className="nav__item"
               href="#"

@@ -1022,6 +1022,22 @@ table {
   background: var(--red-ink);
 }
 
+.status--green {
+  color: var(--ledger);
+}
+
+.status--green .dot {
+  background: var(--ledger);
+}
+
+.status--amber {
+  color: var(--amber-ink);
+}
+
+.status--amber .dot {
+  background: var(--amber-ink);
+}
+
 .status--sent {
   color: var(--ink-soft);
 }

@@ -431,30 +431,7 @@
   color: var(--ink-faint);
 }
 
-.accounts-table tr.is-inactive .accounts-table .status--green {
-  color: var(--ledger);
-}
-
-.accounts-table .status--green .dot {
-  background: var(--ledger);
-}
-
-.accounts-table .status--amber {
-  color: var(--amber-ink);
-}
-
-.accounts-table .status--amber .dot {
-  background: var(--amber-ink);
-}
-
-.spine__label {
-  display: block;
-  margin-bottom: 8px;
-  font-size: 11px;
-  color: rgba(232, 239, 229, 0.55);
-}
-
-.accounts-code {
+.accounts-table tr.is-inactive .accounts-code {
   text-decoration: line-through;
   text-decoration-color: rgba(178, 58, 47, 0.35);
 }
@@ -473,8 +450,316 @@
   color: var(--ink-faint);
 }
 
+/* General ledger (issue 006). */
+.journal-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.journal-toolbar .field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.journal-toolbar select,
+.journal-toolbar input {
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+}
+
+.journal-toolbar .btn {
+  margin-left: auto;
+}
+
+.journal-table .journal-ref {
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+.journal-table .journal-amount {
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.journal-table tr.is-reversed td {
+  color: var(--ink-faint);
+}
+
+.journal-table tr.is-clickable {
+  cursor: pointer;
+}
+
+.journal-source {
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.journal-empty {
+  padding: 18px 0;
+  font-size: 13px;
+  color: var(--ink-faint);
+}
+
+.journal-note {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--rule);
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+
+.register-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 28px;
+  padding-top: 18px;
+  border-top: 1px solid var(--rule-strong);
+}
+
+.register-head h2 {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 500;
+}
+
+.register-balance {
+  display: flex;
+  gap: 22px;
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.register-balance strong {
+  display: block;
+  margin-top: 2px;
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.register-table .num,
+.register-table .journal-amount {
+  text-align: right;
+}
+
+.register-table tr.is-clickable {
+  cursor: pointer;
+}
+
+.register-table tfoot td {
+  border-top: 2px solid var(--ink);
+  font-weight: 500;
+}
+
+.side-drawer#journal-form {
+  width: min(440px, 96vw);
+}
+
+.journal-form__lines {
+  margin-top: 16px;
+}
+
+.journal-form__line {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto;
+  grid-template-areas:
+    "account account remove"
+    "desc desc desc"
+    "debit credit credit";
+  gap: 8px;
+  padding: 10px 0 12px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.journal-form__line:first-child {
+  border-top: 1px solid var(--rule);
+}
+
+.journal-form__line .line-account {
+  grid-area: account;
+}
+
+.journal-form__line .line-desc {
+  grid-area: desc;
+}
+
+.journal-form__line .line-debit {
+  grid-area: debit;
+}
+
+.journal-form__line .line-credit {
+  grid-area: credit;
+}
+
+.journal-form__line .journal-form__remove {
+  grid-area: remove;
+  align-self: end;
+}
+
+.journal-form__line label {
+  display: block;
+  margin-bottom: 3px;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.journal-form__line input,
+.journal-form__line select {
+  width: 100%;
+  margin-top: 0;
+  padding: 5px 6px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+}
+
+.journal-form__remove {
+  align-self: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  font-size: 15px;
+  line-height: 1;
+  color: var(--ink-faint);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.journal-form__remove:hover {
+  color: var(--red-ink);
+  border-color: var(--rule);
+}
+
+.journal-form__add {
+  margin-top: 10px;
+  font-size: 12px;
+}
+
+.journal-totals {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--rule);
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+
+.journal-totals__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 2px 0;
+}
+
+.journal-totals__row strong {
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.journal-totals__status {
+  margin-top: 8px;
+  font-size: 11.5px;
+}
+
+.journal-totals__status.is-balanced {
+  color: var(--ledger);
+}
+
+.journal-totals__status.is-unbalanced {
+  color: var(--red-ink);
+}
+
+.entry-lines {
+  margin-top: 14px;
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.entry-lines th {
+  padding: 6px 0;
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: left;
+  color: var(--ink-faint);
+  border-bottom: 1px solid var(--rule);
+}
+
+.entry-lines th.num,
+.entry-lines td.num {
+  text-align: right;
+}
+
+.entry-lines td {
+  padding: 7px 0;
+  font-size: 12.5px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.entry-lines td.num {
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+}
+
+.entry-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin-top: 10px;
+  font-size: 11.5px;
+  color: var(--ink-faint);
+}
+
+.entry-meta strong {
+  font-weight: 500;
+  color: var(--ink-soft);
+}
+
+.entry-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--rule);
+}
+
 @media (max-width: 860px) {
   .app-shell--accounts {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .side-drawer#journal-form {
+    width: 92vw;
   }
 }
