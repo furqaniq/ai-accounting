@@ -14,6 +14,7 @@
   display: flex;
   flex-direction: column;
   padding: 32px 56px 32px;
+  padding-bottom: calc(32px + mod(100vh, 32px));
   color: #e8efe5;
   background-color: var(--ledger-deep);
   background-image: repeating-linear-gradient(
@@ -36,7 +37,7 @@
 
 .login-brand {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
   height: 64px;
   flex: none;
@@ -44,10 +45,10 @@
 }
 
 .login-logo {
-  width: 38px;
-  height: 38px;
+  width: 32px;
+  height: 32px;
   flex: none;
-  border-radius: 7px;
+  border-radius: 6px;
 }
 
 .login-brand .brand__name {
@@ -72,6 +73,7 @@
 
 .login-statement {
   margin-top: 64px;
+  margin-bottom: 64px;
   max-width: 440px;
   animation: login-rise 0.5s 0.08s ease both;
 }
@@ -114,7 +116,7 @@
 }
 
 .login-demo {
-  margin-top: 64px;
+  margin-top: auto;
   box-shadow: 0 -1px 0 rgba(232, 239, 229, 0.22);
   animation: login-rise 0.5s 0.24s ease both;
 }
@@ -384,10 +386,11 @@
 
   .login-statement {
     margin-top: 32px;
+    margin-bottom: 32px;
   }
 
   .login-demo {
-    margin-top: 32px;
+    margin-top: 0;
   }
 
   .login-form-pane {
