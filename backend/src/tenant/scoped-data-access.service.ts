@@ -2,7 +2,14 @@ import { Injectable, Scope } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantContextService } from './tenant-context.service';
 
-type ScopedModel = 'orgMembership' | 'auditLogEntry' | 'account' | 'journalEntry' | 'journalLine';
+type ScopedModel =
+  | 'orgMembership'
+  | 'auditLogEntry'
+  | 'account'
+  | 'journalEntry'
+  | 'journalLine'
+  | 'customer'
+  | 'item';
 
 interface FindArgs {
   where?: Record<string, unknown>;

@@ -10,6 +10,10 @@ export const PERMISSIONS = [
   'accounts:manage',
   'ledger:read',
   'ledger:post',
+  'customers:read',
+  'customers:manage',
+  'items:read',
+  'items:manage',
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -29,6 +33,10 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     'accounts:manage',
     'ledger:read',
     'ledger:post',
+    'customers:read',
+    'customers:manage',
+    'items:read',
+    'items:manage',
   ],
   ADMIN: [
     'org:read',
@@ -40,6 +48,10 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     'accounts:manage',
     'ledger:read',
     'ledger:post',
+    'customers:read',
+    'customers:manage',
+    'items:read',
+    'items:manage',
   ],
   ACCOUNTANT: [
     'org:read',
@@ -48,9 +60,29 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     'accounts:manage',
     'ledger:read',
     'ledger:post',
+    'customers:read',
+    'customers:manage',
+    'items:read',
+    'items:manage',
   ],
-  STAFF: ['org:read', 'members:read', 'accounts:read', 'ledger:read'],
-  VIEWER: ['org:read', 'members:read', 'accounts:read', 'ledger:read'],
+  STAFF: [
+    'org:read',
+    'members:read',
+    'accounts:read',
+    'ledger:read',
+    'customers:read',
+    'customers:manage',
+    'items:read',
+    'items:manage',
+  ],
+  VIEWER: [
+    'org:read',
+    'members:read',
+    'accounts:read',
+    'ledger:read',
+    'customers:read',
+    'items:read',
+  ],
 };
 
 export function hasPermission(role: Role | string, permission: Permission): boolean {

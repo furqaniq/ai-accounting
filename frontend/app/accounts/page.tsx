@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { AppSpine } from '@/components/app-spine';
 import {
   API_URL,
   Account,
@@ -194,83 +195,7 @@ export default function AccountsPage() {
   return (
     <>
       <div className="app-shell app-shell--accounts">
-        <aside className="spine" id="spine">
-          <a className="brand" href="/">
-            <svg className="brand__mark" viewBox="0 0 32 32" aria-hidden="true">
-              <rect className="mark-paper" x="4.5" y="3" width="23" height="26" rx="1" />
-              <path className="mark-rule" d="M9 9h14M9 14h14M9 19h9" />
-              <path className="mark-margin" d="M12 3v26" />
-            </svg>
-            <span>
-              <span className="brand__name">Daybook</span>
-              <span className="brand__sub">AI accounting</span>
-            </span>
-          </a>
-
-          <a className="org__button" href="/">
-            <span>
-              <span className="org__name">{org?.organizationName}</span>
-              <span className="org__meta">
-                {(org?.role ?? '').charAt(0) + (org?.role ?? '').slice(1).toLowerCase()}
-              </span>
-            </span>
-          </a>
-
-          <nav className="nav" aria-label="Primary">
-            <a className="nav__item" href="/">
-              <svg className="icon nav__icon" viewBox="0 0 24 24" aria-hidden="true">
-                <rect x="3" y="3" width="7" height="7" rx="1" />
-                <rect x="14" y="3" width="7" height="7" rx="1" />
-                <rect x="3" y="14" width="7" height="7" rx="1" />
-                <rect x="14" y="14" width="7" height="7" rx="1" />
-              </svg>
-              Overview
-            </a>
-            <a className="nav__item is-active" href="/accounts" aria-current="page">
-              <svg className="icon nav__icon" viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M4 4h16v16H4z" />
-                <path d="M4 9h16M4 14h16M9 9v11" />
-              </svg>
-              Accounts
-            </a>
-            <a className="nav__item" href="/ledger">
-              <svg className="icon nav__icon" viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M4 4h16v16H4z" />
-                <path d="M8 8h8M8 12h8M8 16h5" />
-              </svg>
-              Journal
-            </a>
-            <a className="nav__item" href="/" aria-label="Invoices, coming soon">
-              <svg className="icon nav__icon" viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z" />
-                <path d="M14 3v6h6M8 13h8M8 17h5" />
-              </svg>
-              Invoices
-            </a>
-            <a className="nav__item" href="/" aria-label="Banking, coming soon">
-              <svg className="icon nav__icon" viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M3 21h18M5 21V9l7-5 7 5v12M9 21v-6h6v6" />
-              </svg>
-              Banking
-            </a>
-            <a className="nav__item" href="/" aria-label="Reports, coming soon">
-              <svg className="icon nav__icon" viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
-              </svg>
-              Reports
-            </a>
-          </nav>
-
-          <div className="spine__foot">
-            <span className="spine__label">Signed in</span>
-            <button className="spine-signout" type="button" onClick={() => {
-              clearSession();
-              router.replace('/login');
-            }}>
-              Sign out
-            </button>
-          </div>
-        </aside>
+        <AppSpine active="accounts" org={org} />
 
         <main className="page" id="main">
           <header className="page-head">

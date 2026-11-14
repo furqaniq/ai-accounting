@@ -407,3 +407,155 @@ export async function fetchRegister(
   if (!res.ok) throw new Error('That register is not available');
   return res.json();
 }
+
+export interface Customer {
+  id: string;
+  code: string;
+  name: string;
+  contactName: string | null;
+  email: string | null;
+  phone: string | null;
+  addressLine1: string | null;
+  addressLine2: string | null;
+  city: string | null;
+  region: string | null;
+  postalCode: string | null;
+  country: string | null;
+  notes: string | null;
+  active: boolean;
+  balance: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CustomerInput {
+  name: string;
+  contactName?: string;
+  email?: string;
+  phone?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  region?: string;
+  postalCode?: string;
+  country?: string;
+  notes?: string;
+  active?: boolean;
+}
+
+export async function fetchCustomers(
+  organizationId: string,
+  filters: { search?: string; active?: boolean } = {},
+): Promise<Customer[]> {
+  const params = new URLSearchParams();
+  if (filters.search) params.set('search', filters.search);
+  if (filters.active !== undefined) params.set('active', String(filters.active));
+  const query = params.toString();
+  const res = await fetch(`${API_URL}/customers${query ? `?${query}` : ''}`, {
+    headers: authHeaders(organizationId),
+  });
+  if (!res.ok) throw new Error('Customers are not available');
+  const body = (await res.json()) as { customers: Customer[] };
+  return body.customers;
+}
+
+export async function fetchCustomer(
+  organizationId: string,
+  customerId: string,
+): Promise<Customer> {
+  const res = await fetch(`${API_URL}/customers/${customerId}`, {
+    headers: authHeaders(organizationId),
+  });
+  if (!res.ok) throw new Error('That customer is not available');
+  return res.json();
+}
+
+export async function createCustomer(
+  organizationId: string,
+  input: CustomerInput,
+): Promise<Customer> {
+  const res = await fetch(`${API_URL}/customers`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders(organizationId) },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not add that customer'));
+  return res.json();
+}
+
+export async function updateCustomer(
+  organizationId: string,
+  customerId: string,
+  input: Partial<CustomerInput>,
+): Promise<Customer> {
+  const res = await fetch(`${API_URL}/customers/${customerId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...authHeaders(organizationId) },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not save that customer'));
+  return res.json();
+}
+
+export interface Item {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  price: number;
+  incomeAccountId: string;
+  incomeAccount: { id: string; code: string; name: string };
+  taxable: boolean;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ItemInput {
+  name: string;
+  description?: string;
+  price: number;
+  incomeAccountId: string;
+  taxable?: boolean;
+  active?: boolean;
+}
+
+export async function fetchItems(
+  organizationId: string,
+  filters: { search?: string; active?: boolean } = {},
+): Promise<Item[]> {
+  const params = new URLSearchParams();
+  if (filters.search) params.set('search', filters.search);
+  if (filters.active !== undefined) params.set('active', String(filters.active));
+  const query = params.toString();
+  const res = await fetch(`${API_URL}/items${query ? `?${query}` : ''}`, {
+    headers: authHeaders(organizationId),
+  });
+  if (!res.ok) throw new Error('Items are not available');
+  const body = (await res.json()) as { items: Item[] };
+  return body.items;
+}
+
+export async function createItem(organizationId: string, input: ItemInput): Promise<Item> {
+  const res = await fetch(`${API_URL}/items`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders(organizationId) },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not add that item'));
+  return res.json();
+}
+
+export async function updateItem(
+  organizationId: string,
+  itemId: string,
+  input: Partial<ItemInput>,
+): Promise<Item> {
+  const res = await fetch(`${API_URL}/items/${itemId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...authHeaders(organizationId) },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not save that item'));
+  return res.json();
+}

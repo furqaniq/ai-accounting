@@ -7,6 +7,7 @@ import { AuthModule } from './auth/auth.module';
 import { HealthModule } from './health/health.module';
 import { LedgerModule } from './ledger/ledger.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { SalesModule } from './sales/sales.module';
 import { TenantModule } from './tenant/tenant.module';
 
 @Module({
@@ -18,6 +19,7 @@ import { TenantModule } from './tenant/tenant.module';
     TenantModule,
     AccountsModule,
     LedgerModule,
+    SalesModule,
     HealthModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

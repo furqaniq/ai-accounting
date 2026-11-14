@@ -393,6 +393,22 @@
   margin-top: 16px;
 }
 
+.drawer-form .accounts-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.drawer-form .accounts-toggle + .accounts-toggle {
+  margin-top: 10px;
+}
+
+.drawer-form input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+}
+
 .accounts-table td {
   vertical-align: middle;
 }
@@ -762,4 +778,58 @@
   .side-drawer#journal-form {
     width: 92vw;
   }
+}
+
+/* Customers and items (issue 007). */
+.master-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.search-field input {
+  width: min(320px, 70vw);
+  padding: 7px 10px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+}
+
+.data-table tr.is-clickable {
+  cursor: pointer;
+}
+
+.customers-table .accounts-code {
+  width: auto;
+  white-space: nowrap;
+}
+
+.customer-balance {
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.detail-figure {
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.items-table .accounts-code {
+  width: auto;
+  white-space: nowrap;
+}
+
+.items-table .price {
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }

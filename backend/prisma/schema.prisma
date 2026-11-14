@@ -36,6 +36,8 @@ model Organization {
   auditLog             AuditLogEntry[]
   accounts             Account[]
   journalEntries       JournalEntry[]
+  customers            Customer[]
+  items                Item[]
 }
 
 model Account {
@@ -50,6 +52,7 @@ model Account {
   updatedAt      DateTime     @updatedAt
   organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   journalLines   JournalLine[]
+  items          Item[]
 
   @@unique([organizationId, code])
   @@index([organizationId, type])
@@ -99,6 +102,49 @@ model JournalLine {
 
   @@index([organizationId, accountId])
   @@index([entryId])
+}
+
+model Customer {
+  id             String       @id @default(cuid())
+  organizationId String
+  code           String
+  name           String
+  contactName    String?
+  email          String?
+  phone          String?
+  addressLine1   String?
+  addressLine2   String?
+  city           String?
+  region         String?
+  postalCode     String?
+  country        String?
+  notes          String?
+  active         Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, code])
+  @@index([organizationId, name])
+}
+
+model Item {
+  id              String       @id @default(cuid())
+  organizationId  String
+  code            String
+  name            String
+  description     String?
+  price           Decimal      @default(0) @db.Decimal(14, 2)
+  incomeAccountId String
+  taxable         Boolean      @default(true)
+  active          Boolean      @default(true)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  incomeAccount   Account      @relation(fields: [incomeAccountId], references: [id])
+
+  @@unique([organizationId, code])
+  @@index([organizationId, name])
 }
 
 model User {

@@ -398,6 +398,21 @@ export default function OverviewPage() {
               </svg>
               Journal
             </a>
+            <a className="nav__item" href="/customers">
+              <svg className="icon nav__icon" viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="9" cy="8" r="3.2" />
+                <path d="M3.5 19c.6-3 2.8-4.6 5.5-4.6s4.9 1.6 5.5 4.6" />
+                <path d="M16 6.5a3 3 0 0 1 0 5.4M18.5 18.8c-.3-2.1-1.3-3.5-2.9-4.2" />
+              </svg>
+              Customers
+            </a>
+            <a className="nav__item" href="/items">
+              <svg className="icon nav__icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 7.5 12 3l8 4.5v9L12 21l-8-4.5z" />
+                <path d="M4 7.5 12 12l8-4.5M12 12v9" />
+              </svg>
+              Items
+            </a>
             <a
               className="nav__item"
               href="#"

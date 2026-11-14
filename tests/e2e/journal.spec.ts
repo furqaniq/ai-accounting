@@ -38,7 +38,9 @@ test('accountant posts a balanced entry, inspects the register, and reverses it'
   await expect(page).toHaveURL(/\/ledger$/);
   await expect(page.getByRole('heading', { name: 'General ledger' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Account register' })).toBeVisible();
-  await expect(page.locator('.register-table tbody tr').first()).toBeVisible();
+  await expect(
+    page.locator('.register-table tbody tr', { hasText: 'Cash brought forward' }),
+  ).toBeVisible();
 
   const before = await closingBalance(page);
 
