@@ -87,3 +87,61 @@ export async function fetchMembers(organizationId: string): Promise<Member[]> {
   const body = (await res.json()) as { memberships: Member[] };
   return body.memberships;
 }
+
+export const ROLES = ['OWNER', 'ADMIN', 'ACCOUNTANT', 'STAFF', 'VIEWER'] as const;
+
+export type RoleName = (typeof ROLES)[number];
+
+async function failureMessage(res: Response, fallback: string): Promise<string> {
+  try {
+    const body = (await res.json()) as { message?: string | string[] };
+    const message = Array.isArray(body.message) ? body.message[0] : body.message;
+    if (message) return message;
+  } catch {
+    // fall through
+  }
+  return fallback;
+}
+
+export async function createMember(
+  organizationId: string,
+  email: string,
+  role: string,
+): Promise<Member> {
+  const res = await fetch(`${API_URL}/memberships`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders(organizationId) },
+    body: JSON.stringify({ email, role }),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not add that member'));
+  return res.json();
+}
+
+export async function updateMemberRole(
+  organizationId: string,
+  membershipId: string,
+  role: string,
+): Promise<Member> {
+  const res = await fetch(`${API_URL}/memberships/${membershipId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...authHeaders(organizationId) },
+    body: JSON.stringify({ role }),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not change that role'));
+  return res.json();
+}
+
+export async function removeMember(
+  organizationId: string,
+  membershipId: string,
+): Promise<void> {
+  const res = await fetch(`${API_URL}/memberships/${membershipId}`, {
+    method: 'DELETE',
+    headers: authHeaders(organizationId),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not remove that member'));
+}
+
+export function canManageMembers(role: string): boolean {
+  return role === 'OWNER' || role === 'ADMIN';
+}

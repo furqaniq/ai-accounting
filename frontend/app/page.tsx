@@ -7,12 +7,18 @@ import {
   ActiveOrganization,
   REFRESH_TOKEN_KEY,
   SessionUser,
+  Member,
+  ROLES,
+  canManageMembers,
   clearSession,
+  createMember,
   fetchActiveOrganization,
   fetchMembers,
   getAccessToken,
   getActiveOrgId,
+  removeMember,
   setActiveOrgId,
+  updateMemberRole,
 } from '@/lib/api';
 
 function initials(name: string): string {
@@ -38,6 +44,12 @@ export default function OverviewPage() {
   const [spineOpen, setSpineOpen] = useState(false);
   const [marginOpen, setMarginOpen] = useState(false);
   const [orgMenuOpen, setOrgMenuOpen] = useState(false);
+  const [membersOpen, setMembersOpen] = useState(false);
+  const [members, setMembers] = useState<Member[] | null>(null);
+  const [membersBusy, setMembersBusy] = useState(false);
+  const [memberEmail, setMemberEmail] = useState('');
+  const [memberRole, setMemberRole] = useState('STAFF');
+  const [membersError, setMembersError] = useState<string | null>(null);
   const [activeOrg, setActiveOrg] = useState<ActiveOrganization | null>(null);
   const [memberCount, setMemberCount] = useState<number | null>(null);
   const [range, setRange] = useState<'30' | '90' | '365'>('30');
@@ -142,13 +154,81 @@ export default function OverviewPage() {
     [activeOrg?.organizationId, showToast],
   );
 
-  const scrimVisible = spineOpen || marginOpen;
+  const roleCanManage = canManageMembers(activeOrg?.role ?? '');
+
+  const loadMembers = useCallback(async () => {
+    if (!activeOrg) return;
+    try {
+      setMembers(await fetchMembers(activeOrg.organizationId));
+    } catch {
+      setMembersError('Members are not available right now.');
+    }
+  }, [activeOrg]);
+
+  const openMembers = useCallback(() => {
+    setOrgMenuOpen(false);
+    setMembersOpen(true);
+    setMembersError(null);
+    void loadMembers();
+  }, [loadMembers]);
+
+  async function onAddMember(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!activeOrg || membersBusy) return;
+    setMembersBusy(true);
+    setMembersError(null);
+    try {
+      await createMember(activeOrg.organizationId, memberEmail.trim(), memberRole);
+      setMemberEmail('');
+      setMemberRole('STAFF');
+      await loadMembers();
+      showToast('Member added to the book.');
+    } catch (error) {
+      setMembersError(error instanceof Error ? error.message : 'Could not add that member');
+    } finally {
+      setMembersBusy(false);
+    }
+  }
+
+  async function onChangeRole(member: Member, role: string) {
+    if (!activeOrg || role === member.role || membersBusy) return;
+    setMembersBusy(true);
+    setMembersError(null);
+    try {
+      await updateMemberRole(activeOrg.organizationId, member.id, role);
+      await loadMembers();
+      showToast(`${member.name} is now ${role.charAt(0) + role.slice(1).toLowerCase()}.`);
+    } catch (error) {
+      setMembersError(error instanceof Error ? error.message : 'Could not change that role');
+    } finally {
+      setMembersBusy(false);
+    }
+  }
+
+  async function onRemoveMember(member: Member) {
+    if (!activeOrg || membersBusy) return;
+    setMembersBusy(true);
+    setMembersError(null);
+    try {
+      await removeMember(activeOrg.organizationId, member.id);
+      await loadMembers();
+      setMemberCount((count) => (count === null ? count : Math.max(1, count - 1)));
+      showToast(`${member.name} was removed from the book.`);
+    } catch (error) {
+      setMembersError(error instanceof Error ? error.message : 'Could not remove that member');
+    } finally {
+      setMembersBusy(false);
+    }
+  }
+
+  const scrimVisible = spineOpen || marginOpen || membersOpen;
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') {
         setSpineOpen(false);
         setMarginOpen(false);
+        setMembersOpen(false);
         setOrgMenuOpen(false);
       }
     }
@@ -236,11 +316,14 @@ export default function OverviewPage() {
                     <span>{m.role.charAt(0) + m.role.slice(1).toLowerCase()}</span>
                   </button>
                 ))}
-                {memberCount !== null ? (
-                  <p className="org__menu-foot">
-                    {memberCount} {memberCount === 1 ? 'member' : 'members'} in this book
-                  </p>
-                ) : null}
+                <button className="org__members" type="button" onClick={openMembers}>
+                  Members
+                  {memberCount !== null ? (
+                    <span>
+                      {memberCount} {memberCount === 1 ? 'member' : 'members'}
+                    </span>
+                  ) : null}
+                </button>
               </div>
             ) : null}
           </div>
@@ -835,6 +918,141 @@ export default function OverviewPage() {
         </aside>
       </div>
 
+      <aside
+        className={`margin members${membersOpen ? ' is-open' : ''}`}
+        id="members"
+        aria-label="Members"
+      >
+        <div className="margin__head">
+          <span className="members__mark" aria-hidden="true">
+            <svg className="icon icon--sm" viewBox="0 0 24 24">
+              <circle cx="9" cy="8" r="3.2" />
+              <path d="M3.5 20c.6-3.4 2.8-5.2 5.5-5.2s4.9 1.8 5.5 5.2" />
+              <path d="M16 5.4a3 3 0 0 1 0 5.6M17.5 14.8c2 .6 3.2 2.4 3.6 5.2" />
+            </svg>
+          </span>
+          <h2 className="margin__title">Members</h2>
+          <span className="margin__status">
+            {members ? `${members.length} in ${activeOrg?.organizationName ?? 'this book'}` : ''}
+          </span>
+          <button
+            className="icon-btn margin__close"
+            id="close-members"
+            type="button"
+            aria-label="Close members"
+            onClick={() => setMembersOpen(false)}
+          >
+            <svg className="icon icon--sm" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {membersError ? (
+          <p className="members__error" role="alert">
+            {membersError}
+          </p>
+        ) : null}
+
+        {!roleCanManage ? (
+          <p className="members__note">
+            You can see who keeps this book. Only owners and admins can change roles or invite
+            people.
+          </p>
+        ) : null}
+
+        <div className="members__list">
+          {members === null ? (
+            <p className="members__empty">Opening the register…</p>
+          ) : (
+            members.map((member) => (
+              <div className="member-row" key={member.id}>
+                <span className="avatar" aria-hidden="true">
+                  {initials(member.name)}
+                </span>
+                <span className="member-row__who">
+                  <span className="member-row__name">{member.name}</span>
+                  <span className="member-row__email">{member.email}</span>
+                </span>
+                {roleCanManage ? (
+                  <span className="member-row__controls">
+                    <label className="sr-only" htmlFor={`role-${member.id}`}>
+                      Role for {member.name}
+                    </label>
+                    <select
+                      id={`role-${member.id}`}
+                      className="member-row__role"
+                      value={member.role}
+                      disabled={membersBusy}
+                      onChange={(event) => void onChangeRole(member, event.target.value)}
+                    >
+                      {ROLES.map((role) => (
+                        <option key={role} value={role}>
+                          {role.charAt(0) + role.slice(1).toLowerCase()}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      className="icon-btn member-row__remove"
+                      type="button"
+                      aria-label={`Remove ${member.name}`}
+                      disabled={membersBusy}
+                      onClick={() => void onRemoveMember(member)}
+                    >
+                      <svg className="icon icon--sm" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M4 7h16M9 7V4.5h6V7M6.5 7l.8 13h9.4l.8-13M10 11v5.5M14 11v5.5" />
+                      </svg>
+                    </button>
+                  </span>
+                ) : (
+                  <span className="member-row__role-static">
+                    {member.role.charAt(0) + member.role.slice(1).toLowerCase()}
+                  </span>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+
+        {roleCanManage ? (
+          <form className="members__add" onSubmit={(event) => void onAddMember(event)}>
+            <div className="margin-note__kicker margin-note__kicker--quiet">Add to the book</div>
+            <label className="sr-only" htmlFor="member-email">
+              Member email
+            </label>
+            <input
+              id="member-email"
+              name="email"
+              type="email"
+              required
+              placeholder="name@company.test"
+              autoComplete="off"
+              value={memberEmail}
+              onChange={(event) => setMemberEmail(event.target.value)}
+            />
+            <div className="members__add-row">
+              <label className="sr-only" htmlFor="member-role">
+                Role
+              </label>
+              <select
+                id="member-role"
+                value={memberRole}
+                onChange={(event) => setMemberRole(event.target.value)}
+              >
+                {ROLES.filter((role) => role !== 'OWNER').map((role) => (
+                  <option key={role} value={role}>
+                    {role.charAt(0) + role.slice(1).toLowerCase()}
+                  </option>
+                ))}
+              </select>
+              <button className="btn btn--primary btn--sm" type="submit" disabled={membersBusy}>
+                Add member
+              </button>
+            </div>
+          </form>
+        ) : null}
+      </aside>
+
       <div
         className={`scrim${scrimVisible ? ' is-visible' : ''}`}
         id="scrim"
@@ -842,6 +1060,7 @@ export default function OverviewPage() {
         onClick={() => {
           setSpineOpen(false);
           setMarginOpen(false);
+          setMembersOpen(false);
         }}
       ></div>
       <div className={`toast${toast ? ' is-visible' : ''}`} id="toast" role="status" aria-live="polite">

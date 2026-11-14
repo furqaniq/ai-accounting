@@ -41,3 +41,180 @@
 .org__option[aria-current='true'] {
   background: var(--surface-2);
 }
+
+/* Members register (issue 003) — drawer on the clerk margin rail. */
+.org__members {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 9px 9px 6px;
+  border-top: 1px solid var(--rule);
+  margin-top: 6px;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--ledger-deep);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.org__members:hover {
+  background: var(--surface-2);
+}
+
+.org__members span {
+  font-size: 11px;
+  color: var(--ink-faint);
+}
+
+.members__mark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  color: var(--ledger-deep);
+  background: #e8efe5;
+  border-radius: 3px;
+}
+
+.members__note {
+  margin-top: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--rule);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+
+.members__error {
+  margin-top: 12px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--red-ink);
+}
+
+.members__empty {
+  padding: 16px 0;
+  font-size: 12.5px;
+  color: var(--ink-faint);
+}
+
+.members__list {
+  margin-top: 4px;
+}
+
+.member-row {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.member-row__who {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.member-row__name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.member-row__email {
+  font-size: 11.5px;
+  color: var(--ink-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.member-row__controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.member-row__role,
+.member-row__role-static {
+  font: inherit;
+  font-size: 11.5px;
+  color: var(--ledger-deep);
+}
+
+.member-row__role {
+  padding: 3px 4px;
+  background: transparent;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+}
+
+.member-row__remove {
+  color: var(--ink-faint);
+}
+
+.member-row__remove:hover {
+  color: var(--red-ink);
+}
+
+.members__add {
+  margin-top: 18px;
+}
+
+.members__add input,
+.members__add select {
+  width: 100%;
+  margin-top: 8px;
+  padding: 7px 9px;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+}
+
+.members__add-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: end;
+  margin-top: 8px;
+}
+
+.members__add-row select {
+  margin-top: 0;
+}
+
+/* Drawer overlays the clerk margin instead of taking a fourth grid column. */
+.members {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 70;
+  width: min(360px, 92vw);
+  box-shadow: -10px 0 32px rgba(18, 58, 44, 0.16);
+  transform: translateX(100%);
+  transition: transform 0.2s ease;
+  visibility: hidden;
+}
+
+.members.is-open {
+  transform: translateX(0);
+  visibility: visible;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .members {
+    transition: none;
+  }
+}

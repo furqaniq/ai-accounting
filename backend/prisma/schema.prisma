@@ -16,10 +16,11 @@ enum Role {
 }
 
 model Organization {
-  id          String         @id @default(cuid())
+  id          String          @id @default(cuid())
   name        String
-  createdAt   DateTime       @default(now())
+  createdAt   DateTime        @default(now())
   memberships OrgMembership[]
+  auditLog    AuditLogEntry[]
 }
 
 model User {
@@ -30,6 +31,7 @@ model User {
   createdAt     DateTime       @default(now())
   memberships   OrgMembership[]
   refreshTokens RefreshToken[]
+  auditLog      AuditLogEntry[]
 }
 
 model OrgMembership {
@@ -55,4 +57,19 @@ model RefreshToken {
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+model AuditLogEntry {
+  id             String       @id @default(cuid())
+  organizationId String
+  actorUserId    String
+  action         String
+  entityType     String
+  entityId       String
+  metadata       Json?
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  actor          User         @relation(fields: [actorUserId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
 }

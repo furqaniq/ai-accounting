@@ -2,7 +2,7 @@ import { Injectable, Scope } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantContextService } from './tenant-context.service';
 
-type ScopedModel = 'orgMembership';
+type ScopedModel = 'orgMembership' | 'auditLogEntry';
 
 interface FindArgs {
   where?: Record<string, unknown>;
@@ -43,10 +43,43 @@ export class ScopedDataAccess {
     }) as Promise<T | null>;
   }
 
+  async create<T>(model: ScopedModel, data: Record<string, unknown>): Promise<T> {
+    const { organizationId } = await this.tenant.get();
+    const delegate = this.delegate(model);
+    return delegate.create({ data: { ...data, organizationId } }) as Promise<T>;
+  }
+
+  async updateById<T>(
+    model: ScopedModel,
+    id: string,
+    data: Record<string, unknown>,
+  ): Promise<T | null> {
+    const { organizationId } = await this.tenant.get();
+    const delegate = this.delegate(model);
+    const result = (await delegate.updateMany({
+      where: { id, organizationId },
+      data,
+    })) as { count: number };
+    if (result.count === 0) return null;
+    return this.findById<T>(model, id);
+  }
+
+  async deleteById(model: ScopedModel, id: string): Promise<boolean> {
+    const { organizationId } = await this.tenant.get();
+    const delegate = this.delegate(model);
+    const result = (await delegate.deleteMany({
+      where: { id, organizationId },
+    })) as { count: number };
+    return result.count > 0;
+  }
+
   private delegate(model: ScopedModel) {
     return (this.prisma as unknown as Record<ScopedModel, {
       findMany: (args: unknown) => unknown;
       findFirst: (args: unknown) => unknown;
+      create: (args: unknown) => unknown;
+      updateMany: (args: unknown) => unknown;
+      deleteMany: (args: unknown) => unknown;
     }>)[model];
   }
 }

@@ -14,7 +14,7 @@ test('a multi-org user switches organizations without re-login', async ({ page }
   const menu = page.locator('#org-menu');
   await expect(menu).toBeVisible();
   await expect(menu).toContainText('Nimbus Retail LLC');
-  await expect(menu.getByText('4 members in this book')).toBeVisible();
+  await expect(menu.locator('.org__members')).toContainText('4 members');
 
   await menu.getByRole('button', { name: /Nimbus Retail LLC/ }).click();
 
@@ -24,7 +24,7 @@ test('a multi-org user switches organizations without re-login', async ({ page }
   await expect(page).toHaveURL(/\/$/);
 
   await switched.click();
-  await expect(page.locator('#org-menu').getByText('3 members in this book')).toBeVisible();
+  await expect(page.locator('#org-menu .org__members')).toContainText('3 members');
   await page.keyboard.press('Escape');
 
   await page.reload();

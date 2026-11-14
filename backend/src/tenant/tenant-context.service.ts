@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, Scope } from '@nestjs/common';
 import { REQUEST } from '@nestjs/core';
 import { PrismaService } from '../prisma/prisma.service';
+import { resolveMembership } from './membership-resolution';
 
 export interface ActiveMembership {
   organizationId: string;
@@ -11,6 +12,7 @@ export interface ActiveMembership {
 export interface TenantRequest {
   user?: { userId: string; email: string };
   headers: Record<string, string | string[] | undefined>;
+  tenantMembership?: ActiveMembership;
 }
 
 export const ORGANIZATION_HEADER = 'x-organization-id';
@@ -28,23 +30,28 @@ export class TenantContextService {
     if (this.resolved) {
       return this.resolved;
     }
+    if (this.request.tenantMembership) {
+      this.resolved = this.request.tenantMembership;
+      return this.resolved;
+    }
 
     const organizationId = this.organizationId();
-    const membership = await this.prisma.orgMembership.findFirst({
-      where: { organizationId, userId: this.request.user?.userId },
-      include: { organization: true },
-    });
-
+    const membership = await resolveMembership(
+      this.prisma,
+      this.request.user?.userId,
+      organizationId,
+    );
     if (!membership) {
       throw new ForbiddenException('Organization not accessible');
     }
 
-    this.resolved = {
-      organizationId: membership.organizationId,
-      organizationName: membership.organization.name,
-      role: membership.role,
-    };
+    this.resolved = membership;
+    this.request.tenantMembership = membership;
     return this.resolved;
+  }
+
+  organizationIdHeader(): string {
+    return this.organizationId();
   }
 
   private organizationId(): string {
