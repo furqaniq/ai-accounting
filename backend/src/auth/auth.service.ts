@@ -24,7 +24,9 @@ export class AuthService {
   async login(email: string, password: string) {
     const user = await this.prisma.user.findUnique({
       where: { email },
-      include: { memberships: { include: { organization: true } } },
+      include: {
+        memberships: { include: { organization: true }, orderBy: { organization: { name: 'asc' } } },
+      },
     });
 
     if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
@@ -42,7 +44,9 @@ export class AuthService {
   async me(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      include: { memberships: { include: { organization: true } } },
+      include: {
+        memberships: { include: { organization: true }, orderBy: { organization: { name: 'asc' } } },
+      },
     });
     if (!user) {
       throw new UnauthorizedException();

@@ -29,3 +29,15 @@
   font-size: 18px;
   color: var(--ink-soft);
 }
+
+.org__menu-foot {
+  margin-top: 6px;
+  padding: 7px 9px 2px;
+  border-top: 1px solid var(--rule);
+  font-size: 11px;
+  color: var(--ink-faint);
+}
+
+.org__option[aria-current='true'] {
+  background: var(--surface-2);
+}

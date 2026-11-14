@@ -4,11 +4,15 @@ import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   API_URL,
+  ActiveOrganization,
   REFRESH_TOKEN_KEY,
   SessionUser,
-  TOKEN_KEY,
   clearSession,
+  fetchActiveOrganization,
+  fetchMembers,
   getAccessToken,
+  getActiveOrgId,
+  setActiveOrgId,
 } from '@/lib/api';
 
 function initials(name: string): string {
@@ -34,6 +38,8 @@ export default function OverviewPage() {
   const [spineOpen, setSpineOpen] = useState(false);
   const [marginOpen, setMarginOpen] = useState(false);
   const [orgMenuOpen, setOrgMenuOpen] = useState(false);
+  const [activeOrg, setActiveOrg] = useState<ActiveOrganization | null>(null);
+  const [memberCount, setMemberCount] = useState<number | null>(null);
   const [range, setRange] = useState<'30' | '90' | '365'>('30');
   const [weeklySummary, setWeeklySummary] = useState(true);
   const [overdueReminders, setOverdueReminders] = useState(true);
@@ -86,6 +92,56 @@ export default function OverviewPage() {
     };
   }, [router]);
 
+  useEffect(() => {
+    if (!user) return;
+    const stored = getActiveOrgId();
+    const initial =
+      user.memberships.find((m) => m.organizationId === stored)?.organizationId ??
+      user.memberships[0]?.organizationId;
+    if (!initial) return;
+
+    let cancelled = false;
+    (async () => {
+      const [org, members] = await Promise.all([
+        fetchActiveOrganization(initial),
+        fetchMembers(initial),
+      ]);
+      if (cancelled) return;
+      setActiveOrg(org);
+      setMemberCount(members.length);
+      setActiveOrgId(org.organizationId);
+    })().catch(() => {
+      if (cancelled) return;
+      setActiveOrgId(null);
+      setActiveOrg(null);
+      setMemberCount(null);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  const switchOrg = useCallback(
+    async (organizationId: string) => {
+      setOrgMenuOpen(false);
+      if (organizationId === activeOrg?.organizationId) return;
+      try {
+        const [org, members] = await Promise.all([
+          fetchActiveOrganization(organizationId),
+          fetchMembers(organizationId),
+        ]);
+        setActiveOrg(org);
+        setMemberCount(members.length);
+        setActiveOrgId(org.organizationId);
+        showToast(`Switched to ${org.organizationName}`);
+      } catch {
+        showToast('That organization is not available to you.');
+      }
+    },
+    [activeOrg?.organizationId, showToast],
+  );
+
   const scrimVisible = spineOpen || marginOpen;
 
   useEffect(() => {
@@ -123,8 +179,8 @@ export default function OverviewPage() {
   }
 
   const membership = user.memberships[0];
-  const orgName = membership?.organizationName ?? '';
-  const role = membership?.role ?? '';
+  const orgName = activeOrg?.organizationName ?? membership?.organizationName ?? '';
+  const role = activeOrg?.role ?? membership?.role ?? '';
   const roleLabel = role.charAt(0) + role.slice(1).toLowerCase();
 
   return (
@@ -171,17 +227,20 @@ export default function OverviewPage() {
                     key={m.organizationId}
                     className="org__option"
                     type="button"
-                    onClick={() => {
-                      setOrgMenuOpen(false);
-                      if (m.organizationId !== membership?.organizationId) {
-                        showToast('Organization switching arrives with tenant isolation.');
-                      }
-                    }}
+                    aria-current={
+                      m.organizationId === activeOrg?.organizationId ? 'true' : undefined
+                    }
+                    onClick={() => void switchOrg(m.organizationId)}
                   >
                     {m.organizationName}
                     <span>{m.role.charAt(0) + m.role.slice(1).toLowerCase()}</span>
                   </button>
                 ))}
+                {memberCount !== null ? (
+                  <p className="org__menu-foot">
+                    {memberCount} {memberCount === 1 ? 'member' : 'members'} in this book
+                  </p>
+                ) : null}
               </div>
             ) : null}
           </div>

@@ -27,9 +27,18 @@ describe('Auth', () => {
       accessToken: expect.any(String),
       refreshToken: expect.any(String),
       user: { email: 'owner@acme.test', name: expect.any(String) },
-      memberships: [
-        { organizationId: expect.any(String), organizationName: expect.any(String), role: 'OWNER' },
-      ],
+      memberships: expect.arrayContaining([
+        {
+          organizationId: expect.any(String),
+          organizationName: 'Acme Services Co.',
+          role: 'OWNER',
+        },
+        {
+          organizationId: expect.any(String),
+          organizationName: 'Nimbus Retail LLC',
+          role: 'ACCOUNTANT',
+        },
+      ]),
     });
   });
 
@@ -58,9 +67,18 @@ describe('Auth', () => {
     expect(res.body).toMatchObject({
       id: expect.any(String),
       email: 'owner@acme.test',
-      memberships: [
-        { organizationId: expect.any(String), organizationName: expect.any(String), role: 'OWNER' },
-      ],
+      memberships: expect.arrayContaining([
+        {
+          organizationId: expect.any(String),
+          organizationName: 'Acme Services Co.',
+          role: 'OWNER',
+        },
+        {
+          organizationId: expect.any(String),
+          organizationName: 'Nimbus Retail LLC',
+          role: 'ACCOUNTANT',
+        },
+      ]),
     });
   });
 
