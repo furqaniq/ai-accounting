@@ -38,21 +38,23 @@ model Organization {
   journalEntries       JournalEntry[]
   customers            Customer[]
   items                Item[]
+  invoices             Invoice[]
 }
 
 model Account {
-  id             String       @id @default(cuid())
+  id             String        @id @default(cuid())
   organizationId String
   code           String
   name           String
   type           AccountType
   subtype        String?
-  active         Boolean      @default(true)
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  active         Boolean       @default(true)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
   organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   journalLines   JournalLine[]
   items          Item[]
+  invoiceLines   InvoiceLine[]
 
   @@unique([organizationId, code])
   @@index([organizationId, type])
@@ -84,6 +86,7 @@ model JournalEntry {
   reversedBy     JournalEntry?     @relation("JournalReversal")
 
   @@unique([organizationId, reference])
+  @@unique([organizationId, sourceType, sourceId])
   @@index([organizationId, date])
   @@index([organizationId, sourceType, sourceId])
 }
@@ -123,36 +126,92 @@ model Customer {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invoices       Invoice[]
 
   @@unique([organizationId, code])
   @@index([organizationId, name])
 }
 
 model Item {
-  id              String       @id @default(cuid())
+  id              String        @id @default(cuid())
   organizationId  String
   code            String
   name            String
   description     String?
-  price           Decimal      @default(0) @db.Decimal(14, 2)
+  price           Decimal       @default(0) @db.Decimal(14, 2)
   incomeAccountId String
-  taxable         Boolean      @default(true)
-  active          Boolean      @default(true)
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
-  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  incomeAccount   Account      @relation(fields: [incomeAccountId], references: [id])
+  taxable         Boolean       @default(true)
+  active          Boolean       @default(true)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  organization    Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  incomeAccount   Account       @relation(fields: [incomeAccountId], references: [id])
+  invoiceLines    InvoiceLine[]
 
   @@unique([organizationId, code])
   @@index([organizationId, name])
 }
 
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PARTIAL
+  PAID
+}
+
+model Invoice {
+  id             String        @id @default(cuid())
+  organizationId String
+  number         String
+  customerId     String
+  status         InvoiceStatus @default(DRAFT)
+  issueDate      DateTime      @db.Date
+  dueDate        DateTime      @db.Date
+  sentAt         DateTime?
+  paidAt         DateTime?
+  taxRate        Decimal       @default(0) @db.Decimal(5, 4)
+  subtotal       Decimal       @default(0) @db.Decimal(14, 2)
+  taxTotal       Decimal       @default(0) @db.Decimal(14, 2)
+  total          Decimal       @default(0) @db.Decimal(14, 2)
+  amountPaid     Decimal       @default(0) @db.Decimal(14, 2)
+  notes          String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer       Customer      @relation(fields: [customerId], references: [id])
+  lines          InvoiceLine[]
+
+  @@unique([organizationId, number])
+  @@index([organizationId, status, dueDate])
+  @@index([organizationId, customerId])
+}
+
+model InvoiceLine {
+  id              String  @id @default(cuid())
+  organizationId  String
+  invoiceId       String
+  position        Int
+  itemId          String
+  description     String
+  quantity        Decimal @db.Decimal(14, 2)
+  unitPrice       Decimal @db.Decimal(14, 2)
+  amount          Decimal @db.Decimal(14, 2)
+  taxable         Boolean @default(true)
+  incomeAccountId String
+  invoice         Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  item            Item    @relation(fields: [itemId], references: [id])
+  incomeAccount   Account @relation(fields: [incomeAccountId], references: [id])
+
+  @@index([organizationId, invoiceId])
+  @@index([organizationId, itemId])
+}
+
 model User {
-  id            String         @id @default(cuid())
-  email         String         @unique
+  id            String          @id @default(cuid())
+  email         String          @unique
   name          String
   passwordHash  String
-  createdAt     DateTime       @default(now())
+  createdAt     DateTime        @default(now())
   memberships   OrgMembership[]
   refreshTokens RefreshToken[]
   auditLog      AuditLogEntry[]

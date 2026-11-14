@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { ActiveOrganization, clearSession } from '@/lib/api';
 
-export type SpineSection = 'accounts' | 'ledger' | 'customers' | 'items';
+export type SpineSection = 'accounts' | 'ledger' | 'customers' | 'items' | 'invoices';
 
 interface NavItem {
   href: string;
@@ -73,9 +73,9 @@ const NAV: NavItem[] = [
     ),
   },
   {
-    href: '/',
+    href: '/invoices',
     label: 'Invoices',
-    comingSoon: true,
+    section: 'invoices',
     icon: (
       <>
         <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z" />

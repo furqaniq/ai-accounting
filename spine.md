@@ -22,8 +22,8 @@ Living progress record for the Daybook build. Source of truth remains `Requireme
 | 004 | org-settings-audit-log | AFK | done |
 | 005 | chart-of-accounts | AFK | done |
 | 006 | manual-journals-register | AFK | done |
-| 007 | customers-items | AFK | done — awaiting go-ahead for 008 |
-| 008 | invoices | AFK | not started |
+| 007 | customers-items | AFK | done |
+| 008 | invoices | AFK | done — awaiting go-ahead for 009 |
 | 009 | estimates-to-invoice | AFK | not started |
 | 010 | invoice-pdf | AFK | not started |
 | 011 | customer-payments | AFK | not started |
@@ -68,9 +68,10 @@ Living progress record for the Daybook build. Source of truth remains `Requireme
 | 2026-11-14 | 005 | Chart of accounts: `Account` model with per-org unique codes and `AccountType`; idempotent industry-neutral default chart (17 accounts, 1000–6900) provisioned with each organization; `GET/POST/PATCH /accounts` with validation, 409 duplicates, deactivation (no delete), type/active filters, staff/viewer read-only; audited create/update; `/accounts` ledger page with type tabs, show-inactive toggle and create/edit drawer | Jest 47 passed (9 accounts + 8 settings + 13 members + 10 tenant + 7 auth); Playwright 7 passed (account list/form + prior flows) | github.com/furqaniq/ai-accounting |
 | 2026-11-14 | 006 | Manual journals + register: `LedgerEngine` (post/reverse/balance) as the sole journal-table writer with atomic balanced posting, two-decimal validation, per-org `JE-0001` references and immutable reversals; `JournalEntry`/`JournalLine` schema + migration; `POST/GET /journal-entries`, `GET /journal-entries/:id`, `POST /journal-entries/:id/reverse`, `GET /ledger/register` with account/date filters, opening/closing balances and running balance; ledger read for all roles, post for owner/admin/accountant; posting and reversal audited; seeded opening balances per org; `/ledger` page with entry list, new-entry drawer showing live debit/credit totals (post disabled while unbalanced), account register with drill-down and two-step reversal | Jest 53 passed (6 ledger + 47 prior); Playwright 8 passed (journal post/register/reversal + prior flows) | github.com/furqaniq/ai-accounting |
 | 2026-11-14 | 007 | Customers & items: `Customer` model with generated `CUST-####` codes, contact/billing fields and read-time derived balance (never writable); `Item` catalog with generated `ITEM-####` codes, two-decimal price, taxable flag and org-owned income-account validation; `GET/POST/PATCH /customers` and `/items` with staff manage, viewer read-only, tenant-scoped search and audited changes; shared `AppSpine` nav extracted for all ledger pages; `/customers` list with search, detail drawer, create/edit form and balance; `/items` catalog with search and edit form; seeded customers/items per org | Jest 62 passed (9 sales + 53 prior); Playwright 9 passed (customer and item create/edit/search + prior flows) | github.com/furqaniq/ai-accounting |
+| 2026-11-14 | 008 | Sales invoices: `Invoice`/`InvoiceLine` schema + migration with DRAFT/SENT/PARTIAL/PAID (OVERDUE derived from due date), per-org `INV-####` numbers, org default tax rate, catalog item line snapshots and computed subtotal/tax/total; `GET/POST/PATCH /invoices` and idempotent `POST /invoices/:id/send` (draft-only edits, atomic status + journal posting via `LedgerEngine.postWithin`), status/search/customer filters, detail view; staff/accountant manage, viewer read-only, audited create/update/send; customer balance derives open sent invoices; seeded draft/sent/overdue invoices per org; invoice list/detail/form with live totals. Fixed journal reference allocation to max-based so deletions cannot cause collisions | Jest 69 passed (7 invoices + 62 prior); Playwright 10 passed (invoice create/edit/send→ledger + prior flows) | github.com/furqaniq/ai-accounting |
 
 ## Open items
 
-- Client asked to confirm before starting each next issue; 007 complete, 008 (invoices) awaiting go-ahead.
+- Client asked to confirm before starting each next issue; 008 complete, 009 (estimates-to-invoice) awaiting go-ahead.
 - Jest runs with `maxWorkers: 1` and Playwright `workers: 1`: suites share one database and mutate org state. Never run `backend test` and `playwright test` at the same time — they post and delete against the same database.
 - Test fixtures normalize seed roles in `members.spec.ts` `beforeAll` (direct Prisma cleanup of test-added memberships); revisit if a fixtures helper lands in 034.

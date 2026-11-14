@@ -559,3 +559,139 @@ export async function updateItem(
   if (!res.ok) throw new Error(await failureMessage(res, 'Could not save that item'));
   return res.json();
 }
+
+export type InvoiceStatus = 'DRAFT' | 'SENT' | 'PARTIAL' | 'PAID' | 'OVERDUE';
+
+export interface InvoiceCustomer {
+  id: string;
+  code: string;
+  name: string;
+  contactName: string | null;
+  email: string | null;
+  phone: string | null;
+  addressLine1: string | null;
+  addressLine2: string | null;
+  city: string | null;
+  region: string | null;
+  postalCode: string | null;
+  country: string | null;
+}
+
+export interface InvoiceLine {
+  id: string;
+  itemId: string;
+  item: { id: string; code: string; name: string };
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  amount: number;
+  taxable: boolean;
+  incomeAccountId: string;
+  incomeAccount: { id: string; code: string; name: string };
+}
+
+export interface Invoice {
+  id: string;
+  number: string;
+  status: InvoiceStatus;
+  customerId: string;
+  customer: InvoiceCustomer;
+  issueDate: string;
+  dueDate: string;
+  sentAt: string | null;
+  paidAt: string | null;
+  taxRate: number;
+  subtotal: number;
+  taxTotal: number;
+  total: number;
+  amountPaid: number;
+  balanceDue: number;
+  daysOverdue: number;
+  notes: string | null;
+  lines: InvoiceLine[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface InvoiceLineInput {
+  itemId: string;
+  quantity: number;
+  unitPrice?: number;
+  description?: string;
+}
+
+export interface InvoiceInput {
+  customerId: string;
+  issueDate?: string;
+  dueDate: string;
+  lines: InvoiceLineInput[];
+  taxRate?: number;
+  notes?: string;
+}
+
+export async function fetchInvoices(
+  organizationId: string,
+  filters: { status?: InvoiceStatus; customerId?: string; search?: string } = {},
+): Promise<Invoice[]> {
+  const params = new URLSearchParams();
+  if (filters.status) params.set('status', filters.status);
+  if (filters.customerId) params.set('customerId', filters.customerId);
+  if (filters.search) params.set('search', filters.search);
+  const query = params.toString();
+  const res = await fetch(`${API_URL}/invoices${query ? `?${query}` : ''}`, {
+    headers: authHeaders(organizationId),
+  });
+  if (!res.ok) throw new Error('Invoices are not available');
+  const body = (await res.json()) as { invoices: Invoice[] };
+  return body.invoices;
+}
+
+export async function fetchInvoice(
+  organizationId: string,
+  invoiceId: string,
+): Promise<Invoice> {
+  const res = await fetch(`${API_URL}/invoices/${invoiceId}`, {
+    headers: authHeaders(organizationId),
+  });
+  if (!res.ok) throw new Error('That invoice is not available');
+  return res.json();
+}
+
+export async function createInvoice(
+  organizationId: string,
+  input: InvoiceInput,
+): Promise<Invoice> {
+  const res = await fetch(`${API_URL}/invoices`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders(organizationId) },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not create that invoice'));
+  return res.json();
+}
+
+export async function updateInvoice(
+  organizationId: string,
+  invoiceId: string,
+  input: Partial<InvoiceInput>,
+): Promise<Invoice> {
+  const res = await fetch(`${API_URL}/invoices/${invoiceId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...authHeaders(organizationId) },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not save that invoice'));
+  return res.json();
+}
+
+export async function sendInvoice(
+  organizationId: string,
+  invoiceId: string,
+): Promise<Invoice> {
+  const res = await fetch(`${API_URL}/invoices/${invoiceId}/send`, {
+    method: 'POST',
+    headers: authHeaders(organizationId),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not send that invoice'));
+  return res.json();
+}

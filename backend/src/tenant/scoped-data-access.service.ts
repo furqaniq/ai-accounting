@@ -9,7 +9,9 @@ type ScopedModel =
   | 'journalEntry'
   | 'journalLine'
   | 'customer'
-  | 'item';
+  | 'item'
+  | 'invoice'
+  | 'invoiceLine';
 
 interface FindArgs {
   where?: Record<string, unknown>;

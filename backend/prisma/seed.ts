@@ -1,4 +1,4 @@
-import { PrismaClient, Role } from '@prisma/client';
+import { InvoiceStatus, JournalSourceType, Prisma, PrismaClient, Role } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { ensureDefaultChart } from '../src/accounts/default-chart';
 import { postEntry } from '../src/ledger/ledger-engine';
@@ -118,6 +118,81 @@ const ITEMS: Record<(typeof ORGANIZATIONS)[number], SeedItem[]> = {
       description: 'Optional wrapping service',
       price: 8,
       taxable: false,
+    },
+  ],
+};
+
+interface SeedInvoiceLine {
+  itemCode: string;
+  quantity: number;
+  unitPrice?: number;
+  description?: string;
+}
+
+interface SeedInvoice {
+  number: string;
+  customerCode: string;
+  issueDate: string;
+  dueDate: string;
+  status: InvoiceStatus;
+  taxRate: number;
+  notes: string;
+  lines: SeedInvoiceLine[];
+}
+
+const INVOICES: Record<(typeof ORGANIZATIONS)[number], SeedInvoice[]> = {
+  'Acme Services Co.': [
+    {
+      number: 'INV-1001',
+      customerCode: 'CUST-0001',
+      issueDate: '2026-10-20',
+      dueDate: '2026-11-19',
+      status: InvoiceStatus.SENT,
+      taxRate: 0,
+      notes: 'October advisory work',
+      lines: [{ itemCode: 'ITEM-0001', quantity: 2 }],
+    },
+    {
+      number: 'INV-1002',
+      customerCode: 'CUST-0002',
+      issueDate: '2026-09-15',
+      dueDate: '2026-10-15',
+      status: InvoiceStatus.SENT,
+      taxRate: 0.0825,
+      notes: 'Design engagement',
+      lines: [{ itemCode: 'ITEM-0002', quantity: 1 }],
+    },
+    {
+      number: 'INV-1003',
+      customerCode: 'CUST-0001',
+      issueDate: '2026-11-05',
+      dueDate: '2026-12-05',
+      status: InvoiceStatus.DRAFT,
+      taxRate: 0,
+      notes: 'Draft retainer',
+      lines: [{ itemCode: 'ITEM-0003', quantity: 1 }],
+    },
+  ],
+  'Nimbus Retail LLC': [
+    {
+      number: 'INV-1001',
+      customerCode: 'CUST-0001',
+      issueDate: '2026-10-01',
+      dueDate: '2026-10-31',
+      status: InvoiceStatus.SENT,
+      taxRate: 0.0825,
+      notes: 'October retail order',
+      lines: [{ itemCode: 'ITEM-0001', quantity: 2 }],
+    },
+    {
+      number: 'INV-1002',
+      customerCode: 'CUST-0001',
+      issueDate: '2026-11-08',
+      dueDate: '2026-12-08',
+      status: InvoiceStatus.DRAFT,
+      taxRate: 0,
+      notes: 'Gift wrapping draft',
+      lines: [{ itemCode: 'ITEM-0002', quantity: 3 }],
     },
   ],
 };
@@ -272,6 +347,118 @@ async function main(): Promise<void> {
       });
     }
     console.log(`Seeded ${ITEMS[name].length} items for ${name}`);
+  }
+
+  for (const name of ORGANIZATIONS) {
+    const organizationId = orgs.get(name);
+    if (!organizationId) throw new Error(`Missing organization ${name}`);
+    const existing = await prisma.invoice.count({ where: { organizationId } });
+    if (existing > 0) continue;
+
+    const [receivable, taxPayable, income] = await Promise.all([
+      prisma.account.findFirstOrThrow({
+        where: { organizationId, code: '1100', active: true },
+      }),
+      prisma.account.findFirstOrThrow({
+        where: { organizationId, code: '2100', active: true },
+      }),
+      prisma.account.findFirstOrThrow({ where: { organizationId, code: '4000' } }),
+    ]);
+
+    for (const invoice of INVOICES[name]) {
+      const customer = await prisma.customer.findFirstOrThrow({
+        where: { organizationId, code: invoice.customerCode },
+      });
+      const lines = [];
+      for (const [index, line] of invoice.lines.entries()) {
+        const item = await prisma.item.findFirstOrThrow({
+          where: { organizationId, code: line.itemCode },
+        });
+        const quantity = new Prisma.Decimal(line.quantity);
+        const unitPrice = new Prisma.Decimal(line.unitPrice ?? item.price);
+        lines.push({
+          organizationId,
+          position: index,
+          itemId: item.id,
+          description: line.description ?? item.name,
+          quantity,
+          unitPrice,
+          amount: quantity.mul(unitPrice).toDecimalPlaces(2),
+          taxable: item.taxable,
+          incomeAccountId: item.incomeAccountId,
+        });
+      }
+
+      const subtotal = lines.reduce(
+        (sum, line) => sum.plus(line.amount),
+        new Prisma.Decimal(0),
+      );
+      const taxable = lines.reduce(
+        (sum, line) => (line.taxable ? sum.plus(line.amount) : sum),
+        new Prisma.Decimal(0),
+      );
+      const taxRate = new Prisma.Decimal(invoice.taxRate);
+      const taxTotal = taxable.mul(taxRate).toDecimalPlaces(2);
+      const total = subtotal.plus(taxTotal);
+      const sent = invoice.status !== InvoiceStatus.DRAFT;
+
+      const created = await prisma.invoice.create({
+        data: {
+          organizationId,
+          number: invoice.number,
+          customerId: customer.id,
+          status: InvoiceStatus.DRAFT,
+          issueDate: new Date(`${invoice.issueDate}T00:00:00.000Z`),
+          dueDate: new Date(`${invoice.dueDate}T00:00:00.000Z`),
+          taxRate,
+          subtotal,
+          taxTotal,
+          total,
+          notes: invoice.notes,
+          lines: { create: lines },
+        },
+      });
+
+      if (sent) {
+        const incomeByAccount = new Map<string, Prisma.Decimal>();
+        for (const line of lines) {
+          incomeByAccount.set(
+            line.incomeAccountId,
+            (incomeByAccount.get(line.incomeAccountId) ?? new Prisma.Decimal(0)).plus(
+              line.amount,
+            ),
+          );
+        }
+        await postEntry(prisma, organizationId, {
+          date: invoice.issueDate,
+          memo: `Invoice ${created.number} — ${customer.name}`,
+          sourceType: JournalSourceType.INVOICE,
+          sourceId: created.id,
+          lines: [
+            { accountId: receivable.id, debit: total, description: `Invoice ${created.number}` },
+            ...[...incomeByAccount.entries()].map(([accountId, amount]) => ({
+              accountId,
+              credit: amount,
+              description: `Invoice ${created.number}`,
+            })),
+            ...(taxTotal.gt(0)
+              ? [
+                  {
+                    accountId: taxPayable.id,
+                    credit: taxTotal,
+                    description: `Sales tax on ${created.number}`,
+                  },
+                ]
+              : []),
+          ],
+        });
+        await prisma.invoice.update({
+          where: { id: created.id },
+          data: { status: InvoiceStatus.SENT, sentAt: new Date(`${invoice.issueDate}T12:00:00.000Z`) },
+        });
+      }
+    }
+    console.log(`Seeded ${INVOICES[name].length} invoices for ${name}`);
   }
 }
 

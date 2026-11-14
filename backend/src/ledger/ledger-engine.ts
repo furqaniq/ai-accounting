@@ -213,8 +213,15 @@ async function validateLines(
 }
 
 async function nextReference(db: Db, organizationId: string): Promise<string> {
-  const count = await db.journalEntry.count({ where: { organizationId } });
-  return `JE-${String(count + 1).padStart(4, '0')}`;
+  const rows = await db.journalEntry.findMany({
+    where: { organizationId, reference: { startsWith: 'JE-' } },
+    orderBy: { reference: 'desc' },
+    take: 1,
+    select: { reference: true },
+  });
+  const last = Number.parseInt(rows[0]?.reference.slice('JE-'.length) ?? '0', 10);
+  const next = Number.isFinite(last) ? last + 1 : 1;
+  return `JE-${String(next).padStart(4, '0')}`;
 }
 
 /** The one write path for journal tables. All feature modules post through here. */
@@ -226,42 +233,39 @@ export async function postEntry(
   const date = toDate(input.date);
   const lines = await validateLines(db, organizationId, input.lines);
 
-  for (let attempt = 0; attempt < 5; attempt += 1) {
-    try {
-      const entry = await db.journalEntry.create({
-        data: {
-          organizationId,
-          reference: await nextReference(db, organizationId),
-          date,
-          memo: input.memo?.trim() || null,
-          sourceType: input.sourceType ?? JournalSourceType.MANUAL,
-          sourceId: input.sourceId ?? null,
-          reversalOfId: input.reversalOfId ?? null,
-          lines: {
-            create: lines.map((line) => ({
-              organizationId,
-              accountId: line.accountId,
-              description: line.description,
-              debit: line.debit,
-              credit: line.credit,
-            })),
-          },
+  try {
+    const entry = await db.journalEntry.create({
+      data: {
+        organizationId,
+        reference: await nextReference(db, organizationId),
+        date,
+        memo: input.memo?.trim() || null,
+        sourceType: input.sourceType ?? JournalSourceType.MANUAL,
+        sourceId: input.sourceId ?? null,
+        reversalOfId: input.reversalOfId ?? null,
+        lines: {
+          create: lines.map((line) => ({
+            organizationId,
+            accountId: line.accountId,
+            description: line.description,
+            debit: line.debit,
+            credit: line.credit,
+          })),
         },
-        include: {
-          lines: { include: { account: { select: { id: true, code: true, name: true, type: true } } } },
-          reversedBy: { select: { id: true, reference: true } },
-          reversalOf: { select: { id: true, reference: true } },
-        },
-      });
-      return toEntryView(entry);
-    } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        continue;
-      }
-      throw error;
+      },
+      include: {
+        lines: { include: { account: { select: { id: true, code: true, name: true, type: true } } } },
+        reversedBy: { select: { id: true, reference: true } },
+        reversalOf: { select: { id: true, reference: true } },
+      },
+    });
+    return toEntryView(entry);
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      throw new ConflictException('The ledger is busy; try posting again');
     }
+    throw error;
   }
-  throw new ConflictException('The ledger is busy; try posting again');
 }
 
 export async function reverseEntry(
@@ -341,7 +345,15 @@ export class LedgerEngine {
   constructor(private readonly prisma: PrismaService) {}
 
   post(organizationId: string, input: PostEntryInput): Promise<JournalEntryView> {
-    return this.prisma.$transaction((tx) => postEntry(tx, organizationId, input));
+    return this.prisma.$transaction((tx) => this.postWithin(tx, organizationId, input));
+  }
+
+  postWithin(
+    db: Prisma.TransactionClient,
+    organizationId: string,
+    input: PostEntryInput,
+  ): Promise<JournalEntryView> {
+    return postEntry(db, organizationId, input);
   }
 
   reverse(

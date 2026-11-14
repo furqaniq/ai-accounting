@@ -833,3 +833,116 @@
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+
+/* Invoices (issue 008). */
+.invoice-toolbar {
+  margin-top: 18px;
+}
+
+.invoice-table .invoice-row:focus-visible {
+  outline: 2px solid rgba(31, 90, 67, 0.35);
+  outline-offset: -2px;
+}
+
+.table-subline {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--ink-faint);
+}
+
+.side-drawer#invoice-form {
+  width: min(560px, 96vw);
+}
+
+.invoice-form__lines-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 18px;
+  padding-top: 6px;
+  border-top: 1px solid var(--rule);
+}
+
+.invoice-form__lines-head .drawer-form__label {
+  margin-top: 0;
+}
+
+.invoice-form__lines {
+  margin-top: 2px;
+}
+
+.invoice-form__line {
+  padding: 6px 0 12px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.invoice-form__numbers {
+  display: grid;
+  grid-template-columns: minmax(64px, 0.8fr) minmax(84px, 1fr) auto auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.invoice-form__numbers input {
+  margin-top: 6px;
+}
+
+.invoice-form__amount {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 7px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.invoice-form__amount .drawer-form__label {
+  margin-top: 0;
+}
+
+.invoice-form__totals {
+  margin-top: 18px;
+  padding-top: 10px;
+  border-top: 1px solid var(--rule);
+}
+
+.invoice-form__totals div {
+  display: flex;
+  justify-content: space-between;
+  padding: 3px 0;
+  font-size: 13px;
+}
+
+.invoice-form__totals dd {
+  font-variant-numeric: tabular-nums;
+}
+
+.invoice-form__totals-total {
+  margin-top: 5px;
+  padding-top: 8px !important;
+  font-weight: 600;
+  border-top: 1px solid var(--ink);
+  border-bottom: 3px double var(--ink);
+}
+
+@media (max-width: 560px) {
+  .side-drawer#invoice-form {
+    width: 96vw;
+  }
+
+  .invoice-form__numbers {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .invoice-form__amount {
+    align-items: flex-start;
+    text-align: left;
+  }
+}
+
+.invoice-form .drawer-form__pair {
+  grid-template-columns: 1fr 1fr;
+}
