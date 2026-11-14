@@ -196,7 +196,7 @@
 }
 
 /* Drawer overlays the clerk margin instead of taking a fourth grid column. */
-.members {
+.side-drawer {
   position: fixed;
   top: 0;
   right: 0;
@@ -208,13 +208,157 @@
   visibility: hidden;
 }
 
-.members.is-open {
+.side-drawer.is-open {
   transform: translateX(0);
   visibility: visible;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .members {
+  .side-drawer {
     transition: none;
   }
+}
+
+/* Organization settings form (issue 004). */
+.drawer-form {
+  padding-top: 16px;
+}
+
+.drawer-form__label {
+  display: block;
+  margin-top: 14px;
+  font-size: 11.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.drawer-form input,
+.drawer-form select {
+  width: 100%;
+  margin-top: 6px;
+  padding: 7px 9px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+}
+
+.drawer-form__group {
+  margin: 14px 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.drawer-form__group legend {
+  margin-top: 0;
+}
+
+.drawer-form__pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 76px;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.drawer-form__pair input,
+.drawer-form__pair select {
+  margin-top: 0;
+}
+
+.drawer-form__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 20px;
+  padding-top: 14px;
+  border-top: 1px solid var(--rule);
+}
+
+.drawer-form__hint {
+  font-size: 11.5px;
+  color: var(--ink-faint);
+}
+
+.drawer-read {
+  padding-top: 16px;
+  font-size: 13px;
+}
+
+.drawer-read dt {
+  margin-top: 14px;
+  font-size: 11.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.drawer-read dd {
+  margin-top: 3px;
+  font-family: var(--font-display);
+  font-size: 16px;
+}
+
+/* Audit log (issue 004). */
+.audit-filters {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.audit-filters select {
+  width: 100%;
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+}
+
+.audit-list {
+  margin-top: 6px;
+}
+
+.audit-row {
+  padding: 11px 0 12px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.audit-row__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.audit-row__action {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ledger-deep);
+}
+
+.audit-row__time {
+  font-size: 11px;
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+
+.audit-row__detail {
+  margin-top: 3px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink);
+  word-break: break-word;
+}
+
+.audit-row__actor {
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--ink-faint);
 }

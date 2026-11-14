@@ -2,6 +2,8 @@
 
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import AuditLogDrawer from '@/components/audit-log-drawer';
+import OrgSettingsDrawer from '@/components/org-settings-drawer';
 import {
   API_URL,
   ActiveOrganization,
@@ -50,6 +52,8 @@ export default function OverviewPage() {
   const [memberEmail, setMemberEmail] = useState('');
   const [memberRole, setMemberRole] = useState('STAFF');
   const [membersError, setMembersError] = useState<string | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [auditOpen, setAuditOpen] = useState(false);
   const [activeOrg, setActiveOrg] = useState<ActiveOrganization | null>(null);
   const [memberCount, setMemberCount] = useState<number | null>(null);
   const [range, setRange] = useState<'30' | '90' | '365'>('30');
@@ -221,7 +225,35 @@ export default function OverviewPage() {
     }
   }
 
-  const scrimVisible = spineOpen || marginOpen || membersOpen;
+  const onSettingsSaved = useCallback((settings: { name: string }) => {
+    setActiveOrg((current) =>
+      current ? { ...current, organizationName: settings.name } : current,
+    );
+    setUser((current) =>
+      current
+        ? {
+            ...current,
+            memberships: current.memberships.map((m) =>
+              m.organizationId === activeOrg?.organizationId
+                ? { ...m, organizationName: settings.name }
+                : m,
+            ),
+          }
+        : current,
+    );
+  }, [activeOrg?.organizationId]);
+
+  const openSettings = useCallback(() => {
+    setOrgMenuOpen(false);
+    setSettingsOpen(true);
+  }, []);
+
+  const openAudit = useCallback(() => {
+    setOrgMenuOpen(false);
+    setAuditOpen(true);
+  }, []);
+
+  const scrimVisible = spineOpen || marginOpen || membersOpen || settingsOpen || auditOpen;
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -229,6 +261,8 @@ export default function OverviewPage() {
         setSpineOpen(false);
         setMarginOpen(false);
         setMembersOpen(false);
+        setSettingsOpen(false);
+        setAuditOpen(false);
         setOrgMenuOpen(false);
       }
     }
@@ -324,6 +358,18 @@ export default function OverviewPage() {
                     </span>
                   ) : null}
                 </button>
+                {role === 'OWNER' || role === 'ADMIN' ? (
+                  <>
+                    <button className="org__members" type="button" onClick={openSettings}>
+                      Settings
+                      <span>Fiscal, tax, currency</span>
+                    </button>
+                    <button className="org__members" type="button" onClick={openAudit}>
+                      Audit log
+                      <span>Every change</span>
+                    </button>
+                  </>
+                ) : null}
               </div>
             ) : null}
           </div>
@@ -919,7 +965,7 @@ export default function OverviewPage() {
       </div>
 
       <aside
-        className={`margin members${membersOpen ? ' is-open' : ''}`}
+        className={`margin side-drawer${membersOpen ? ' is-open' : ''}`}
         id="members"
         aria-label="Members"
       >
@@ -1053,6 +1099,21 @@ export default function OverviewPage() {
         ) : null}
       </aside>
 
+      <OrgSettingsDrawer
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        activeOrg={activeOrg}
+        canManage={roleCanManage}
+        onSaved={onSettingsSaved}
+        onToast={showToast}
+      />
+
+      <AuditLogDrawer
+        open={auditOpen}
+        onClose={() => setAuditOpen(false)}
+        activeOrg={activeOrg}
+      />
+
       <div
         className={`scrim${scrimVisible ? ' is-visible' : ''}`}
         id="scrim"
@@ -1061,6 +1122,8 @@ export default function OverviewPage() {
           setSpineOpen(false);
           setMarginOpen(false);
           setMembersOpen(false);
+          setSettingsOpen(false);
+          setAuditOpen(false);
         }}
       ></div>
       <div className={`toast${toast ? ' is-visible' : ''}`} id="toast" role="status" aria-live="polite">

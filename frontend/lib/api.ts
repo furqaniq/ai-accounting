@@ -145,3 +145,69 @@ export async function removeMember(
 export function canManageMembers(role: string): boolean {
   return role === 'OWNER' || role === 'ADMIN';
 }
+
+export interface OrgSettings {
+  organizationId: string;
+  name: string;
+  fiscalYearStartMonth: number;
+  fiscalYearStartDay: number;
+  baseCurrency: string;
+  defaultTaxRate: number;
+  updatedAt: string;
+}
+
+export interface OrgSettingsPatch {
+  name?: string;
+  fiscalYearStartMonth?: number;
+  fiscalYearStartDay?: number;
+  baseCurrency?: string;
+  defaultTaxRate?: number;
+}
+
+export interface AuditEntry {
+  id: string;
+  action: string;
+  entityType: string;
+  entityId: string;
+  metadata: { changes?: Record<string, { from: unknown; to: unknown }>; [key: string]: unknown } | null;
+  createdAt: string;
+  actor: { id: string; name: string; email: string };
+}
+
+export async function fetchSettings(organizationId: string): Promise<OrgSettings> {
+  const res = await fetch(`${API_URL}/organizations/settings`, {
+    headers: authHeaders(organizationId),
+  });
+  if (!res.ok) throw new Error('Settings are not available');
+  return res.json();
+}
+
+export async function saveSettings(
+  organizationId: string,
+  patch: OrgSettingsPatch,
+): Promise<OrgSettings> {
+  const res = await fetch(`${API_URL}/organizations/settings`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...authHeaders(organizationId) },
+    body: JSON.stringify(patch),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not save those settings'));
+  return res.json();
+}
+
+export async function fetchAuditLog(
+  organizationId: string,
+  filters: { action?: string; entityType?: string; limit?: number } = {},
+): Promise<AuditEntry[]> {
+  const params = new URLSearchParams();
+  if (filters.action) params.set('action', filters.action);
+  if (filters.entityType) params.set('entityType', filters.entityType);
+  if (filters.limit) params.set('limit', String(filters.limit));
+  const query = params.toString();
+  const res = await fetch(`${API_URL}/audit-log${query ? `?${query}` : ''}`, {
+    headers: authHeaders(organizationId),
+  });
+  if (!res.ok) throw new Error('The audit log is not available');
+  const body = (await res.json()) as { entries: AuditEntry[] };
+  return body.entries;
+}

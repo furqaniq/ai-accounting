@@ -18,8 +18,8 @@ Living progress record for the Daybook build. Source of truth remains `Requireme
 | --- | --- | --- | --- |
 | 001 | walking-skeleton | HITL | done — approved by client |
 | 002 | tenant-isolation-org-switching | AFK | done — approved, 003 in progress |
-| 003 | members-rbac | AFK | done — awaiting go-ahead for 004 |
-| 004 | org-settings-audit-log | AFK | not started |
+| 003 | members-rbac | AFK | done |
+| 004 | org-settings-audit-log | AFK | done — awaiting go-ahead for 005 |
 | 005 | chart-of-accounts | AFK | not started |
 | 006 | manual-journals-register | AFK | not started |
 | 007 | customers-items | AFK | not started |
@@ -64,8 +64,10 @@ Living progress record for the Daybook build. Source of truth remains `Requireme
 | 2026-11-14 | 001 | HITL approved after 4 polish rounds (login composition, demo-account picker, card-free ledger grid, left margin rule) | Playwright 3 passed | github.com/furqaniq/ai-accounting |
 | 2026-11-14 | 002 | Tenant isolation: TenantContext + ScopedDataAccess, `GET /organizations/active`, tenant-scoped `GET /memberships` and `GET /memberships/:id` (404 cross-tenant), seed of 6 §7 accounts across Acme/Nimbus with owner@acme dual-membership, real org switcher with server-resolved role + member count | Jest 17 passed (10 tenant + 7 auth); Playwright 4 passed (org switching) | github.com/furqaniq/ai-accounting |
 | 2026-11-14 | 003 | Members & RBAC: role→permission matrix enforced in `JwtAuthGuard` via `@RequirePermission` (owner/admin manage; accountant/staff/viewer read-only), `POST/PATCH/DELETE /memberships` with unknown-user 404, duplicate 409, last-owner 400, `AuditLogEntry` model + request-scoped `AuditService` recording membership.create/role_change/delete, tenant-scoped `GET /audit-log` guarded by `audit:read`, ledger-styled members drawer with role selects, add form and remove; read-only view for non-managers | Jest 30 passed (13 members + 10 tenant + 7 auth); Playwright 5 passed (members drawer + org switching + login) | github.com/furqaniq/ai-accounting |
+| 2026-11-14 | 004 | Org settings + audit log: Organization gains fiscal-year month/day, base currency, default tax rate (validated DTO, owner/admin only), `GET/PATCH /organizations/settings`; append-only `GET /audit-log` with action/entityType/limit filters (no update/delete routes); settings changes audited with from→to diff; ledger-styled Settings and Audit log drawers from the org menu, read-only view for non-managers | Jest 38 passed (8 settings + 13 members + 10 tenant + 7 auth); Playwright 6 passed (settings → audit log flow) | github.com/furqaniq/ai-accounting |
 
 ## Open items
 
-- Client asked to confirm before starting each next issue; 003 complete, 004 (org-settings-audit-log) awaiting go-ahead.
+- Client asked to confirm before starting each next issue; 004 complete, 005 (chart-of-accounts) awaiting go-ahead.
+- Jest runs with `maxWorkers: 1` and Playwright `workers: 1`: suites share one database and mutate org state.
 - Test fixtures normalize seed roles in `members.spec.ts` `beforeAll` (direct Prisma cleanup of test-added memberships); revisit if a fixtures helper lands in 034.

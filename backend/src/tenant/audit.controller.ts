@@ -1,4 +1,5 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Query } from '@nestjs/common';
+import { AuditQueryDto } from './audit-query.dto';
 import { ScopedDataAccess } from './scoped-data-access.service';
 import { RequirePermission } from './require-permission.decorator';
 
@@ -18,11 +19,16 @@ export class AuditController {
 
   @Get()
   @RequirePermission('audit:read')
-  async list() {
+  async list(@Query() query: AuditQueryDto) {
+    const where: Record<string, unknown> = {};
+    if (query.action) where.action = query.action;
+    if (query.entityType) where.entityType = query.entityType;
+
     const rows = await this.scoped.findMany<AuditRow>('auditLogEntry', {
+      where,
       include: { actor: { select: { id: true, name: true, email: true } } },
       orderBy: { createdAt: 'desc' },
-      take: 100,
+      take: query.limit ?? 50,
     });
     return {
       entries: rows.map((row) => ({
