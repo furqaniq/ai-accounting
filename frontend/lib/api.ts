@@ -695,3 +695,127 @@ export async function sendInvoice(
   if (!res.ok) throw new Error(await failureMessage(res, 'Could not send that invoice'));
   return res.json();
 }
+
+export type EstimateStatus = 'DRAFT' | 'SENT' | 'ACCEPTED' | 'DECLINED';
+
+export interface EstimateLine {
+  id: string;
+  itemId: string;
+  item: { id: string; code: string; name: string };
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  amount: number;
+  taxable: boolean;
+  incomeAccountId: string;
+  incomeAccount: { id: string; code: string; name: string };
+}
+
+export interface Estimate {
+  id: string;
+  number: string;
+  status: EstimateStatus;
+  customerId: string;
+  customer: InvoiceCustomer;
+  issueDate: string;
+  expiryDate: string | null;
+  taxRate: number;
+  subtotal: number;
+  taxTotal: number;
+  total: number;
+  notes: string | null;
+  convertedInvoice: { id: string; number: string; status: string } | null;
+  lines: EstimateLine[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EstimateInput {
+  customerId: string;
+  issueDate?: string;
+  expiryDate?: string;
+  lines: InvoiceLineInput[];
+  taxRate?: number;
+  notes?: string;
+}
+
+export async function fetchEstimates(
+  organizationId: string,
+  filters: { status?: EstimateStatus; customerId?: string; search?: string } = {},
+): Promise<Estimate[]> {
+  const params = new URLSearchParams();
+  if (filters.status) params.set('status', filters.status);
+  if (filters.customerId) params.set('customerId', filters.customerId);
+  if (filters.search) params.set('search', filters.search);
+  const query = params.toString();
+  const res = await fetch(`${API_URL}/estimates${query ? `?${query}` : ''}`, {
+    headers: authHeaders(organizationId),
+  });
+  if (!res.ok) throw new Error('Estimates are not available');
+  const body = (await res.json()) as { estimates: Estimate[] };
+  return body.estimates;
+}
+
+export async function fetchEstimate(
+  organizationId: string,
+  estimateId: string,
+): Promise<Estimate> {
+  const res = await fetch(`${API_URL}/estimates/${estimateId}`, {
+    headers: authHeaders(organizationId),
+  });
+  if (!res.ok) throw new Error('That estimate is not available');
+  return res.json();
+}
+
+export async function createEstimate(
+  organizationId: string,
+  input: EstimateInput,
+): Promise<Estimate> {
+  const res = await fetch(`${API_URL}/estimates`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders(organizationId) },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not create that estimate'));
+  return res.json();
+}
+
+export async function updateEstimate(
+  organizationId: string,
+  estimateId: string,
+  input: Partial<EstimateInput>,
+): Promise<Estimate> {
+  const res = await fetch(`${API_URL}/estimates/${estimateId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...authHeaders(organizationId) },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not save that estimate'));
+  return res.json();
+}
+
+export async function updateEstimateStatus(
+  organizationId: string,
+  estimateId: string,
+  status: Exclude<EstimateStatus, 'DRAFT'>,
+): Promise<Estimate> {
+  const res = await fetch(`${API_URL}/estimates/${estimateId}/status`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders(organizationId) },
+    body: JSON.stringify({ status }),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not change that status'));
+  return res.json();
+}
+
+export async function convertEstimate(
+  organizationId: string,
+  estimateId: string,
+): Promise<Estimate> {
+  const res = await fetch(`${API_URL}/estimates/${estimateId}/convert`, {
+    method: 'POST',
+    headers: authHeaders(organizationId),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not convert that estimate'));
+  return res.json();
+}

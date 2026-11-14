@@ -4,7 +4,13 @@ import type { ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { ActiveOrganization, clearSession } from '@/lib/api';
 
-export type SpineSection = 'accounts' | 'ledger' | 'customers' | 'items' | 'invoices';
+export type SpineSection =
+  | 'accounts'
+  | 'ledger'
+  | 'customers'
+  | 'items'
+  | 'estimates'
+  | 'invoices';
 
 interface NavItem {
   href: string;
@@ -69,6 +75,18 @@ const NAV: NavItem[] = [
       <>
         <path d="M4 7.5 12 3l8 4.5v9L12 21l-8-4.5z" />
         <path d="M4 7.5 12 12l8-4.5M12 12v9" />
+      </>
+    ),
+  },
+  {
+    href: '/estimates',
+    label: 'Estimates',
+    section: 'estimates',
+    icon: (
+      <>
+        <path d="M6 3h9l4 4v14H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z" />
+        <path d="M15 3v4h4M9 12h6M9 16h4" />
+        <path d="m8 8 1 1 2-2" />
       </>
     ),
   },

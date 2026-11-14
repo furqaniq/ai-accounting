@@ -413,6 +413,14 @@ export default function OverviewPage() {
               </svg>
               Items
             </a>
+            <a className="nav__item" href="/estimates">
+              <svg className="icon nav__icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M6 3h9l4 4v14H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z" />
+                <path d="M15 3v4h4M9 12h6M9 16h4" />
+                <path d="m8 8 1 1 2-2" />
+              </svg>
+              Estimates
+            </a>
             <a className="nav__item" href="/invoices">
               <svg className="icon nav__icon" viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z" />

@@ -11,7 +11,9 @@ type ScopedModel =
   | 'customer'
   | 'item'
   | 'invoice'
-  | 'invoiceLine';
+  | 'invoiceLine'
+  | 'estimate'
+  | 'estimateLine';
 
 interface FindArgs {
   where?: Record<string, unknown>;
@@ -71,6 +73,20 @@ export class ScopedDataAccess {
     })) as { count: number };
     if (result.count === 0) return null;
     return this.findById<T>(model, id);
+  }
+
+  async updateMany(
+    model: ScopedModel,
+    where: Record<string, unknown>,
+    data: Record<string, unknown>,
+  ): Promise<number> {
+    const { organizationId } = await this.tenant.get();
+    const delegate = this.delegate(model);
+    const result = (await delegate.updateMany({
+      where: { ...where, organizationId },
+      data,
+    })) as { count: number };
+    return result.count;
   }
 
   async deleteById(model: ScopedModel, id: string): Promise<boolean> {

@@ -1,4 +1,11 @@
-import { InvoiceStatus, JournalSourceType, Prisma, PrismaClient, Role } from '@prisma/client';
+import {
+  EstimateStatus,
+  InvoiceStatus,
+  JournalSourceType,
+  Prisma,
+  PrismaClient,
+  Role,
+} from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { ensureDefaultChart } from '../src/accounts/default-chart';
 import { postEntry } from '../src/ledger/ledger-engine';
@@ -193,6 +200,58 @@ const INVOICES: Record<(typeof ORGANIZATIONS)[number], SeedInvoice[]> = {
       taxRate: 0,
       notes: 'Gift wrapping draft',
       lines: [{ itemCode: 'ITEM-0002', quantity: 3 }],
+    },
+  ],
+};
+
+
+interface SeedEstimate {
+  number: string;
+  customerCode: string;
+  issueDate: string;
+  expiryDate: string;
+  status: EstimateStatus;
+  taxRate: number;
+  notes: string;
+  lines: SeedInvoiceLine[];
+}
+
+const ESTIMATES: Record<(typeof ORGANIZATIONS)[number], SeedEstimate[]> = {
+  'Acme Services Co.': [
+    {
+      number: 'EST-1001',
+      customerCode: 'CUST-0001',
+      issueDate: '2026-11-02',
+      expiryDate: '2026-12-02',
+      status: EstimateStatus.SENT,
+      taxRate: 0,
+      notes: 'Quarterly advisory proposal',
+      lines: [
+        { itemCode: 'ITEM-0001', quantity: 6 },
+        { itemCode: 'ITEM-0003', quantity: 1 },
+      ],
+    },
+    {
+      number: 'EST-1002',
+      customerCode: 'CUST-0002',
+      issueDate: '2026-11-09',
+      expiryDate: '2026-12-09',
+      status: EstimateStatus.DRAFT,
+      taxRate: 0.0825,
+      notes: 'Design package quote',
+      lines: [{ itemCode: 'ITEM-0002', quantity: 2 }],
+    },
+  ],
+  'Nimbus Retail LLC': [
+    {
+      number: 'EST-1001',
+      customerCode: 'CUST-0001',
+      issueDate: '2026-11-04',
+      expiryDate: '2026-12-04',
+      status: EstimateStatus.ACCEPTED,
+      taxRate: 0.0825,
+      notes: 'Holiday bundle quote',
+      lines: [{ itemCode: 'ITEM-0001', quantity: 4 }],
     },
   ],
 };
@@ -460,6 +519,66 @@ async function main(): Promise<void> {
     }
     console.log(`Seeded ${INVOICES[name].length} invoices for ${name}`);
   }
+  for (const name of ORGANIZATIONS) {
+    const organizationId = orgs.get(name);
+    if (!organizationId) throw new Error(`Missing organization ${name}`);
+    const existing = await prisma.estimate.count({ where: { organizationId } });
+    if (existing > 0) continue;
+
+    for (const estimate of ESTIMATES[name]) {
+      const customer = await prisma.customer.findFirstOrThrow({
+        where: { organizationId, code: estimate.customerCode },
+      });
+      const lines = [];
+      for (const [index, line] of estimate.lines.entries()) {
+        const item = await prisma.item.findFirstOrThrow({
+          where: { organizationId, code: line.itemCode },
+        });
+        const quantity = new Prisma.Decimal(line.quantity);
+        const unitPrice = new Prisma.Decimal(line.unitPrice ?? item.price);
+        lines.push({
+          organizationId,
+          position: index,
+          itemId: item.id,
+          description: line.description ?? item.name,
+          quantity,
+          unitPrice,
+          amount: quantity.mul(unitPrice).toDecimalPlaces(2),
+          taxable: item.taxable,
+          incomeAccountId: item.incomeAccountId,
+        });
+      }
+      const subtotal = lines.reduce(
+        (sum, line) => sum.plus(line.amount),
+        new Prisma.Decimal(0),
+      );
+      const taxable = lines.reduce(
+        (sum, line) => (line.taxable ? sum.plus(line.amount) : sum),
+        new Prisma.Decimal(0),
+      );
+      const taxRate = new Prisma.Decimal(estimate.taxRate);
+      const taxTotal = taxable.mul(taxRate).toDecimalPlaces(2);
+
+      await prisma.estimate.create({
+        data: {
+          organizationId,
+          number: estimate.number,
+          customerId: customer.id,
+          status: estimate.status,
+          issueDate: new Date(`${estimate.issueDate}T00:00:00.000Z`),
+          expiryDate: new Date(`${estimate.expiryDate}T00:00:00.000Z`),
+          taxRate,
+          subtotal,
+          taxTotal,
+          total: subtotal.plus(taxTotal),
+          notes: estimate.notes,
+          lines: { create: lines },
+        },
+      });
+    }
+    console.log(`Seeded ${ESTIMATES[name].length} estimates for ${name}`);
+  }
+
 }
 
 main()

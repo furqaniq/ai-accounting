@@ -929,7 +929,8 @@
 }
 
 @media (max-width: 560px) {
-  .side-drawer#invoice-form {
+  .side-drawer#invoice-form,
+  .side-drawer#estimate-form {
     width: 96vw;
   }
 
@@ -945,4 +946,29 @@
 
 .invoice-form .drawer-form__pair {
   grid-template-columns: 1fr 1fr;
+}
+
+/* Estimates (issue 009). */
+.side-drawer#estimate-form {
+  width: min(560px, 96vw);
+}
+.estimate-converted {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-left: 3px solid var(--ledger);
+  background: rgba(31, 90, 67, 0.06);
+}
+
+.estimate-converted p {
+  margin: 0;
+  font-size: 13px;
+}
+
+.estimate-table .table-subline {
+  white-space: nowrap;
 }

@@ -85,7 +85,7 @@ export interface InvoiceView {
   updatedAt: string;
 }
 
-interface ComputedLine {
+export interface ComputedLine {
   itemId: string;
   description: string;
   quantity: Prisma.Decimal;
@@ -390,6 +390,49 @@ export class InvoicesService {
       });
     }
     return this.find(id);
+  }
+
+  async createDraftWithin(
+    tx: Prisma.TransactionClient,
+    organizationId: string,
+    input: {
+      customerId: string;
+      issueDate: Date;
+      dueDate: Date;
+      taxRate: Prisma.Decimal;
+      notes: string | null;
+      lines: ComputedLine[];
+    },
+  ): Promise<{ id: string; number: string; customerId: string; total: Prisma.Decimal }> {
+    const totals = computeTotals(input.lines, input.taxRate);
+    const invoice = await tx.invoice.create({
+      data: {
+        organizationId,
+        number: await this.nextNumber(),
+        customerId: input.customerId,
+        status: InvoiceStatus.DRAFT,
+        issueDate: input.issueDate,
+        dueDate: input.dueDate,
+        taxRate: input.taxRate,
+        ...totals,
+        notes: input.notes,
+        lines: {
+          create: input.lines.map((line, index) => ({
+            organizationId,
+            position: index,
+            itemId: line.itemId,
+            description: line.description,
+            quantity: line.quantity,
+            unitPrice: line.unitPrice,
+            amount: line.amount,
+            taxable: line.taxable,
+            incomeAccountId: line.incomeAccountId,
+          })),
+        },
+      },
+      select: { id: true, number: true, customerId: true, total: true },
+    });
+    return invoice;
   }
 
   private async findRow(id: string): Promise<InvoiceRow> {
