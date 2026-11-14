@@ -384,6 +384,13 @@ export default function OverviewPage() {
               </svg>
               Overview
             </a>
+            <a className="nav__item" href="/accounts">
+              <svg className="icon nav__icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 4h16v16H4z" />
+                <path d="M4 9h16M4 14h16M9 9v11" />
+              </svg>
+              Accounts
+            </a>
             <a
               className="nav__item"
               href="#"

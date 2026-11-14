@@ -1,5 +1,6 @@
 import { PrismaClient, Role } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import { ensureDefaultChart } from '../src/accounts/default-chart';
 
 const prisma = new PrismaClient();
 
@@ -59,6 +60,7 @@ async function main(): Promise<void> {
       org = await prisma.organization.create({ data: { name } });
     }
     orgs.set(name, org.id);
+    await ensureDefaultChart(prisma, org.id);
   }
 
   for (const seed of USERS) {

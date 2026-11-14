@@ -211,3 +211,58 @@ export async function fetchAuditLog(
   const body = (await res.json()) as { entries: AuditEntry[] };
   return body.entries;
 }
+
+export type AccountType = 'ASSET' | 'LIABILITY' | 'EQUITY' | 'INCOME' | 'EXPENSE';
+
+export interface Account {
+  id: string;
+  code: string;
+  name: string;
+  type: AccountType;
+  subtype: string | null;
+  active: boolean;
+}
+
+export interface AccountInput {
+  code: string;
+  name: string;
+  type: string;
+  subtype?: string;
+  active?: boolean;
+}
+
+export async function fetchAccounts(organizationId: string): Promise<Account[]> {
+  const res = await fetch(`${API_URL}/accounts`, {
+    headers: authHeaders(organizationId),
+  });
+  if (!res.ok) throw new Error('Accounts are not available');
+  const body = (await res.json()) as { accounts: Account[] };
+  return body.accounts;
+}
+
+export async function createAccount(
+  organizationId: string,
+  input: AccountInput,
+): Promise<Account> {
+  const res = await fetch(`${API_URL}/accounts`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders(organizationId) },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not add that account'));
+  return res.json();
+}
+
+export async function updateAccount(
+  organizationId: string,
+  accountId: string,
+  input: Partial<AccountInput>,
+): Promise<Account> {
+  const res = await fetch(`${API_URL}/accounts/${accountId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...authHeaders(organizationId) },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not save that account'));
+  return res.json();
+}

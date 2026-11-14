@@ -362,3 +362,119 @@
   font-size: 11px;
   color: var(--ink-faint);
 }
+
+/* Chart of accounts (issue 005). */
+.app-shell--accounts {
+  grid-template-columns: 232px minmax(0, 1fr);
+}
+
+.accounts-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.accounts-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+
+.accounts-toggle input {
+  accent-color: var(--ledger);
+}
+
+.accounts-toggle--drawer {
+  margin-top: 16px;
+}
+
+.accounts-table td {
+  vertical-align: middle;
+}
+
+.accounts-table .status--green {
+  color: var(--ledger);
+}
+
+.accounts-table .status--green .dot {
+  background: var(--ledger);
+}
+
+.accounts-table .status--amber {
+  color: var(--amber-ink);
+}
+
+.accounts-table .status--amber .dot {
+  background: var(--amber-ink);
+}
+
+.spine__label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 11px;
+  color: rgba(232, 239, 229, 0.55);
+}
+
+.accounts-code {
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-soft);
+  width: 72px;
+}
+
+.accounts-table tr.is-inactive td {
+  color: var(--ink-faint);
+}
+
+.accounts-table tr.is-inactive .accounts-table .status--green {
+  color: var(--ledger);
+}
+
+.accounts-table .status--green .dot {
+  background: var(--ledger);
+}
+
+.accounts-table .status--amber {
+  color: var(--amber-ink);
+}
+
+.accounts-table .status--amber .dot {
+  background: var(--amber-ink);
+}
+
+.spine__label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 11px;
+  color: rgba(232, 239, 229, 0.55);
+}
+
+.accounts-code {
+  text-decoration: line-through;
+  text-decoration-color: rgba(178, 58, 47, 0.35);
+}
+
+.accounts-empty {
+  padding: 18px 0;
+  font-size: 13px;
+  color: var(--ink-faint);
+}
+
+.accounts-note {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--rule);
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+
+@media (max-width: 860px) {
+  .app-shell--accounts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
