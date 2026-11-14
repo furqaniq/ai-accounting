@@ -1,4 +1,5 @@
 import {
+  BillStatus,
   EstimateStatus,
   InvoiceStatus,
   JournalSourceType,
@@ -205,6 +206,135 @@ const INVOICES: Record<(typeof ORGANIZATIONS)[number], SeedInvoice[]> = {
 };
 
 
+interface SeedVendor {
+  code: string;
+  name: string;
+  contactName: string;
+  email: string;
+  phone: string;
+  city: string;
+  region: string;
+  postalCode: string;
+  country: string;
+}
+
+const VENDORS: Record<(typeof ORGANIZATIONS)[number], SeedVendor[]> = {
+  'Acme Services Co.': [
+    {
+      code: 'VEND-0001',
+      name: 'Halden Paper',
+      contactName: 'Hale Morgan',
+      email: 'ap@haldenpaper.test',
+      phone: '555-0133',
+      city: 'Tacoma',
+      region: 'WA',
+      postalCode: '98402',
+      country: 'United States',
+    },
+    {
+      code: 'VEND-0002',
+      name: 'Brightline Utilities',
+      contactName: 'Bri Lewis',
+      email: 'billing@brightline.test',
+      phone: '555-0164',
+      city: 'Portland',
+      region: 'OR',
+      postalCode: '97204',
+      country: 'United States',
+    },
+  ],
+  'Nimbus Retail LLC': [
+    {
+      code: 'VEND-0001',
+      name: 'Ridge Supply Co.',
+      contactName: 'Rae Ridge',
+      email: 'orders@ridgesupply.test',
+      phone: '555-0188',
+      city: 'Dallas',
+      region: 'TX',
+      postalCode: '75201',
+      country: 'United States',
+    },
+  ],
+};
+
+interface SeedBillLine {
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  expenseCode: string;
+}
+
+interface SeedBill {
+  number: string;
+  vendorCode: string;
+  issueDate: string;
+  dueDate: string;
+  status: BillStatus;
+  taxRate: number;
+  notes: string;
+  lines: SeedBillLine[];
+}
+
+const BILLS: Record<(typeof ORGANIZATIONS)[number], SeedBill[]> = {
+  'Acme Services Co.': [
+    {
+      number: 'BILL-1001',
+      vendorCode: 'VEND-0001',
+      issueDate: '2026-10-20',
+      dueDate: '2026-11-19',
+      status: BillStatus.OPEN,
+      taxRate: 0.0825,
+      notes: 'October paper order',
+      lines: [
+        { description: 'Paper stock', quantity: 2, unitPrice: 300, expenseCode: '6200' },
+      ],
+    },
+    {
+      number: 'BILL-1002',
+      vendorCode: 'VEND-0002',
+      issueDate: '2026-09-15',
+      dueDate: '2026-10-15',
+      status: BillStatus.OPEN,
+      taxRate: 0,
+      notes: 'September utilities',
+      lines: [{ description: 'Electricity', quantity: 1, unitPrice: 475, expenseCode: '6100' }],
+    },
+    {
+      number: 'BILL-1003',
+      vendorCode: 'VEND-0001',
+      issueDate: '2026-11-05',
+      dueDate: '2026-12-05',
+      status: BillStatus.DRAFT,
+      taxRate: 0,
+      notes: 'Draft supplies order',
+      lines: [{ description: 'Envelopes', quantity: 1, unitPrice: 220, expenseCode: '6200' }],
+    },
+  ],
+  'Nimbus Retail LLC': [
+    {
+      number: 'BILL-1001',
+      vendorCode: 'VEND-0001',
+      issueDate: '2026-10-01',
+      dueDate: '2026-10-31',
+      status: BillStatus.OPEN,
+      taxRate: 0.0825,
+      notes: 'October packaging',
+      lines: [{ description: 'Shipping cartons', quantity: 1, unitPrice: 300, expenseCode: '6200' }],
+    },
+    {
+      number: 'BILL-1002',
+      vendorCode: 'VEND-0001',
+      issueDate: '2026-11-08',
+      dueDate: '2026-12-08',
+      status: BillStatus.DRAFT,
+      taxRate: 0,
+      notes: 'Draft packaging order',
+      lines: [{ description: 'Tissue paper', quantity: 1, unitPrice: 140, expenseCode: '6200' }],
+    },
+  ],
+};
+
 interface SeedEstimate {
   number: string;
   customerCode: string;
@@ -381,6 +511,35 @@ async function main(): Promise<void> {
     }
     console.log(`Seeded ${CUSTOMERS[name].length} customers for ${name}`);
 
+    for (const vendor of VENDORS[name]) {
+      await prisma.vendor.upsert({
+        where: { organizationId_code: { organizationId, code: vendor.code } },
+        update: {
+          name: vendor.name,
+          contactName: vendor.contactName,
+          email: vendor.email,
+          phone: vendor.phone,
+          city: vendor.city,
+          region: vendor.region,
+          postalCode: vendor.postalCode,
+          country: vendor.country,
+        },
+        create: {
+          organizationId,
+          code: vendor.code,
+          name: vendor.name,
+          contactName: vendor.contactName,
+          email: vendor.email,
+          phone: vendor.phone,
+          city: vendor.city,
+          region: vendor.region,
+          postalCode: vendor.postalCode,
+          country: vendor.country,
+        },
+      });
+    }
+    console.log(`Seeded ${VENDORS[name].length} vendors for ${name}`);
+
     const income = await prisma.account.findFirstOrThrow({
       where: { organizationId, code: '4000' },
     });
@@ -518,6 +677,113 @@ async function main(): Promise<void> {
       }
     }
     console.log(`Seeded ${INVOICES[name].length} invoices for ${name}`);
+  }
+  for (const name of ORGANIZATIONS) {
+    const organizationId = orgs.get(name);
+    if (!organizationId) throw new Error(`Missing organization ${name}`);
+    const existing = await prisma.bill.count({ where: { organizationId } });
+    if (existing > 0) continue;
+
+    const [payable, purchaseTax] = await Promise.all([
+      prisma.account.findFirstOrThrow({
+        where: { organizationId, code: '2000', active: true },
+      }),
+      prisma.account.findFirstOrThrow({
+        where: { organizationId, code: '1300', active: true },
+      }),
+    ]);
+
+    for (const bill of BILLS[name]) {
+      const vendor = await prisma.vendor.findFirstOrThrow({
+        where: { organizationId, code: bill.vendorCode },
+      });
+      const lines = [];
+      for (const [index, line] of bill.lines.entries()) {
+        const expense = await prisma.account.findFirstOrThrow({
+          where: { organizationId, code: line.expenseCode },
+        });
+        const quantity = new Prisma.Decimal(line.quantity);
+        const unitPrice = new Prisma.Decimal(line.unitPrice);
+        lines.push({
+          organizationId,
+          position: index,
+          description: line.description,
+          quantity,
+          unitPrice,
+          amount: quantity.mul(unitPrice).toDecimalPlaces(2),
+          expenseAccountId: expense.id,
+        });
+      }
+
+      const subtotal = lines.reduce(
+        (sum, line) => sum.plus(line.amount),
+        new Prisma.Decimal(0),
+      );
+      const taxRate = new Prisma.Decimal(bill.taxRate);
+      const taxTotal = subtotal.mul(taxRate).toDecimalPlaces(2);
+      const total = subtotal.plus(taxTotal);
+
+      const created = await prisma.bill.create({
+        data: {
+          organizationId,
+          number: bill.number,
+          vendorId: vendor.id,
+          status: BillStatus.DRAFT,
+          issueDate: new Date(`${bill.issueDate}T00:00:00.000Z`),
+          dueDate: new Date(`${bill.dueDate}T00:00:00.000Z`),
+          taxRate,
+          subtotal,
+          taxTotal,
+          total,
+          notes: bill.notes,
+          lines: { create: lines },
+        },
+      });
+
+      if (bill.status !== BillStatus.DRAFT) {
+        const expenseByAccount = new Map<string, Prisma.Decimal>();
+        for (const line of lines) {
+          expenseByAccount.set(
+            line.expenseAccountId,
+            (expenseByAccount.get(line.expenseAccountId) ?? new Prisma.Decimal(0)).plus(
+              line.amount,
+            ),
+          );
+        }
+        await postEntry(prisma, organizationId, {
+          date: bill.issueDate,
+          memo: `Bill ${created.number} — ${vendor.name}`,
+          sourceType: JournalSourceType.BILL,
+          sourceId: created.id,
+          lines: [
+            ...[...expenseByAccount.entries()].map(([accountId, amount]) => ({
+              accountId,
+              debit: amount,
+              description: `Bill ${created.number}`,
+            })),
+            ...(taxTotal.gt(0)
+              ? [
+                  {
+                    accountId: purchaseTax.id,
+                    debit: taxTotal,
+                    description: `Purchase tax on ${created.number}`,
+                  },
+                ]
+              : []),
+            {
+              accountId: payable.id,
+              credit: total,
+              description: `Bill ${created.number}`,
+            },
+          ],
+        });
+        await prisma.bill.update({
+          where: { id: created.id },
+          data: { status: BillStatus.OPEN, openedAt: new Date(`${bill.issueDate}T12:00:00.000Z`) },
+        });
+      }
+    }
+    console.log(`Seeded ${BILLS[name].length} bills for ${name}`);
   }
   for (const name of ORGANIZATIONS) {
     const organizationId = orgs.get(name);

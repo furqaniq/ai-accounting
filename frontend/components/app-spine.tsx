@@ -12,6 +12,8 @@ export type SpineSection =
   | 'estimates'
   | 'invoices'
   | 'payments'
+  | 'vendors'
+  | 'bills'
   | 'reports';
 
 interface NavItem {
@@ -112,6 +114,28 @@ const NAV: NavItem[] = [
         <path d="M3 7h18v10H3z" />
         <path d="M3 10h18" />
         <circle cx="17" cy="14" r="1.2" />
+      </>
+    ),
+  },
+  {
+    href: '/vendors',
+    label: 'Vendors',
+    section: 'vendors',
+    icon: (
+      <>
+        <path d="M4 21V7l8-4 8 4v14" />
+        <path d="M9 21v-6h6v6M8 10h2M14 10h2" />
+      </>
+    ),
+  },
+  {
+    href: '/bills',
+    label: 'Bills',
+    section: 'bills',
+    icon: (
+      <>
+        <path d="M6 3h12a1 1 0 0 1 1 1v17l-3-2-3 2-3-2-3 2V4a1 1 0 0 1 1-1Z" />
+        <path d="M9 8h6M9 12h6M9 16h3" />
       </>
     ),
   },

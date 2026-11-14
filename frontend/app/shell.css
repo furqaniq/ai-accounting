@@ -810,9 +810,15 @@
   white-space: nowrap;
 }
 
-.customer-balance {
+.customer-balance,
+.vendor-balance {
   font-family: var(--font-display);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.vendors-table .accounts-code {
+  width: auto;
   white-space: nowrap;
 }
 
@@ -850,7 +856,8 @@
   color: var(--ink-faint);
 }
 
-.side-drawer#invoice-form {
+.side-drawer#invoice-form,
+.side-drawer#bill-form {
   width: min(560px, 96vw);
 }
 
@@ -930,7 +937,8 @@
 
 @media (max-width: 560px) {
   .side-drawer#invoice-form,
-  .side-drawer#estimate-form {
+  .side-drawer#estimate-form,
+  .side-drawer#bill-form {
     width: 96vw;
   }
 

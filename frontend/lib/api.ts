@@ -497,6 +497,95 @@ export async function updateCustomer(
   return res.json();
 }
 
+export interface Vendor {
+  id: string;
+  code: string;
+  name: string;
+  contactName: string | null;
+  email: string | null;
+  phone: string | null;
+  addressLine1: string | null;
+  addressLine2: string | null;
+  city: string | null;
+  region: string | null;
+  postalCode: string | null;
+  country: string | null;
+  notes: string | null;
+  active: boolean;
+  balance: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface VendorInput {
+  name: string;
+  contactName?: string;
+  email?: string;
+  phone?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  region?: string;
+  postalCode?: string;
+  country?: string;
+  notes?: string;
+  active?: boolean;
+}
+
+export async function fetchVendors(
+  organizationId: string,
+  filters: { search?: string; active?: boolean } = {},
+): Promise<Vendor[]> {
+  const params = new URLSearchParams();
+  if (filters.search) params.set('search', filters.search);
+  if (filters.active !== undefined) params.set('active', String(filters.active));
+  const query = params.toString();
+  const res = await fetch(`${API_URL}/vendors${query ? `?${query}` : ''}`, {
+    headers: authHeaders(organizationId),
+  });
+  if (!res.ok) throw new Error('Vendors are not available');
+  const body = (await res.json()) as { vendors: Vendor[] };
+  return body.vendors;
+}
+
+export async function fetchVendor(
+  organizationId: string,
+  vendorId: string,
+): Promise<Vendor> {
+  const res = await fetch(`${API_URL}/vendors/${vendorId}`, {
+    headers: authHeaders(organizationId),
+  });
+  if (!res.ok) throw new Error('That vendor is not available');
+  return res.json();
+}
+
+export async function createVendor(
+  organizationId: string,
+  input: VendorInput,
+): Promise<Vendor> {
+  const res = await fetch(`${API_URL}/vendors`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders(organizationId) },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not add that vendor'));
+  return res.json();
+}
+
+export async function updateVendor(
+  organizationId: string,
+  vendorId: string,
+  input: Partial<VendorInput>,
+): Promise<Vendor> {
+  const res = await fetch(`${API_URL}/vendors/${vendorId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...authHeaders(organizationId) },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not save that vendor'));
+  return res.json();
+}
+
 export interface Item {
   id: string;
   code: string;
@@ -887,6 +976,128 @@ export async function fetchArAging(
     headers: authHeaders(organizationId),
   });
   if (!res.ok) throw new Error(await failureMessage(res, 'The aging report is not available'));
+  return res.json();
+}
+
+export type BillStatus = 'DRAFT' | 'OPEN' | 'PARTIAL' | 'PAID' | 'OVERDUE';
+
+export interface BillLine {
+  id: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  amount: number;
+  expenseAccountId: string;
+  expenseAccount: { id: string; code: string; name: string; type: AccountType };
+}
+
+export interface Bill {
+  id: string;
+  number: string;
+  status: BillStatus;
+  vendorId: string;
+  vendor: {
+    id: string;
+    code: string;
+    name: string;
+    contactName: string | null;
+    email: string | null;
+    phone: string | null;
+    addressLine1: string | null;
+    addressLine2: string | null;
+    city: string | null;
+    region: string | null;
+    postalCode: string | null;
+    country: string | null;
+  };
+  issueDate: string;
+  dueDate: string;
+  openedAt: string | null;
+  paidAt: string | null;
+  taxRate: number;
+  subtotal: number;
+  taxTotal: number;
+  total: number;
+  amountPaid: number;
+  balanceDue: number;
+  daysOverdue: number;
+  notes: string | null;
+  lines: BillLine[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BillLineInput {
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  expenseAccountId: string;
+}
+
+export interface BillInput {
+  vendorId: string;
+  issueDate?: string;
+  dueDate: string;
+  lines: BillLineInput[];
+  taxRate?: number;
+  notes?: string;
+}
+
+export async function fetchBills(
+  organizationId: string,
+  filters: { status?: BillStatus; vendorId?: string; search?: string } = {},
+): Promise<Bill[]> {
+  const params = new URLSearchParams();
+  if (filters.status) params.set('status', filters.status);
+  if (filters.vendorId) params.set('vendorId', filters.vendorId);
+  if (filters.search) params.set('search', filters.search);
+  const query = params.toString();
+  const res = await fetch(`${API_URL}/bills${query ? `?${query}` : ''}`, {
+    headers: authHeaders(organizationId),
+  });
+  if (!res.ok) throw new Error('Bills are not available');
+  const body = (await res.json()) as { bills: Bill[] };
+  return body.bills;
+}
+
+export async function fetchBill(organizationId: string, billId: string): Promise<Bill> {
+  const res = await fetch(`${API_URL}/bills/${billId}`, {
+    headers: authHeaders(organizationId),
+  });
+  if (!res.ok) throw new Error('That bill is not available');
+  return res.json();
+}
+
+export async function createBill(organizationId: string, input: BillInput): Promise<Bill> {
+  const res = await fetch(`${API_URL}/bills`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders(organizationId) },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not create that bill'));
+  return res.json();
+}
+
+export async function updateBill(
+  organizationId: string,
+  billId: string,
+  input: Partial<BillInput>,
+): Promise<Bill> {
+  const res = await fetch(`${API_URL}/bills/${billId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...authHeaders(organizationId) },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not save that bill'));
+  return res.json();
+}
+
+export async function openBill(organizationId: string, billId: string): Promise<Bill> {
+  const res = await fetch(`${API_URL}/bills/${billId}/open`, {
+    method: 'POST',
+    headers: authHeaders(organizationId),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not open that bill'));
   return res.json();
 }
 

@@ -37,10 +37,12 @@ model Organization {
   accounts             Account[]
   journalEntries       JournalEntry[]
   customers            Customer[]
+  vendors              Vendor[]
   items                Item[]
   invoices             Invoice[]
   estimates            Estimate[]
   payments             Payment[]
+  bills                Bill[]
 }
 
 model Account {
@@ -58,6 +60,7 @@ model Account {
   items          Item[]
   invoiceLines   InvoiceLine[]
   estimateLines  EstimateLine[]
+  billLines      BillLine[]
 
   @@unique([organizationId, code])
   @@index([organizationId, type])
@@ -135,6 +138,82 @@ model Customer {
 
   @@unique([organizationId, code])
   @@index([organizationId, name])
+}
+
+model Vendor {
+  id             String       @id @default(cuid())
+  organizationId String
+  code           String
+  name           String
+  contactName    String?
+  email          String?
+  phone          String?
+  addressLine1   String?
+  addressLine2   String?
+  city           String?
+  region         String?
+  postalCode     String?
+  country        String?
+  notes          String?
+  active         Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  bills          Bill[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId, name])
+}
+
+enum BillStatus {
+  DRAFT
+  OPEN
+  PARTIAL
+  PAID
+}
+
+model Bill {
+  id             String       @id @default(cuid())
+  organizationId String
+  number         String
+  vendorId       String
+  status         BillStatus   @default(DRAFT)
+  issueDate      DateTime     @db.Date
+  dueDate        DateTime     @db.Date
+  openedAt       DateTime?
+  paidAt         DateTime?
+  taxRate        Decimal      @default(0) @db.Decimal(5, 4)
+  subtotal       Decimal      @default(0) @db.Decimal(14, 2)
+  taxTotal       Decimal      @default(0) @db.Decimal(14, 2)
+  total          Decimal      @default(0) @db.Decimal(14, 2)
+  amountPaid     Decimal      @default(0) @db.Decimal(14, 2)
+  notes          String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  vendor         Vendor       @relation(fields: [vendorId], references: [id])
+  lines          BillLine[]
+
+  @@unique([organizationId, number])
+  @@index([organizationId, status, dueDate])
+  @@index([organizationId, vendorId])
+}
+
+model BillLine {
+  id               String   @id @default(cuid())
+  organizationId   String
+  billId           String
+  position         Int
+  description      String
+  quantity         Decimal  @db.Decimal(14, 2)
+  unitPrice        Decimal  @db.Decimal(14, 2)
+  amount           Decimal  @db.Decimal(14, 2)
+  expenseAccountId String
+  bill             Bill     @relation(fields: [billId], references: [id], onDelete: Cascade)
+  expenseAccount   Account  @relation(fields: [expenseAccountId], references: [id])
+
+  @@index([organizationId, billId])
+  @@index([organizationId, expenseAccountId])
 }
 
 model Item {

@@ -436,6 +436,20 @@ export default function OverviewPage() {
               </svg>
               Payments
             </a>
+            <a className="nav__item" href="/vendors">
+              <svg className="icon nav__icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 21V7l8-4 8 4v14" />
+                <path d="M9 21v-6h6v6M8 10h2M14 10h2" />
+              </svg>
+              Vendors
+            </a>
+            <a className="nav__item" href="/bills">
+              <svg className="icon nav__icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M6 3h12a1 1 0 0 1 1 1v17l-3-2-3 2-3-2-3 2V4a1 1 0 0 1 1-1Z" />
+                <path d="M9 8h6M9 12h6M9 16h3" />
+              </svg>
+              Bills
+            </a>
             <a
               className="nav__item"
               href="#"

@@ -11,6 +11,7 @@ export const DEFAULT_CHART: readonly DefaultAccount[] = [
   { code: '1000', name: 'Cash', type: 'ASSET', subtype: 'Current asset' },
   { code: '1100', name: 'Accounts receivable', type: 'ASSET', subtype: 'Accounts receivable' },
   { code: '1200', name: 'Prepaid expenses', type: 'ASSET', subtype: 'Current asset' },
+  { code: '1300', name: 'Purchase tax receivable', type: 'ASSET', subtype: 'Current asset' },
   { code: '1500', name: 'Equipment', type: 'ASSET', subtype: 'Fixed asset' },
   { code: '2000', name: 'Accounts payable', type: 'LIABILITY', subtype: 'Accounts payable' },
   { code: '2100', name: 'Sales tax payable', type: 'LIABILITY', subtype: 'Current liability' },
