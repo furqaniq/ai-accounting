@@ -172,6 +172,16 @@ export default function InvoicesPage() {
       setCustomers(customerRows);
       setItems(itemRows);
       setInvoices(invoiceRows);
+      const linkedId = new URLSearchParams(window.location.search).get('invoice');
+      const linked = linkedId
+        ? invoiceRows.find((invoice) => invoice.id === linkedId)
+        : undefined;
+      if (linked) {
+        setSelected(linked);
+        window.setTimeout(() => {
+          document.getElementById('invoice-detail')?.scrollIntoView({ block: 'start' });
+        }, 0);
+      }
       setReady(true);
     })().catch(() => {
       if (cancelled) return;

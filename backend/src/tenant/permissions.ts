@@ -20,6 +20,7 @@ export const PERMISSIONS = [
   'estimates:manage',
   'payments:read',
   'payments:manage',
+  'reports:read',
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -38,6 +39,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     'accounts:read',
     'accounts:manage',
     'ledger:read',
+    'reports:read',
     'ledger:post',
     'customers:read',
     'customers:manage',
@@ -59,6 +61,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     'accounts:read',
     'accounts:manage',
     'ledger:read',
+    'reports:read',
     'ledger:post',
     'customers:read',
     'customers:manage',
@@ -77,6 +80,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     'accounts:read',
     'accounts:manage',
     'ledger:read',
+    'reports:read',
     'ledger:post',
     'customers:read',
     'customers:manage',
@@ -94,6 +98,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     'members:read',
     'accounts:read',
     'ledger:read',
+    'reports:read',
     'customers:read',
     'customers:manage',
     'items:read',
@@ -110,6 +115,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     'members:read',
     'accounts:read',
     'ledger:read',
+    'reports:read',
     'customers:read',
     'items:read',
     'invoices:read',

@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { LedgerModule } from '../ledger/ledger.module';
 import { TenantModule } from '../tenant/tenant.module';
+import { ArAgingController } from './ar-aging.controller';
+import { ArAgingService } from './ar-aging.service';
 import { CustomerBalanceService } from './customer-balance.service';
 import { EstimatesController } from './estimates.controller';
 import { EstimatesService } from './estimates.service';
@@ -22,8 +24,10 @@ import { InvoicesService } from './invoices.service';
     InvoicesController,
     EstimatesController,
     PaymentsController,
+    ArAgingController,
   ],
   providers: [
+    ArAgingService,
     CustomerBalanceService,
     CustomersService,
     ItemsService,

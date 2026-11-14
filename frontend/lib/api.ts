@@ -833,6 +833,63 @@ export async function downloadInvoicePdf(
   return { blob: await res.blob(), filename };
 }
 
+export type AgingBucketKey = 'current' | '1-30' | '31-60' | '61-90' | '90+';
+
+export interface AgingBucket {
+  key: AgingBucketKey;
+  label: string;
+  amount: number;
+  count: number;
+}
+
+export interface AgingCustomer {
+  customerId: string;
+  customerCode: string;
+  customerName: string;
+  current: number;
+  days1To30: number;
+  days31To60: number;
+  days61To90: number;
+  days90Plus: number;
+  total: number;
+}
+
+export interface AgingInvoice {
+  id: string;
+  number: string;
+  customerId: string;
+  customerCode: string;
+  customerName: string;
+  issueDate: string;
+  dueDate: string;
+  daysOverdue: number;
+  bucket: AgingBucketKey;
+  balanceDue: number;
+}
+
+export interface ArAgingReport {
+  asOf: string;
+  buckets: AgingBucket[];
+  customers: AgingCustomer[];
+  invoices: AgingInvoice[];
+  overdue: AgingInvoice[];
+  total: number;
+}
+
+export async function fetchArAging(
+  organizationId: string,
+  asOf?: string,
+): Promise<ArAgingReport> {
+  const params = new URLSearchParams();
+  if (asOf) params.set('asOf', asOf);
+  const query = params.toString();
+  const res = await fetch(`${API_URL}/reports/ar-aging${query ? `?${query}` : ''}`, {
+    headers: authHeaders(organizationId),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'The aging report is not available'));
+  return res.json();
+}
+
 export type PaymentMethod = 'CASH' | 'CHECK' | 'BANK_TRANSFER' | 'CARD' | 'OTHER';
 
 export interface PaymentApplication {

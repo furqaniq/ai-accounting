@@ -2142,6 +2142,144 @@ table {
   color: var(--ink-soft);
 }
 
+.aging-asof {
+  display: grid;
+  justify-items: end;
+  gap: 4px;
+}
+
+.aging-asof label {
+  font-size: 11.5px;
+  color: var(--ink-soft);
+}
+
+.aging-asof input {
+  min-height: 36px;
+  padding: 7px 9px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  background: var(--surface);
+  border: 1px solid var(--rule-strong);
+  border-radius: 3px;
+}
+
+.aging-asof input:focus {
+  border-color: var(--ledger);
+  outline: 2px solid rgba(31, 90, 67, 0.18);
+  outline-offset: 0;
+}
+
+.aging-sheet {
+  max-width: none;
+  margin-top: 30px;
+}
+
+.aging-table {
+  min-width: 760px;
+}
+
+.aging-table th,
+.aging-table td {
+  padding-right: 10px;
+  padding-left: 10px;
+}
+
+.aging-table th:first-child,
+.aging-table td:first-child {
+  padding-left: 0;
+}
+
+.aging-table th:last-child,
+.aging-table td:last-child {
+  padding-right: 0;
+}
+
+.aging-table .aging-customer {
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.aging-customer__code {
+  display: block;
+  margin-top: 1px;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--ink-faint);
+}
+
+.aging-cell {
+  width: 100%;
+  padding: 2px 0;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  text-align: right;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid transparent;
+}
+
+.aging-cell:hover {
+  color: var(--ledger);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  border-bottom-color: rgba(31, 90, 67, 0.35);
+}
+
+.aging-empty {
+  color: var(--ink-faint);
+}
+
+.aging-customer-total {
+  font-weight: 500;
+  border-left: 1px solid var(--rule);
+}
+
+.aging-table tfoot tr.is-total th,
+.aging-table tfoot tr.is-total td {
+  padding-top: 13px;
+  padding-bottom: 11px;
+  font-size: 13.5px;
+  font-weight: 600;
+  border-top: 1px solid var(--ink);
+  border-bottom: 3px double var(--ink);
+}
+
+.aging-drill {
+  scroll-margin-top: 18px;
+}
+
+.aging-drill__table {
+  min-width: 680px;
+}
+
+.aging-drill__table .action {
+  text-align: right;
+}
+
+.aging-overdue {
+  margin-top: 38px;
+}
+
+.aging-overdue h2 {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 500;
+  line-height: 1.15;
+  letter-spacing: -0.015em;
+}
+
+.aging-overdue__table {
+  min-width: 700px;
+  margin-top: 8px;
+}
+
+@media (max-width: 720px) {
+  .aging-asof {
+    justify-items: start;
+  }
+}
+
 .dialog {
   width: min(520px, calc(100vw - 32px));
   padding: 0;

@@ -11,7 +11,8 @@ export type SpineSection =
   | 'items'
   | 'estimates'
   | 'invoices'
-  | 'payments';
+  | 'payments'
+  | 'reports';
 
 interface NavItem {
   href: string;
@@ -125,9 +126,9 @@ const NAV: NavItem[] = [
     ),
   },
   {
-    href: '/',
+    href: '/reports/ar-aging',
     label: 'Reports',
-    comingSoon: true,
+    section: 'reports',
     icon: <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />,
   },
 ];
