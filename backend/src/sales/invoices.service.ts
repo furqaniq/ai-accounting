@@ -8,6 +8,7 @@ import { Customer, InvoiceStatus, JournalSourceType, Prisma } from '@prisma/clie
 import { LedgerEngine, toDate, toNumber } from '../ledger/ledger-engine';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../tenant/audit.service';
+import { InvoicePdfService } from './invoice-pdf.service';
 import { ScopedDataAccess } from '../tenant/scoped-data-access.service';
 import { TenantContextService } from '../tenant/tenant-context.service';
 import {
@@ -143,6 +144,7 @@ export class InvoicesService {
     private readonly prisma: PrismaService,
     private readonly ledger: LedgerEngine,
     private readonly audit: AuditService,
+    private readonly pdfRenderer: InvoicePdfService,
   ) {}
 
   async list(filters: ListInvoicesDto): Promise<InvoiceView[]> {
@@ -390,6 +392,15 @@ export class InvoicesService {
       });
     }
     return this.find(id);
+  }
+
+  async downloadPdf(id: string): Promise<{ buffer: Buffer; filename: string }> {
+    const invoice = await this.find(id);
+    const { organizationName } = await this.tenant.get();
+    return {
+      buffer: await this.pdfRenderer.render(invoice, organizationName),
+      filename: `${invoice.number}.pdf`,
+    };
   }
 
   async createDraftWithin(

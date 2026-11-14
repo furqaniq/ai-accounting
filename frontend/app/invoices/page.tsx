@@ -14,6 +14,7 @@ import {
   OrgSettings,
   clearSession,
   createInvoice,
+  downloadInvoicePdf,
   fetchActiveOrganization,
   fetchCustomers,
   fetchInvoice,
@@ -128,6 +129,7 @@ export default function InvoicesPage() {
     lines: [blankLine()],
   }));
   const [busy, setBusy] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -372,6 +374,28 @@ export default function InvoicesPage() {
     }
   }
 
+  async function onDownload(invoice: Invoice) {
+    if (!org || downloading) return;
+    setDownloading(true);
+    setError(null);
+    try {
+      const { blob, filename } = await downloadInvoicePdf(org.organizationId, invoice.id);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      showToast(`${invoice.number} downloaded.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not download that invoice');
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   if (!ready) {
     return (
       <main className="app-loading">
@@ -547,6 +571,14 @@ export default function InvoicesPage() {
                   </p>
                 </div>
                 <div className="invoice-detail__actions">
+                  <button
+                    className="btn btn--outline"
+                    type="button"
+                    disabled={downloading}
+                    onClick={() => void onDownload(selected)}
+                  >
+                    {downloading ? 'Preparing PDF…' : 'Download PDF'}
+                  </button>
                   {editable && selected.status === 'DRAFT' ? (
                     <>
                       <button

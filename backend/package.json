@@ -27,6 +27,7 @@
     "class-validator": "^0.14.1",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
+    "pdfkit": "^0.20.2",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1"
   },
@@ -36,8 +37,10 @@
     "@types/jest": "^30.0.0",
     "@types/node": "^24.0.0",
     "@types/passport-jwt": "^4.0.1",
+    "@types/pdfkit": "^0.17.7",
     "@types/supertest": "^6.0.3",
     "jest": "^30.5.0",
+    "pdf2json": "^4.1.1",
     "prisma": "^6.16.0",
     "supertest": "^7.1.0",
     "ts-jest": "^29.4.0",

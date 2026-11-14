@@ -819,3 +819,16 @@ export async function convertEstimate(
   if (!res.ok) throw new Error(await failureMessage(res, 'Could not convert that estimate'));
   return res.json();
 }
+
+export async function downloadInvoicePdf(
+  organizationId: string,
+  invoiceId: string,
+): Promise<{ blob: Blob; filename: string }> {
+  const res = await fetch(`${API_URL}/invoices/${invoiceId}/pdf`, {
+    headers: authHeaders(organizationId),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not download that invoice'));
+  const disposition = res.headers.get('content-disposition') ?? '';
+  const filename = /filename="([^"]+)"/.exec(disposition)?.[1] ?? 'invoice.pdf';
+  return { blob: await res.blob(), filename };
+}

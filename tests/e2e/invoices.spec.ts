@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 
 function cleanTestRows(): void {
@@ -78,6 +79,15 @@ test('staff creates, edits, and sends an invoice into the ledger', async ({ page
   await detail.getByRole('button', { name: 'Mark as sent' }).click();
   await expect(detail.locator('.status')).toHaveText('Sent');
   await expect(detail.getByText('Balance due $1,948.50.')).toBeVisible();
+
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    detail.getByRole('button', { name: 'Download PDF' }).click(),
+  ]);
+  expect(download.suggestedFilename()).toBe(`${number}.pdf`);
+  const downloadPath = await download.path();
+  expect(downloadPath).not.toBeNull();
+  expect(readFileSync(downloadPath!).subarray(0, 5).toString()).toBe('%PDF-');
 
   await page.getByRole('link', { name: 'Journal' }).click();
   await expect(page).toHaveURL(/\/ledger$/);

@@ -13,6 +13,10 @@ export function configureApp(app: INestApplication): INestApplication {
     .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean);
-  app.enableCors({ origin: origins, credentials: true });
+  app.enableCors({
+    origin: origins,
+    credentials: true,
+    exposedHeaders: ['Content-Disposition'],
+  });
   return app;
 }

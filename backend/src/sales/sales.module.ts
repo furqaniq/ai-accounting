@@ -8,6 +8,7 @@ import { CustomersController } from './customers.controller';
 import { CustomersService } from './customers.service';
 import { ItemsController } from './items.controller';
 import { ItemsService } from './items.service';
+import { InvoicePdfService } from './invoice-pdf.service';
 import { InvoicesController } from './invoices.controller';
 import { InvoicesService } from './invoices.service';
 
@@ -19,6 +20,7 @@ import { InvoicesService } from './invoices.service';
     CustomersService,
     ItemsService,
     InvoicesService,
+    InvoicePdfService,
     EstimatesService,
   ],
 })
