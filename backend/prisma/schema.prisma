@@ -24,32 +24,33 @@ enum AccountType {
 }
 
 model Organization {
-  id                   String               @id @default(cuid())
-  name                 String
-  fiscalYearStartMonth Int                  @default(1)
-  fiscalYearStartDay   Int                  @default(1)
-  baseCurrency         String               @default("USD")
-  defaultTaxRate       Decimal              @default(0) @db.Decimal(5, 4)
-  createdAt            DateTime             @default(now())
-  updatedAt            DateTime             @updatedAt
-  memberships          OrgMembership[]
-  auditLog             AuditLogEntry[]
-  accounts             Account[]
-  journalEntries       JournalEntry[]
-  customers            Customer[]
-  vendors              Vendor[]
-  items                Item[]
-  invoices             Invoice[]
-  estimates            Estimate[]
-  payments             Payment[]
-  billPayments         BillPayment[]
-  bills                Bill[]
-  expenses             Expense[]
-  attachments          Attachment[]
-  bankAccounts         BankAccount[]
-  bankImportBatches    BankImportBatch[]
-  bankTransactions     BankTransaction[]
-  categorizationRules  CategorizationRule[]
+  id                     String                  @id @default(cuid())
+  name                   String
+  fiscalYearStartMonth   Int                     @default(1)
+  fiscalYearStartDay     Int                     @default(1)
+  baseCurrency           String                  @default("USD")
+  defaultTaxRate         Decimal                 @default(0) @db.Decimal(5, 4)
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  memberships            OrgMembership[]
+  auditLog               AuditLogEntry[]
+  accounts               Account[]
+  journalEntries         JournalEntry[]
+  customers              Customer[]
+  vendors                Vendor[]
+  items                  Item[]
+  invoices               Invoice[]
+  estimates              Estimate[]
+  payments               Payment[]
+  billPayments           BillPayment[]
+  bills                  Bill[]
+  expenses               Expense[]
+  attachments            Attachment[]
+  bankAccounts           BankAccount[]
+  bankImportBatches      BankImportBatch[]
+  bankTransactions       BankTransaction[]
+  categorizationRules    CategorizationRule[]
+  reconciliationSessions ReconciliationSession[]
 }
 
 model Account {
@@ -326,6 +327,11 @@ enum BankTransactionMatchState {
   CATEGORIZED
 }
 
+enum ReconciliationStatus {
+  ACTIVE
+  COMPLETED
+}
+
 model CategorizationRule {
   id                  String            @id @default(cuid())
   organizationId      String
@@ -344,18 +350,19 @@ model CategorizationRule {
 }
 
 model BankAccount {
-  id              String            @id @default(cuid())
-  organizationId  String
-  name            String
-  type            BankAccountType
-  ledgerAccountId String
-  active          Boolean           @default(true)
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
-  organization    Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  ledgerAccount   Account           @relation(fields: [ledgerAccountId], references: [id])
-  importBatches   BankImportBatch[]
-  transactions    BankTransaction[]
+  id                     String                  @id @default(cuid())
+  organizationId         String
+  name                   String
+  type                   BankAccountType
+  ledgerAccountId        String
+  active                 Boolean                 @default(true)
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  organization           Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  ledgerAccount          Account                 @relation(fields: [ledgerAccountId], references: [id])
+  importBatches          BankImportBatch[]
+  transactions           BankTransaction[]
+  reconciliationSessions ReconciliationSession[]
 
   @@unique([organizationId, ledgerAccountId])
   @@index([organizationId, active])
@@ -380,35 +387,62 @@ model BankImportBatch {
 }
 
 model BankTransaction {
-  id                String                    @id @default(cuid())
-  organizationId    String
-  bankAccountId     String
-  importBatchId     String
-  date              DateTime                  @db.Date
-  description       String
-  amount            Decimal                   @db.Decimal(14, 2)
-  externalId        String?
-  fingerprint       String
-  matchState        BankTransactionMatchState @default(UNMATCHED)
-  categoryAccountId String?
-  categoryRuleId    String?
-  matchedEntityType String?
-  matchedEntityId   String?
-  resolutionLabel   String?
-  resolvedAt        DateTime?
-  raw               Json?
-  createdAt         DateTime                  @default(now())
-  organization      Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  bankAccount       BankAccount               @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
-  importBatch       BankImportBatch           @relation(fields: [importBatchId], references: [id], onDelete: Cascade)
-  categoryAccount   Account?                  @relation("BankTransactionCategory", fields: [categoryAccountId], references: [id], onDelete: SetNull)
-  categoryRule      CategorizationRule?       @relation(fields: [categoryRuleId], references: [id], onDelete: SetNull)
+  id                      String                    @id @default(cuid())
+  organizationId          String
+  bankAccountId           String
+  importBatchId           String
+  date                    DateTime                  @db.Date
+  description             String
+  amount                  Decimal                   @db.Decimal(14, 2)
+  externalId              String?
+  fingerprint             String
+  matchState              BankTransactionMatchState @default(UNMATCHED)
+  categoryAccountId       String?
+  categoryRuleId          String?
+  matchedEntityType       String?
+  matchedEntityId         String?
+  resolutionLabel         String?
+  resolvedAt              DateTime?
+  reconciliationSessionId String?
+  clearedAt               DateTime?
+  raw                     Json?
+  createdAt               DateTime                  @default(now())
+  organization            Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  bankAccount             BankAccount               @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+  importBatch             BankImportBatch           @relation(fields: [importBatchId], references: [id], onDelete: Cascade)
+  categoryAccount         Account?                  @relation("BankTransactionCategory", fields: [categoryAccountId], references: [id], onDelete: SetNull)
+  categoryRule            CategorizationRule?       @relation(fields: [categoryRuleId], references: [id], onDelete: SetNull)
+  reconciliationSession   ReconciliationSession?    @relation("ReconciliationTransaction", fields: [reconciliationSessionId], references: [id], onDelete: SetNull)
 
   @@unique([organizationId, bankAccountId, fingerprint])
   @@index([organizationId, bankAccountId, date])
   @@index([organizationId, matchState])
   @@index([organizationId, categoryRuleId])
   @@index([organizationId, matchedEntityType, matchedEntityId])
+  @@index([organizationId, reconciliationSessionId])
+}
+
+model ReconciliationSession {
+  id                     String               @id @default(cuid())
+  organizationId         String
+  bankAccountId          String
+  periodStart            DateTime             @db.Date
+  periodEnd              DateTime             @db.Date
+  statementEndingBalance Decimal              @db.Decimal(14, 2)
+  openingBalance         Decimal              @default(0) @db.Decimal(14, 2)
+  clearedTotal           Decimal              @default(0) @db.Decimal(14, 2)
+  bookBalance            Decimal              @default(0) @db.Decimal(14, 2)
+  difference             Decimal              @default(0) @db.Decimal(14, 2)
+  status                 ReconciliationStatus @default(ACTIVE)
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
+  organization           Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  bankAccount            BankAccount          @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+  transactions           BankTransaction[]    @relation("ReconciliationTransaction")
+
+  @@unique([organizationId, bankAccountId, periodStart, periodEnd])
+  @@index([organizationId, bankAccountId, status])
+  @@index([organizationId, periodEnd])
 }
 
 model Item {

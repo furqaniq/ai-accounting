@@ -472,6 +472,13 @@ export default function OverviewPage() {
               </svg>
               Banking
             </a>
+            <a className="nav__item" href="/reconcile" onClick={() => setSpineOpen(false)}>
+              <svg className="icon nav__icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 7h16M4 12h10M4 17h7" />
+                <path d="m15 15 2 2 4-4" />
+              </svg>
+              Reconcile
+            </a>
             <a className="nav__item" href="/reports/ar-aging" onClick={() => setSpineOpen(false)}>
               <svg className="icon nav__icon" viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
@@ -595,14 +602,7 @@ export default function OverviewPage() {
                 </p>
               </div>
               <div className="page-head__actions">
-                <a
-                  className="btn btn--outline"
-                  href="#"
-                  onClick={(event) => {
-                    event.preventDefault();
-                    toastLater('Reconciliation');
-                  }}
-                >
+                <a className="btn btn--outline" href="/reconcile">
                   Reconcile checking
                 </a>
                 <a

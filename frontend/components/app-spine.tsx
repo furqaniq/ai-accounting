@@ -17,6 +17,7 @@ export type SpineSection =
   | 'bill-payments'
   | 'expenses'
   | 'banking'
+  | 'reconcile'
   | 'reports';
 
 interface NavItem {
@@ -173,6 +174,17 @@ const NAV: NavItem[] = [
     icon: (
       <>
         <path d="M3 21h18M5 21V9l7-5 7 5v12M9 21v-6h6v6" />
+      </>
+    ),
+  },
+  {
+    href: '/reconcile',
+    label: 'Reconcile',
+    section: 'reconcile',
+    icon: (
+      <>
+        <path d="M4 7h16M4 12h10M4 17h7" />
+        <path d="m15 15 2 2 4-4" />
       </>
     ),
   },

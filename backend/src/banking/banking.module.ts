@@ -17,6 +17,8 @@ import { BankingImportEngine } from './banking-import.engine';
 import { CategorizationRulesController } from './categorization-rules.controller';
 import { CategorizationRulesService } from './categorization-rules.service';
 import { MatchingEngine } from './matching-engine';
+import { ReconciliationsController } from './reconciliations.controller';
+import { ReconciliationsService } from './reconciliations.service';
 
 @Module({
   imports: [TenantModule, LedgerModule, PurchasesModule, SalesModule],
@@ -27,6 +29,7 @@ import { MatchingEngine } from './matching-engine';
     BankTransactionMatchingController,
     BankImportsController,
     CategorizationRulesController,
+    ReconciliationsController,
   ],
   providers: [
     BankingImportEngine,
@@ -37,6 +40,7 @@ import { MatchingEngine } from './matching-engine';
     MatchingEngine,
     BankImportService,
     CategorizationRulesService,
+    ReconciliationsService,
   ],
 })
 export class BankingModule {}

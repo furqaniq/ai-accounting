@@ -45,6 +45,8 @@ export interface BankTransactionView {
   matchedEntityId: string | null;
   resolutionLabel: string | null;
   resolvedAt: string | null;
+  reconciliationSessionId: string | null;
+  clearedAt: string | null;
   createdAt: string;
 }
 
@@ -104,6 +106,8 @@ export class BankTransactionsService {
       matchedEntityId: row.matchedEntityId,
       resolutionLabel: row.resolutionLabel,
       resolvedAt: row.resolvedAt?.toISOString() ?? null,
+      reconciliationSessionId: row.reconciliationSessionId,
+      clearedAt: row.clearedAt?.toISOString() ?? null,
       createdAt: row.createdAt.toISOString(),
     };
   }

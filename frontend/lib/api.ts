@@ -1628,6 +1628,8 @@ export interface BankTransaction {
   matchedEntityId: string | null;
   resolutionLabel: string | null;
   resolvedAt: string | null;
+  reconciliationSessionId: string | null;
+  clearedAt: string | null;
   createdAt: string;
 }
 
@@ -1767,6 +1769,119 @@ export async function paymentFromBankTransaction(
     body: JSON.stringify(input),
   });
   if (!res.ok) throw new Error(await failureMessage(res, 'Could not record that payment'));
+  return res.json();
+}
+
+export type ReconciliationStatus = 'ACTIVE' | 'COMPLETED';
+
+export interface ReconciliationSession {
+  id: string;
+  bankAccountId: string;
+  bankAccount: {
+    id: string;
+    name: string;
+    type: BankAccountType;
+    active: boolean;
+    ledgerAccount: {
+      id: string;
+      code: string;
+      name: string;
+      type: AccountType;
+      active: boolean;
+    };
+  };
+  periodStart: string;
+  periodEnd: string;
+  statementEndingBalance: number;
+  openingBalance: number;
+  clearedTotal: number;
+  clearedBalance: number;
+  bookBalance: number;
+  difference: number;
+  balanced: boolean;
+  status: ReconciliationStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReconciliationTransaction extends BankTransaction {
+  cleared: boolean;
+  clearedElsewhere: boolean;
+}
+
+export interface ReconciliationDetail extends ReconciliationSession {
+  clearedCount: number;
+  transactionCount: number;
+  transactions: ReconciliationTransaction[];
+}
+
+export interface CreateReconciliationInput {
+  bankAccountId: string;
+  periodStart: string;
+  periodEnd: string;
+  statementEndingBalance: number;
+}
+
+export interface ReconciliationFilters {
+  bankAccountId?: string;
+  status?: ReconciliationStatus;
+}
+
+export async function fetchReconciliations(
+  organizationId: string,
+  filters: ReconciliationFilters = {},
+): Promise<ReconciliationSession[]> {
+  const params = new URLSearchParams();
+  if (filters.bankAccountId) params.set('bankAccountId', filters.bankAccountId);
+  if (filters.status) params.set('status', filters.status);
+  const query = params.toString();
+  const res = await fetch(`${API_URL}/reconciliations${query ? `?${query}` : ''}`, {
+    headers: authHeaders(organizationId),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not read reconciliations'));
+  const body = (await res.json()) as { sessions: ReconciliationSession[] };
+  return body.sessions;
+}
+
+export async function fetchReconciliation(
+  organizationId: string,
+  sessionId: string,
+): Promise<ReconciliationDetail> {
+  const res = await fetch(`${API_URL}/reconciliations/${sessionId}`, {
+    headers: authHeaders(organizationId),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not read that reconciliation'));
+  return res.json();
+}
+
+export async function createReconciliation(
+  organizationId: string,
+  input: CreateReconciliationInput,
+): Promise<ReconciliationDetail> {
+  const res = await fetch(`${API_URL}/reconciliations`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders(organizationId) },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not start that reconciliation'));
+  return res.json();
+}
+
+export async function setReconciliationCleared(
+  organizationId: string,
+  sessionId: string,
+  transactionId: string,
+  cleared: boolean,
+): Promise<ReconciliationDetail> {
+  const res = await fetch(
+    `${API_URL}/reconciliations/${sessionId}/transactions/${transactionId}`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', ...authHeaders(organizationId) },
+      body: JSON.stringify({ cleared }),
+    },
+  );
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not update that clearance'));
   return res.json();
 }
 
