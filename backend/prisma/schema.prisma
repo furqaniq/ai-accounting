@@ -44,6 +44,7 @@ model Organization {
   payments             Payment[]
   billPayments         BillPayment[]
   bills                Bill[]
+  expenses             Expense[]
 }
 
 model Account {
@@ -62,6 +63,7 @@ model Account {
   invoiceLines   InvoiceLine[]
   estimateLines  EstimateLine[]
   billLines      BillLine[]
+  expenses       Expense[]
 
   @@unique([organizationId, code])
   @@index([organizationId, type])
@@ -162,6 +164,7 @@ model Vendor {
   organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   bills          Bill[]
   billPayments   BillPayment[]
+  expenses       Expense[]
 
   @@unique([organizationId, code])
   @@index([organizationId, name])
@@ -253,6 +256,29 @@ model BillPaymentApplication {
   @@unique([billPaymentId, billId])
   @@index([organizationId, billPaymentId])
   @@index([organizationId, billId])
+}
+
+model Expense {
+  id                String       @id @default(cuid())
+  organizationId    String
+  number            String
+  date              DateTime     @db.Date
+  vendorId          String?
+  categoryAccountId String
+  amount            Decimal      @db.Decimal(14, 2)
+  memo              String?
+  receiptNote       String?
+  version           Int          @default(1)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  vendor            Vendor?      @relation(fields: [vendorId], references: [id])
+  categoryAccount   Account      @relation(fields: [categoryAccountId], references: [id])
+
+  @@unique([organizationId, number])
+  @@index([organizationId, date])
+  @@index([organizationId, vendorId])
+  @@index([organizationId, categoryAccountId])
 }
 
 model Item {

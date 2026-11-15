@@ -857,7 +857,8 @@
 }
 
 .side-drawer#invoice-form,
-.side-drawer#bill-form {
+.side-drawer#bill-form,
+.side-drawer#expense-form {
   width: min(560px, 96vw);
 }
 
@@ -938,7 +939,8 @@
 @media (max-width: 560px) {
   .side-drawer#invoice-form,
   .side-drawer#estimate-form,
-  .side-drawer#bill-form {
+  .side-drawer#bill-form,
+  .side-drawer#expense-form {
     width: 96vw;
   }
 
@@ -1056,5 +1058,62 @@
 
   .payment-form .drawer-form__pair {
     grid-template-columns: 1fr;
+  }
+}
+
+/* Quick expenses (issue 015). */
+.expense-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+  margin: 12px 0 18px;
+}
+
+.expense-filters label {
+  display: grid;
+  gap: 4px;
+  font-size: 11.5px;
+  color: var(--ink-soft);
+}
+
+.expense-filters input,
+.expense-filters select {
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+}
+
+.expense-filters select {
+  max-width: 220px;
+}
+
+.expense-table tfoot th,
+.expense-table tfoot td {
+  padding: 12px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  border-top: 3px double var(--ink);
+  border-bottom: 0;
+}
+
+.expense-table tfoot th {
+  text-align: right;
+}
+
+@media (max-width: 560px) {
+  .expense-filters {
+    align-items: stretch;
+  }
+
+  .expense-filters label,
+  .expense-filters input,
+  .expense-filters select {
+    width: 100%;
+    max-width: none;
   }
 }

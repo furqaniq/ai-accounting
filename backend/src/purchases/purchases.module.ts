@@ -7,6 +7,8 @@ import { BillPaymentsController } from './bill-payments.controller';
 import { BillPaymentsService } from './bill-payments.service';
 import { BillsController } from './bills.controller';
 import { BillsService } from './bills.service';
+import { ExpensesController } from './expenses.controller';
+import { ExpensesService } from './expenses.service';
 import { VendorBalanceService } from './vendor-balance.service';
 import { VendorsController } from './vendors.controller';
 import { VendorsService } from './vendors.service';
@@ -17,6 +19,7 @@ import { VendorsService } from './vendors.service';
     VendorsController,
     BillsController,
     BillPaymentsController,
+    ExpensesController,
     ApAgingController,
   ],
   providers: [
@@ -24,6 +27,7 @@ import { VendorsService } from './vendors.service';
     VendorsService,
     BillsService,
     BillPaymentsService,
+    ExpensesService,
     ApAgingService,
   ],
 })

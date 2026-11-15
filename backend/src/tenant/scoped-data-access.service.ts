@@ -20,7 +20,8 @@ type ScopedModel =
   | 'bill'
   | 'billLine'
   | 'billPayment'
-  | 'billPaymentApplication';
+  | 'billPaymentApplication'
+  | 'expense';
 
 interface FindArgs {
   where?: Record<string, unknown>;

@@ -1327,3 +1327,98 @@ export async function createPayment(
   if (!res.ok) throw new Error(await failureMessage(res, 'Could not record that payment'));
   return res.json();
 }
+
+export interface Expense {
+  id: string;
+  number: string;
+  date: string;
+  vendorId: string | null;
+  vendor: { id: string; code: string; name: string } | null;
+  categoryAccountId: string;
+  categoryAccount: {
+    id: string;
+    code: string;
+    name: string;
+    type: AccountType;
+  };
+  amount: number;
+  memo: string | null;
+  receiptNote: string | null;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ExpenseInput {
+  date?: string;
+  vendorId?: string;
+  categoryAccountId: string;
+  amount: number;
+  memo?: string;
+  receiptNote?: string;
+}
+
+export interface ExpenseFilters {
+  from?: string;
+  to?: string;
+  vendorId?: string;
+  categoryAccountId?: string;
+  search?: string;
+}
+
+export async function fetchExpenses(
+  organizationId: string,
+  filters: ExpenseFilters = {},
+): Promise<Expense[]> {
+  const params = new URLSearchParams();
+  if (filters.from) params.set('from', filters.from);
+  if (filters.to) params.set('to', filters.to);
+  if (filters.vendorId) params.set('vendorId', filters.vendorId);
+  if (filters.categoryAccountId) params.set('categoryAccountId', filters.categoryAccountId);
+  if (filters.search) params.set('search', filters.search);
+  const query = params.toString();
+  const res = await fetch(`${API_URL}/expenses${query ? `?${query}` : ''}`, {
+    headers: authHeaders(organizationId),
+  });
+  if (!res.ok) throw new Error('Expenses are not available');
+  const body = (await res.json()) as { expenses: Expense[] };
+  return body.expenses;
+}
+
+export async function fetchExpense(
+  organizationId: string,
+  expenseId: string,
+): Promise<Expense> {
+  const res = await fetch(`${API_URL}/expenses/${expenseId}`, {
+    headers: authHeaders(organizationId),
+  });
+  if (!res.ok) throw new Error('That expense is not available');
+  return res.json();
+}
+
+export async function createExpense(
+  organizationId: string,
+  input: ExpenseInput,
+): Promise<Expense> {
+  const res = await fetch(`${API_URL}/expenses`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders(organizationId) },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not record that expense'));
+  return res.json();
+}
+
+export async function updateExpense(
+  organizationId: string,
+  expenseId: string,
+  input: Partial<ExpenseInput>,
+): Promise<Expense> {
+  const res = await fetch(`${API_URL}/expenses/${expenseId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...authHeaders(organizationId) },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not save that expense'));
+  return res.json();
+}

@@ -458,6 +458,14 @@ export default function OverviewPage() {
               </svg>
               Bill payments
             </a>
+            <a className="nav__item" href="/expenses" onClick={() => setSpineOpen(false)}>
+              <svg className="icon nav__icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M3 7h18v10H3z" />
+                <path d="M3 10h18" />
+                <path d="M7 14h4" />
+              </svg>
+              Expenses
+            </a>
             <a
               className="nav__item"
               href="#"
