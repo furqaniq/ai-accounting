@@ -45,6 +45,7 @@ model Organization {
   billPayments         BillPayment[]
   bills                Bill[]
   expenses             Expense[]
+  attachments          Attachment[]
 }
 
 model Account {
@@ -279,6 +280,26 @@ model Expense {
   @@index([organizationId, date])
   @@index([organizationId, vendorId])
   @@index([organizationId, categoryAccountId])
+}
+
+enum AttachmentEntityType {
+  EXPENSE
+  BILL
+}
+
+model Attachment {
+  id             String               @id @default(cuid())
+  organizationId String
+  entityType     AttachmentEntityType
+  entityId       String
+  objectKey      String               @unique
+  filename       String
+  contentType    String
+  size           Int
+  createdAt      DateTime             @default(now())
+  organization   Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, entityType, entityId, createdAt])
 }
 
 model Item {

@@ -1422,3 +1422,73 @@ export async function updateExpense(
   if (!res.ok) throw new Error(await failureMessage(res, 'Could not save that expense'));
   return res.json();
 }
+
+export type AttachmentEntityType = 'EXPENSE' | 'BILL';
+
+export interface Attachment {
+  id: string;
+  entityType: AttachmentEntityType;
+  entityId: string;
+  filename: string;
+  contentType: string;
+  size: number;
+  createdAt: string;
+}
+
+export const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+
+export async function fetchAttachments(
+  organizationId: string,
+  entityType: AttachmentEntityType,
+  entityId: string,
+): Promise<Attachment[]> {
+  const params = new URLSearchParams({ entityType, entityId });
+  const res = await fetch(`${API_URL}/attachments?${params.toString()}`, {
+    headers: authHeaders(organizationId),
+  });
+  if (!res.ok) throw new Error('Documents are not available');
+  const body = (await res.json()) as { attachments: Attachment[] };
+  return body.attachments;
+}
+
+export async function uploadAttachment(
+  organizationId: string,
+  entityType: AttachmentEntityType,
+  entityId: string,
+  file: File,
+): Promise<Attachment> {
+  const form = new FormData();
+  form.append('entityType', entityType);
+  form.append('entityId', entityId);
+  form.append('file', file);
+  const res = await fetch(`${API_URL}/attachments`, {
+    method: 'POST',
+    headers: authHeaders(organizationId),
+    body: form,
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not attach that file'));
+  return res.json();
+}
+
+export async function deleteAttachment(
+  organizationId: string,
+  attachmentId: string,
+): Promise<void> {
+  const res = await fetch(`${API_URL}/attachments/${attachmentId}`, {
+    method: 'DELETE',
+    headers: authHeaders(organizationId),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not remove that file'));
+}
+
+export async function fetchAttachmentUrl(
+  organizationId: string,
+  attachmentId: string,
+): Promise<string> {
+  const res = await fetch(`${API_URL}/attachments/${attachmentId}/url`, {
+    headers: authHeaders(organizationId),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'That file is not available'));
+  const body = (await res.json()) as { url: string };
+  return body.url;
+}

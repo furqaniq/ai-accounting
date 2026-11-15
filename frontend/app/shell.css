@@ -1117,3 +1117,103 @@
     max-width: none;
   }
 }
+
+/* Attachments (issue 016) — document pocket on expense and bill detail. */
+.attachments {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--rule);
+}
+
+.attachments__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.attachments__head h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.attachments__head p {
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-soft);
+}
+
+.attachments__head .btn {
+  flex: none;
+  margin-top: 2px;
+}
+
+.attachments label.btn {
+  cursor: pointer;
+}
+
+.attachments__empty {
+  padding: 14px 0 4px;
+  font-size: 12.5px;
+  color: var(--ink-faint);
+}
+
+.attachment-list {
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--rule);
+}
+
+.attachment-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.attachment-row__file {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.attachment-row__name {
+  overflow: hidden;
+  font-size: 13px;
+  color: var(--ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachment-row__meta {
+  font-size: 11px;
+  color: var(--ink-faint);
+}
+
+.attachment-row__actions {
+  display: flex;
+  flex: none;
+  gap: 2px;
+}
+
+.attachment-row__remove {
+  color: var(--red-ink);
+}
+
+@media (max-width: 640px) {
+  .attachments__head {
+    flex-direction: column;
+  }
+
+  .attachment-row {
+    flex-wrap: wrap;
+  }
+}

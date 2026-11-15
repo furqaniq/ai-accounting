@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AppSpine } from '@/components/app-spine';
+import { AttachmentPanel } from '@/components/attachment-panel';
 import {
   API_URL,
   Account,
@@ -728,6 +729,18 @@ export default function BillsPage() {
                   ) : null}
                 </div>
               </div>
+
+              {org ? (
+                <AttachmentPanel
+                  organizationId={org.organizationId}
+                  entityType="BILL"
+                  entityId={selected.id}
+                  canManage={editable}
+                  title="Supporting documents"
+                  attachLabel="Attach document"
+                  hint="Keep the vendor invoice, statement, or supporting paperwork with this bill."
+                />
+              ) : null}
             </section>
           ) : null}
         </main>

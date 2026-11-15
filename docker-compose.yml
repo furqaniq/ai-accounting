@@ -54,9 +54,21 @@ services:
       JWT_SECRET: ${JWT_SECRET:-change-me-to-a-long-random-string}
       CORS_ORIGINS: http://localhost:3000
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: "9000"
+      MINIO_USE_SSL: "false"
+      MINIO_REGION: ${MINIO_REGION:-us-east-1}
+      MINIO_PUBLIC_ENDPOINT: ${MINIO_PUBLIC_ENDPOINT:-localhost}
+      MINIO_PUBLIC_PORT: ${MINIO_PUBLIC_PORT:-9000}
+      MINIO_PUBLIC_USE_SSL: ${MINIO_PUBLIC_USE_SSL:-false}
+      MINIO_BUCKET: ${MINIO_BUCKET:-daybook-attachments}
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-daybook}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-daybook-minio}
     depends_on:
       postgres:
         condition: service_healthy
+      minio:
+        condition: service_started
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3001/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s

@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AppSpine } from '@/components/app-spine';
+import { AttachmentPanel } from '@/components/attachment-panel';
 import {
   API_URL,
   Account,
@@ -538,8 +539,20 @@ export default function ExpensesPage() {
               ) : null}
               {selected.receiptNote ? (
                 <p className="report-note">
-                  <strong>Receipt.</strong> {selected.receiptNote}
+                  <strong>Receipt note.</strong> {selected.receiptNote}
                 </p>
+              ) : null}
+
+              {org ? (
+                <AttachmentPanel
+                  organizationId={org.organizationId}
+                  entityType="EXPENSE"
+                  entityId={selected.id}
+                  canManage={editable}
+                  title="Receipts & documents"
+                  attachLabel="Attach receipt"
+                  hint="Scan or photograph the receipt. PDF, PNG, JPEG, or WebP up to 10 MB."
+                />
               ) : null}
             </section>
           ) : null}
@@ -656,7 +669,7 @@ export default function ExpensesPage() {
             onChange={(event) => setField('receiptNote', event.target.value)}
           />
           <p className="drawer-form__hint">
-            Optional placeholder until receipt uploads arrive.
+            Optional note about the paper receipt. Attach the actual file from the expense detail.
           </p>
 
           <div className="drawer-form__foot">
