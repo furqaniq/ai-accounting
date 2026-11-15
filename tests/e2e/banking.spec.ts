@@ -3,18 +3,21 @@ import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
 
 function cleanTestRows(): void {
+  const accountIds = `SELECT id FROM "BankAccount" WHERE name LIKE 'E2E Bank%'`;
+  const expenseIds =
+    `SELECT "matchedEntityId" FROM "BankTransaction" ` +
+    `WHERE "matchedEntityType" = 'EXPENSE' AND "bankAccountId" IN (${accountIds})`;
+  const journalWhere =
+    `("sourceType" = 'BANK' AND "sourceId" IN (` +
+    `SELECT id FROM "BankTransaction" WHERE "bankAccountId" IN (${accountIds}))) ` +
+    `OR ("sourceType" = 'EXPENSE' AND "sourceId" IN (${expenseIds}))`;
   const sql =
     `DELETE FROM "JournalLine" WHERE "entryId" IN (` +
-    `SELECT id FROM "JournalEntry" WHERE "sourceType" = 'BANK' AND "sourceId" IN (` +
-    `SELECT id FROM "BankTransaction" WHERE "bankAccountId" IN (` +
-    `SELECT id FROM "BankAccount" WHERE name LIKE 'E2E Bank%'))); ` +
-    `DELETE FROM "JournalEntry" WHERE "sourceType" = 'BANK' AND "sourceId" IN (` +
-    `SELECT id FROM "BankTransaction" WHERE "bankAccountId" IN (` +
-    `SELECT id FROM "BankAccount" WHERE name LIKE 'E2E Bank%')); ` +
-    `DELETE FROM "BankTransaction" WHERE "bankAccountId" IN (` +
-    `SELECT id FROM "BankAccount" WHERE name LIKE 'E2E Bank%'); ` +
-    `DELETE FROM "BankImportBatch" WHERE "bankAccountId" IN (` +
-    `SELECT id FROM "BankAccount" WHERE name LIKE 'E2E Bank%'); ` +
+    `SELECT id FROM "JournalEntry" WHERE ${journalWhere}); ` +
+    `DELETE FROM "JournalEntry" WHERE ${journalWhere}; ` +
+    `DELETE FROM "Expense" WHERE id IN (${expenseIds}); ` +
+    `DELETE FROM "BankTransaction" WHERE "bankAccountId" IN (${accountIds}); ` +
+    `DELETE FROM "BankImportBatch" WHERE "bankAccountId" IN (${accountIds}); ` +
     `DELETE FROM "BankAccount" WHERE name LIKE 'E2E Bank%'; ` +
     `DELETE FROM "CategorizationRule" WHERE "descriptionContains" = 'DEPOT';`;
   execFileSync(
@@ -32,7 +35,7 @@ test.afterAll(() => {
   cleanTestRows();
 });
 
-test('accountant creates a bank account and rule, previews categorization, imports, filters activity, and re-imports duplicates', async ({
+test('accountant imports bank activity, categorizes by rule, resolves a transaction as an expense, categorizes directly, and skips duplicates', async ({
   page,
 }) => {
   await page.goto('/login');
@@ -144,4 +147,46 @@ test('accountant creates a bank account and rule, previews categorization, impor
     page.getByText('Imported 0 transactions; 3 duplicates skipped.'),
   ).toBeVisible();
   await expect(table.locator('tbody tr')).toHaveCount(3);
+
+  const resolveFixture = join(process.cwd(), 'tests/e2e/fixtures/bank-resolve.csv');
+  await page.getByRole('button', { name: 'Import transactions' }).click();
+  await importForm.getByLabel('Bank file').setInputFiles(resolveFixture);
+  await importForm.getByRole('button', { name: 'Preview import' }).click();
+  await expect(importForm.locator('.bank-import-preview')).toContainText('2 new');
+  await importForm
+    .locator('.bank-import-preview')
+    .getByRole('button', { name: 'Import transactions' })
+    .click();
+  await expect(page.getByText('Imported 2 transactions.')).toBeVisible();
+  await expect(table.locator('tbody tr')).toHaveCount(5);
+
+  const resolveDrawer = page.locator('#bank-resolve-form');
+  const expenseRow = table.locator('tbody tr').filter({ hasText: 'E2E RESOLVE OFFICE CHAIRS' });
+  await expenseRow.getByRole('button', { name: /Resolve/ }).click();
+  await expect(resolveDrawer.getByRole('tab', { name: 'Create expense' })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  await resolveDrawer.getByLabel('Expense category').selectOption({
+    label: '6200 · Supplies expense',
+  });
+  await resolveDrawer.getByRole('button', { name: 'Create expense' }).click();
+  await expect(page.getByText(/Transaction resolved as EXP-/)).toBeVisible();
+  await expect(resolveDrawer).toBeHidden();
+  await expect(expenseRow).toContainText('Matched');
+  await expect(expenseRow).toContainText(/EXP-\d{4}/);
+  await expect(expenseRow).toContainText('6200 · Supplies expense');
+  await expect(expenseRow.getByRole('button', { name: /Resolve/ })).toHaveCount(0);
+
+  const paymentRow = table.locator('tbody tr').filter({ hasText: 'E2E RESOLVE CLIENT PAYMENT' });
+  await paymentRow.getByRole('button', { name: /Resolve/ }).click();
+  await resolveDrawer.getByRole('tab', { name: 'Categorize' }).click();
+  await resolveDrawer.getByLabel('Categorize as').selectOption({
+    label: '4000 · Sales income',
+  });
+  await resolveDrawer.getByRole('button', { name: 'Categorize transaction' }).click();
+  await expect(page.getByText('Transaction resolved as 4000 Sales income.')).toBeVisible();
+  await expect(paymentRow).toContainText('Categorized');
+  await expect(paymentRow).toContainText('4000 Sales income');
+  await expect(paymentRow.getByRole('button', { name: /Resolve/ })).toHaveCount(0);
 });

@@ -392,6 +392,10 @@ model BankTransaction {
   matchState        BankTransactionMatchState @default(UNMATCHED)
   categoryAccountId String?
   categoryRuleId    String?
+  matchedEntityType String?
+  matchedEntityId   String?
+  resolutionLabel   String?
+  resolvedAt        DateTime?
   raw               Json?
   createdAt         DateTime                  @default(now())
   organization      Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -404,6 +408,7 @@ model BankTransaction {
   @@index([organizationId, bankAccountId, date])
   @@index([organizationId, matchState])
   @@index([organizationId, categoryRuleId])
+  @@index([organizationId, matchedEntityType, matchedEntityId])
 }
 
 model Item {

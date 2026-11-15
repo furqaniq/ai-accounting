@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import {
   BankImportFormat,
   BankTransactionMatchState,
@@ -41,6 +41,10 @@ export interface BankTransactionView {
   categoryRuleId: string | null;
   categoryAccount: { id: string; code: string; name: string } | null;
   categoryRule: { id: string; descriptionContains: string } | null;
+  matchedEntityType: string | null;
+  matchedEntityId: string | null;
+  resolutionLabel: string | null;
+  resolvedAt: string | null;
   createdAt: string;
 }
 
@@ -69,6 +73,14 @@ export class BankTransactionsService {
     return rows.map((row) => this.toView(row));
   }
 
+  async find(id: string): Promise<BankTransactionView> {
+    const row = await this.scoped.findById<BankTransactionRow>('bankTransaction', id, {
+      include: TRANSACTION_INCLUDE,
+    });
+    if (!row) throw new NotFoundException('Bank transaction not found');
+    return this.toView(row);
+  }
+
   private toView(row: BankTransactionRow): BankTransactionView {
     return {
       id: row.id,
@@ -88,6 +100,10 @@ export class BankTransactionsService {
       categoryRuleId: row.categoryRuleId,
       categoryAccount: row.categoryAccount,
       categoryRule: row.categoryRule,
+      matchedEntityType: row.matchedEntityType,
+      matchedEntityId: row.matchedEntityId,
+      resolutionLabel: row.resolutionLabel,
+      resolvedAt: row.resolvedAt?.toISOString() ?? null,
       createdAt: row.createdAt.toISOString(),
     };
   }

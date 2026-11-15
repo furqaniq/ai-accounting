@@ -35,6 +35,15 @@ type CategoryAccount = {
   active: boolean;
 };
 
+interface PreparedExpense {
+  vendor: Vendor | null;
+  category: CategoryAccount;
+  date: Date;
+  amount: Prisma.Decimal;
+  memo: string | null;
+  receiptNote: string | null;
+}
+
 export interface ExpenseView {
   id: string;
   number: string;
@@ -107,39 +116,20 @@ export class ExpensesService {
 
   async create(input: CreateExpenseDto): Promise<ExpenseView> {
     const { organizationId } = await this.tenant.get();
-    const vendor = input.vendorId ? await this.resolveVendor(input.vendorId) : null;
-    const category = await this.resolveCategory(input.categoryAccountId);
+    const prepared = await this.prepareCreate(input);
     const cash = await this.resolveCash();
-    const date = toDate(input.date ?? todayIso(), 'date');
-    const amount = new Prisma.Decimal(input.amount);
 
     for (let attempt = 0; attempt < 5; attempt += 1) {
       try {
-        const created = await this.prisma.$transaction(async (tx) => {
-          const number = await this.nextNumber(tx, organizationId);
-          const expense = await tx.expense.create({
-            data: {
-              organizationId,
-              number,
-              date,
-              vendorId: vendor?.id ?? null,
-              categoryAccountId: category.id,
-              amount,
-              memo: input.memo?.trim() || null,
-              receiptNote: input.receiptNote?.trim() || null,
-            },
-            include: EXPENSE_INCLUDE,
-          });
-          await this.post(tx, organizationId, expense, vendor, category, cash.id);
-          return expense;
-        });
-
+        const created = await this.prisma.$transaction((tx) =>
+          this.createWithin(tx, organizationId, prepared, cash.id),
+        );
         await this.audit.record('expense.create', 'Expense', created.id, {
           number: created.number,
           date: isoDate(created.date),
           amount: toNumber(created.amount),
-          vendor: vendor?.name ?? null,
-          category: `${category.code} ${category.name}`,
+          vendor: prepared.vendor?.name ?? null,
+          category: `${prepared.category.code} ${prepared.category.name}`,
           receiptNote: created.receiptNote,
         });
         return this.toView(created);
@@ -151,6 +141,60 @@ export class ExpensesService {
       }
     }
     throw new ConflictException('Could not allocate an expense number; try again');
+  }
+
+  async createFromBankTransaction(
+    tx: Prisma.TransactionClient,
+    organizationId: string,
+    input: CreateExpenseDto,
+    fundingAccountId: string,
+  ): Promise<ExpenseRow> {
+    const prepared = await this.prepareCreate(input);
+    return this.createWithin(tx, organizationId, prepared, fundingAccountId);
+  }
+
+  private async prepareCreate(input: CreateExpenseDto): Promise<PreparedExpense> {
+    const vendor = input.vendorId ? await this.resolveVendor(input.vendorId) : null;
+    const category = await this.resolveCategory(input.categoryAccountId);
+    return {
+      vendor,
+      category,
+      date: toDate(input.date ?? todayIso(), 'date'),
+      amount: new Prisma.Decimal(input.amount),
+      memo: input.memo?.trim() || null,
+      receiptNote: input.receiptNote?.trim() || null,
+    };
+  }
+
+  private async createWithin(
+    tx: Prisma.TransactionClient,
+    organizationId: string,
+    prepared: PreparedExpense,
+    fundingAccountId: string,
+  ): Promise<ExpenseRow> {
+    const number = await this.nextNumber(tx, organizationId);
+    const expense = await tx.expense.create({
+      data: {
+        organizationId,
+        number,
+        date: prepared.date,
+        vendorId: prepared.vendor?.id ?? null,
+        categoryAccountId: prepared.category.id,
+        amount: prepared.amount,
+        memo: prepared.memo,
+        receiptNote: prepared.receiptNote,
+      },
+      include: EXPENSE_INCLUDE,
+    });
+    await this.post(
+      tx,
+      organizationId,
+      expense,
+      prepared.vendor,
+      prepared.category,
+      fundingAccountId,
+    );
+    return expense;
   }
 
   async update(id: string, input: UpdateExpenseDto): Promise<ExpenseView> {
@@ -290,7 +334,7 @@ export class ExpensesService {
         {
           accountId: cashAccountId,
           credit: expense.amount,
-          description: `Cash paid for ${expense.number}`,
+          description: `Paid for ${expense.number}`,
         },
       ],
     });

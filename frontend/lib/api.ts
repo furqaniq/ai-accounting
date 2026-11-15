@@ -1624,6 +1624,10 @@ export interface BankTransaction {
   categoryRuleId: string | null;
   categoryAccount: { id: string; code: string; name: string } | null;
   categoryRule: { id: string; descriptionContains: string } | null;
+  matchedEntityType: string | null;
+  matchedEntityId: string | null;
+  resolutionLabel: string | null;
+  resolvedAt: string | null;
   createdAt: string;
 }
 
@@ -1652,6 +1656,75 @@ export async function fetchBankTransactions(
   if (!res.ok) throw new Error('Bank transactions are not available');
   const body = (await res.json()) as { transactions: BankTransaction[] };
   return body.transactions;
+}
+
+export async function categorizeBankTransaction(
+  organizationId: string,
+  transactionId: string,
+  accountId: string,
+): Promise<BankTransaction> {
+  const res = await fetch(`${API_URL}/bank-transactions/${transactionId}/categorize`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders(organizationId) },
+    body: JSON.stringify({ accountId }),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not categorize that transaction'));
+  return res.json();
+}
+
+export async function transferBankTransaction(
+  organizationId: string,
+  transactionId: string,
+  bankAccountId: string,
+): Promise<BankTransaction> {
+  const res = await fetch(`${API_URL}/bank-transactions/${transactionId}/transfer`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders(organizationId) },
+    body: JSON.stringify({ bankAccountId }),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not transfer that transaction'));
+  return res.json();
+}
+
+export interface BankExpenseInput {
+  categoryAccountId: string;
+  vendorId?: string;
+  memo?: string;
+}
+
+export async function expenseFromBankTransaction(
+  organizationId: string,
+  transactionId: string,
+  input: BankExpenseInput,
+): Promise<BankTransaction> {
+  const res = await fetch(`${API_URL}/bank-transactions/${transactionId}/expense`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders(organizationId) },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not create that expense'));
+  return res.json();
+}
+
+export interface BankPaymentInput {
+  customerId: string;
+  applications: Array<{ invoiceId: string; amount: number }>;
+  reference?: string;
+  notes?: string;
+}
+
+export async function paymentFromBankTransaction(
+  organizationId: string,
+  transactionId: string,
+  input: BankPaymentInput,
+): Promise<BankTransaction> {
+  const res = await fetch(`${API_URL}/bank-transactions/${transactionId}/payment`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders(organizationId) },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not record that payment'));
+  return res.json();
 }
 
 export interface BankImportMapping {

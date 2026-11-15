@@ -1,4 +1,4 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Param, Query } from '@nestjs/common';
 import { RequirePermission } from '../tenant/require-permission.decorator';
 import { ListBankTransactionsDto } from './bank-transaction.dto';
 import {
@@ -16,5 +16,11 @@ export class BankTransactionsController {
     @Query() query: ListBankTransactionsDto,
   ): Promise<{ transactions: BankTransactionView[] }> {
     return { transactions: await this.transactions.list(query) };
+  }
+
+  @Get(':id')
+  @RequirePermission('banking:read')
+  find(@Param('id') id: string): Promise<BankTransactionView> {
+    return this.transactions.find(id);
   }
 }

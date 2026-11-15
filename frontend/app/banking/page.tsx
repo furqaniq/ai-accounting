@@ -16,20 +16,30 @@ import {
   BankTransaction,
   BankTransactionMatchState,
   CategorizationRule,
+  Customer,
+  Invoice,
+  Vendor,
+  categorizeBankTransaction,
   clearSession,
   createBankAccount,
   createCategorizationRule,
   deleteCategorizationRule,
+  expenseFromBankTransaction,
   fetchAccounts,
   fetchActiveOrganization,
   fetchBankAccounts,
   fetchBankTransactions,
   fetchCategorizationRules,
+  fetchCustomers,
+  fetchInvoices,
+  fetchVendors,
   getAccessToken,
   getActiveOrgId,
   importBankTransactions,
+  paymentFromBankTransaction,
   previewBankImport,
   setActiveOrgId,
+  transferBankTransaction,
   updateCategorizationRule,
 } from '@/lib/api';
 
@@ -44,6 +54,13 @@ const MATCH_STATES: Array<{ value: BankTransactionMatchState; label: string }> =
   { value: 'MATCHED', label: 'Matched' },
   { value: 'CATEGORIZED', label: 'Categorized' },
 ];
+
+const RESOLVE_MODE_LABELS: Record<ResolveMode, string> = {
+  categorize: 'Categorize',
+  expense: 'Create expense',
+  payment: 'Record payment',
+  transfer: 'Transfer',
+};
 
 const MATCH_CLASS: Record<BankTransactionMatchState, string> = {
   UNMATCHED: 'status--draft',
@@ -63,6 +80,8 @@ interface RuleForm {
   priority: string;
   active: boolean;
 }
+
+type ResolveMode = 'categorize' | 'expense' | 'payment' | 'transfer';
 
 
 function money(value: number): string {
@@ -122,6 +141,8 @@ export default function BankingPage() {
   const [accounts, setAccounts] = useState<BankAccount[] | null>(null);
   const [ledgerAccounts, setLedgerAccounts] = useState<Account[]>([]);
   const [rules, setRules] = useState<CategorizationRule[] | null>(null);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [vendors, setVendors] = useState<Vendor[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [transactions, setTransactions] = useState<BankTransaction[] | null>(null);
   const [matchFilter, setMatchFilter] = useState<'' | BankTransactionMatchState>('');
@@ -157,6 +178,21 @@ export default function BankingPage() {
   const [importError, setImportError] = useState<string | null>(null);
   const [importBusy, setImportBusy] = useState(false);
 
+  const [resolveOpen, setResolveOpen] = useState(false);
+  const [resolveTransaction, setResolveTransaction] = useState<BankTransaction | null>(null);
+  const [resolveMode, setResolveMode] = useState<ResolveMode>('categorize');
+  const [resolveAccountId, setResolveAccountId] = useState('');
+  const [resolveCategoryId, setResolveCategoryId] = useState('');
+  const [resolveVendorId, setResolveVendorId] = useState('');
+  const [resolveMemo, setResolveMemo] = useState('');
+  const [resolveCustomerId, setResolveCustomerId] = useState('');
+  const [resolveInvoiceId, setResolveInvoiceId] = useState('');
+  const [resolveInvoices, setResolveInvoices] = useState<Invoice[]>([]);
+  const [resolveInvoicesLoading, setResolveInvoicesLoading] = useState(false);
+  const [resolveTargetBankId, setResolveTargetBankId] = useState('');
+  const [resolveError, setResolveError] = useState<string | null>(null);
+  const [resolveBusy, setResolveBusy] = useState(false);
+
   const [toast, setToast] = useState<string | null>(null);
 
   const showToast = useCallback((message: string) => {
@@ -184,17 +220,22 @@ export default function BankingPage() {
         session.memberships.find((m) => m.organizationId === stored) ?? session.memberships[0];
       if (!initial) throw new Error('no organization');
       const activeOrg = await fetchActiveOrganization(initial.organizationId);
-      const [accountRows, bankAccountRows, ruleRows] = await Promise.all([
-        fetchAccounts(activeOrg.organizationId),
-        fetchBankAccounts(activeOrg.organizationId),
-        fetchCategorizationRules(activeOrg.organizationId),
-      ]);
+      const [accountRows, bankAccountRows, ruleRows, customerRows, vendorRows] =
+        await Promise.all([
+          fetchAccounts(activeOrg.organizationId),
+          fetchBankAccounts(activeOrg.organizationId),
+          fetchCategorizationRules(activeOrg.organizationId),
+          fetchCustomers(activeOrg.organizationId, { active: true }),
+          fetchVendors(activeOrg.organizationId, { active: true }),
+        ]);
       if (cancelled) return;
       setActiveOrgId(activeOrg.organizationId);
       setOrg(activeOrg);
       setLedgerAccounts(accountRows);
       setAccounts(bankAccountRows);
       setRules(ruleRows);
+      setCustomers(customerRows);
+      setVendors(vendorRows);
       setSelectedId(bankAccountRows[0]?.id ?? null);
       setReady(true);
     })().catch(() => {
@@ -251,11 +292,47 @@ export default function BankingPage() {
   }, [loadTransactions, org, selectedId]);
 
   useEffect(() => {
+    if (!org || !resolveOpen || resolveMode !== 'payment' || !resolveCustomerId) {
+      setResolveInvoices([]);
+      setResolveInvoiceId('');
+      return;
+    }
+    let cancelled = false;
+    setResolveInvoicesLoading(true);
+    fetchInvoices(org.organizationId, { customerId: resolveCustomerId })
+      .then((rows) => {
+        if (cancelled) return;
+        const open = rows.filter(
+          (invoice) =>
+            (invoice.status === 'SENT' || invoice.status === 'PARTIAL') &&
+            invoice.balanceDue > 0,
+        );
+        setResolveInvoices(open);
+        setResolveInvoiceId((current) =>
+          current && open.some((invoice) => invoice.id === current)
+            ? current
+            : open[0]?.id ?? '',
+        );
+        setResolveError(null);
+      })
+      .catch(() => {
+        if (!cancelled) setResolveError('Open invoices are not available right now.');
+      })
+      .finally(() => {
+        if (!cancelled) setResolveInvoicesLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [org, resolveOpen, resolveMode, resolveCustomerId]);
+
+  useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (event.key !== 'Escape') return;
       setAccountFormOpen(false);
       setRuleFormOpen(false);
       setImportOpen(false);
+      setResolveOpen(false);
     }
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
@@ -369,6 +446,101 @@ export default function BankingPage() {
       showToast(`Rule “${rule.descriptionContains}” deleted.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not delete that rule');
+    }
+  }
+
+  function openResolve(transaction: BankTransaction) {
+    const mode: ResolveMode =
+      transaction.amount < 0 ? 'expense' : transaction.amount > 0 ? 'payment' : 'categorize';
+    setResolveTransaction(transaction);
+    setResolveMode(mode);
+    setResolveAccountId('');
+    setResolveCategoryId('');
+    setResolveVendorId('');
+    setResolveMemo(transaction.description);
+    setResolveCustomerId('');
+    setResolveInvoiceId('');
+    setResolveInvoices([]);
+    setResolveTargetBankId('');
+    setResolveError(null);
+    setResolveOpen(true);
+  }
+
+  async function onResolveTransaction(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!org || !resolveTransaction || resolveBusy) return;
+    const amount = Math.abs(resolveTransaction.amount);
+    setResolveError(null);
+
+    if (resolveMode === 'categorize' && !resolveAccountId) {
+      setResolveError('Choose the account this transaction belongs to.');
+      return;
+    }
+    if (resolveMode === 'expense' && !resolveCategoryId) {
+      setResolveError('Choose an expense category.');
+      return;
+    }
+    if (resolveMode === 'payment') {
+      if (!resolveCustomerId) {
+        setResolveError('Choose the customer who paid.');
+        return;
+      }
+      if (!resolveInvoiceId) {
+        setResolveError('Choose an open invoice to apply this payment to.');
+        return;
+      }
+      const invoice = resolveInvoices.find((row) => row.id === resolveInvoiceId);
+      if (!invoice || invoice.balanceDue < amount) {
+        setResolveError('That invoice does not have enough balance for this payment.');
+        return;
+      }
+    }
+    if (resolveMode === 'transfer' && !resolveTargetBankId) {
+      setResolveError('Choose the bank account to transfer to.');
+      return;
+    }
+
+    setResolveBusy(true);
+    try {
+      let resolved: BankTransaction;
+      if (resolveMode === 'categorize') {
+        resolved = await categorizeBankTransaction(
+          org.organizationId,
+          resolveTransaction.id,
+          resolveAccountId,
+        );
+      } else if (resolveMode === 'expense') {
+        resolved = await expenseFromBankTransaction(org.organizationId, resolveTransaction.id, {
+          categoryAccountId: resolveCategoryId,
+          vendorId: resolveVendorId || undefined,
+          memo: resolveMemo.trim() || undefined,
+        });
+      } else if (resolveMode === 'payment') {
+        resolved = await paymentFromBankTransaction(org.organizationId, resolveTransaction.id, {
+          customerId: resolveCustomerId,
+          applications: [{ invoiceId: resolveInvoiceId, amount }],
+          reference: resolveTransaction.description.slice(0, 100),
+        });
+      } else {
+        resolved = await transferBankTransaction(
+          org.organizationId,
+          resolveTransaction.id,
+          resolveTargetBankId,
+        );
+      }
+      setResolveOpen(false);
+      await loadTransactions();
+      showToast(
+        resolved.resolutionLabel
+          ? `Transaction resolved as ${resolved.resolutionLabel}.`
+          : 'Transaction resolved.',
+      );
+    } catch (err) {
+      setResolveError(
+        err instanceof Error ? err.message : 'Could not resolve that transaction',
+      );
+    } finally {
+      setResolveBusy(false);
     }
   }
 
@@ -527,6 +699,28 @@ export default function BankingPage() {
   const unmatched = rows.filter((row) => row.matchState === 'UNMATCHED').length;
   const previewRuleCount =
     importPreview?.rows.filter((row) => row.valid && !row.duplicate && row.rule).length ?? 0;
+  const resolveAmount = resolveTransaction ? Math.abs(resolveTransaction.amount) : 0;
+  const resolveModes: ResolveMode[] = resolveTransaction
+    ? resolveTransaction.amount > 0
+      ? ['categorize', 'payment', 'transfer']
+      : ['categorize', 'expense', 'transfer']
+    : [];
+  const selectedResolveInvoice =
+    resolveInvoices.find((invoice) => invoice.id === resolveInvoiceId) ?? null;
+  const paymentCoversBalance = selectedResolveInvoice
+    ? selectedResolveInvoice.balanceDue >= resolveAmount
+    : false;
+  const resolveSourceBank =
+    accounts?.find((account) => account.id === resolveTransaction?.bankAccountId) ?? null;
+  const resolveSubmitLabel = resolveBusy
+    ? 'Resolving…'
+    : resolveMode === 'categorize'
+      ? 'Categorize transaction'
+      : resolveMode === 'expense'
+        ? 'Create expense'
+        : resolveMode === 'payment'
+          ? 'Record payment'
+          : 'Transfer funds';
 
   return (
     <>
@@ -824,18 +1018,19 @@ export default function BankingPage() {
                       Amount
                     </th>
                     <th scope="col">Match state</th>
+                    {editable ? <th scope="col">Actions</th> : null}
                   </tr>
                 </thead>
                 <tbody>
                   {transactions === null ? (
                     <tr>
-                      <td colSpan={6} className="accounts-empty">
+                      <td colSpan={editable ? 7 : 6} className="accounts-empty">
                         Turning the pages…
                       </td>
                     </tr>
                   ) : rows.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="accounts-empty">
+                      <td colSpan={editable ? 7 : 6} className="accounts-empty">
                         No bank activity in this view.
                       </td>
                     </tr>
@@ -845,7 +1040,19 @@ export default function BankingPage() {
                         <td>{displayDate(transaction.date)}</td>
                         <td>{transaction.description}</td>
                         <td className="bank-category-cell">
-                          {transaction.categoryAccount ? (
+                          {transaction.resolutionLabel ? (
+                            <>
+                              <span>{transaction.resolutionLabel}</span>
+                              {transaction.categoryAccount &&
+                              transaction.resolutionLabel !==
+                                `${transaction.categoryAccount.code} ${transaction.categoryAccount.name}` ? (
+                                <span className="bank-rule-sub">
+                                  {transaction.categoryAccount.code} ·{' '}
+                                  {transaction.categoryAccount.name}
+                                </span>
+                              ) : null}
+                            </>
+                          ) : transaction.categoryAccount ? (
                             <>
                               <span>
                                 {transaction.categoryAccount.code} ·{' '}
@@ -879,6 +1086,23 @@ export default function BankingPage() {
                               transaction.matchState.slice(1).toLowerCase()}
                           </span>
                         </td>
+                        {editable ? (
+                          <td>
+                            {transaction.matchState === 'UNMATCHED' &&
+                            transaction.amount !== 0 ? (
+                              <button
+                                className="btn btn--outline btn--sm"
+                                type="button"
+                                aria-label={`Resolve ${transaction.description}`}
+                                onClick={() => openResolve(transaction)}
+                              >
+                                Resolve
+                              </button>
+                            ) : (
+                              <span className="bank-resolved-marker">—</span>
+                            )}
+                          </td>
+                        ) : null}
                       </tr>
                     ))
                   )}
@@ -1077,6 +1301,271 @@ export default function BankingPage() {
             </button>
           </div>
         </form>
+      </aside>
+
+      <aside
+        className={`margin side-drawer${resolveOpen ? ' is-open' : ''}`}
+        id="bank-resolve-form"
+        aria-label="Resolve transaction"
+      >
+        <div className="margin__head">
+          <span className="members__mark" aria-hidden="true">
+            <svg className="icon icon--sm" viewBox="0 0 24 24">
+              <path d="M4 7h16M4 12h10M4 17h7" />
+              <path d="m16 14 3 3 3-3" />
+            </svg>
+          </span>
+          <h2 className="margin__title">Resolve transaction</h2>
+          <button
+            className="icon-btn margin__close"
+            type="button"
+            aria-label="Close transaction resolution"
+            onClick={() => setResolveOpen(false)}
+          >
+            <svg className="icon icon--sm" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {resolveTransaction ? (
+          <div className="bank-resolve-summary">
+            <div>
+              <span>{displayDate(resolveTransaction.date)}</span>
+              <strong>{resolveTransaction.description}</strong>
+            </div>
+            <div className="bank-resolve-summary__amount">
+              {signedMoney(resolveTransaction.amount)}
+            </div>
+            <div className="bank-resolve-summary__account">
+              {resolveTransaction.bankAccount.name}
+              {resolveSourceBank ? ` · ${resolveSourceBank.ledgerAccount.code} ${resolveSourceBank.ledgerAccount.name}` : ''}
+            </div>
+          </div>
+        ) : null}
+
+        {resolveError ? (
+          <p className="members__error" role="alert">
+            {resolveError}
+          </p>
+        ) : null}
+
+        {resolveTransaction ? (
+          <>
+            <div className="bank-resolve-modes" role="tablist" aria-label="Resolution type">
+              {resolveModes.map((mode) => (
+                <button
+                  key={mode}
+                  className={`bank-resolve-mode${resolveMode === mode ? ' is-active' : ''}`}
+                  type="button"
+                  role="tab"
+                  aria-selected={resolveMode === mode}
+                  onClick={() => {
+                    setResolveMode(mode);
+                    setResolveError(null);
+                  }}
+                >
+                  {RESOLVE_MODE_LABELS[mode]}
+                </button>
+              ))}
+            </div>
+
+            <form className="drawer-form" id="bank-resolve-form-body" onSubmit={(event) => void onResolveTransaction(event)}>
+              {resolveMode === 'categorize' ? (
+                <>
+                  <label className="drawer-form__label" htmlFor="resolve-account">
+                    Categorize as
+                  </label>
+                  <select
+                    id="resolve-account"
+                    required
+                    value={resolveAccountId}
+                    onChange={(event) => setResolveAccountId(event.target.value)}
+                  >
+                    <option value="">Choose an account</option>
+                    {ledgerAccounts
+                      .filter(
+                        (account) =>
+                          account.active && account.id !== resolveSourceBank?.ledgerAccountId,
+                      )
+                      .map((account) => (
+                        <option key={account.id} value={account.id}>
+                          {account.code} · {account.name}
+                        </option>
+                      ))}
+                  </select>
+                  <p className="drawer-form__hint">
+                    Posts one balanced journal: this bank account against the account you
+                    choose.
+                  </p>
+                </>
+              ) : null}
+
+              {resolveMode === 'expense' ? (
+                <>
+                  <label className="drawer-form__label" htmlFor="resolve-category">
+                    Expense category
+                  </label>
+                  <select
+                    id="resolve-category"
+                    required
+                    value={resolveCategoryId}
+                    onChange={(event) => setResolveCategoryId(event.target.value)}
+                  >
+                    <option value="">Choose an expense account</option>
+                    {ledgerAccounts
+                      .filter((account) => account.active && account.type === 'EXPENSE')
+                      .map((account) => (
+                        <option key={account.id} value={account.id}>
+                          {account.code} · {account.name}
+                        </option>
+                      ))}
+                  </select>
+
+                  <label className="drawer-form__label" htmlFor="resolve-vendor">
+                    Vendor (optional)
+                  </label>
+                  <select
+                    id="resolve-vendor"
+                    value={resolveVendorId}
+                    onChange={(event) => setResolveVendorId(event.target.value)}
+                  >
+                    <option value="">No vendor</option>
+                    {vendors.map((vendor) => (
+                      <option key={vendor.id} value={vendor.id}>
+                        {vendor.code} · {vendor.name}
+                      </option>
+                    ))}
+                  </select>
+
+                  <label className="drawer-form__label" htmlFor="resolve-memo">
+                    Memo
+                  </label>
+                  <input
+                    id="resolve-memo"
+                    value={resolveMemo}
+                    onChange={(event) => setResolveMemo(event.target.value)}
+                  />
+                  <p className="drawer-form__hint">
+                    Creates EXP-#### for {money(resolveAmount)} on {displayDate(resolveTransaction.date)} and posts it
+                    from this bank account.
+                  </p>
+                </>
+              ) : null}
+
+              {resolveMode === 'payment' ? (
+                <>
+                  <label className="drawer-form__label" htmlFor="resolve-customer">
+                    Customer
+                  </label>
+                  <select
+                    id="resolve-customer"
+                    required
+                    value={resolveCustomerId}
+                    onChange={(event) => {
+                      setResolveCustomerId(event.target.value);
+                      setResolveInvoiceId('');
+                      setResolveInvoices([]);
+                    }}
+                  >
+                    <option value="">Choose a customer</option>
+                    {customers.map((customer) => (
+                      <option key={customer.id} value={customer.id}>
+                        {customer.code} · {customer.name}
+                      </option>
+                    ))}
+                  </select>
+
+                  <label className="drawer-form__label" htmlFor="resolve-invoice">
+                    Open invoice
+                  </label>
+                  <select
+                    id="resolve-invoice"
+                    required
+                    value={resolveInvoiceId}
+                    onChange={(event) => setResolveInvoiceId(event.target.value)}
+                    disabled={!resolveCustomerId || resolveInvoicesLoading}
+                  >
+                    <option value="">
+                      {resolveInvoicesLoading
+                        ? 'Reading open invoices…'
+                        : resolveCustomerId
+                          ? 'Choose an invoice'
+                          : 'Choose a customer first'}
+                    </option>
+                    {resolveInvoices.map((invoice) => (
+                      <option key={invoice.id} value={invoice.id}>
+                        {invoice.number} · {money(invoice.balanceDue)} open
+                      </option>
+                    ))}
+                  </select>
+
+                  <div className="bank-resolve-amount">
+                    <span>Payment amount</span>
+                    <strong>{money(resolveAmount)}</strong>
+                  </div>
+                  {resolveCustomerId && !resolveInvoicesLoading && resolveInvoices.length === 0 ? (
+                    <p className="drawer-form__hint">This customer has no open invoices.</p>
+                  ) : null}
+                  {selectedResolveInvoice && !paymentCoversBalance ? (
+                    <p className="members__error" role="alert">
+                      That invoice only has {money(selectedResolveInvoice.balanceDue)} open.
+                    </p>
+                  ) : null}
+                  <p className="drawer-form__hint">
+                    Records PAY-####, posts the bank deposit against receivables, and updates the
+                    invoice.
+                  </p>
+                </>
+              ) : null}
+
+              {resolveMode === 'transfer' ? (
+                <>
+                  <label className="drawer-form__label" htmlFor="resolve-target-bank">
+                    Transfer to
+                  </label>
+                  <select
+                    id="resolve-target-bank"
+                    required
+                    value={resolveTargetBankId}
+                    onChange={(event) => setResolveTargetBankId(event.target.value)}
+                  >
+                    <option value="">Choose another bank account</option>
+                    {(accounts ?? [])
+                      .filter(
+                        (account) =>
+                          account.active && account.id !== resolveTransaction.bankAccountId,
+                      )
+                      .map((account) => (
+                        <option key={account.id} value={account.id}>
+                          {account.name} · {account.ledgerAccount.code}{' '}
+                          {account.ledgerAccount.name}
+                        </option>
+                      ))}
+                  </select>
+                  <p className="drawer-form__hint">
+                    Moves {money(resolveAmount)} between the linked bank accounts and posts the
+                    other side.
+                  </p>
+                </>
+              ) : null}
+
+              <div className="drawer-form__foot">
+                <button
+                  className="btn btn--primary btn--sm"
+                  type="submit"
+                  disabled={
+                    resolveBusy ||
+                    (resolveMode === 'payment' &&
+                      (!paymentCoversBalance || resolveInvoicesLoading))
+                  }
+                >
+                  {resolveSubmitLabel}
+                </button>
+              </div>
+            </form>
+          </>
+        ) : null}
       </aside>
 
       <aside
@@ -1345,12 +1834,13 @@ export default function BankingPage() {
       </aside>
 
       <div
-        className={`scrim${accountFormOpen || ruleFormOpen || importOpen ? ' is-visible' : ''}`}
+        className={`scrim${accountFormOpen || ruleFormOpen || importOpen || resolveOpen ? ' is-visible' : ''}`}
         aria-hidden="true"
         onClick={() => {
           setAccountFormOpen(false);
           setRuleFormOpen(false);
           setImportOpen(false);
+          setResolveOpen(false);
         }}
       />
       <div className={`toast${toast ? ' is-visible' : ''}`} role="status" aria-live="polite">
