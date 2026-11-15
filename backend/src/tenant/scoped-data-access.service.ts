@@ -22,7 +22,10 @@ type ScopedModel =
   | 'billPayment'
   | 'billPaymentApplication'
   | 'expense'
-  | 'attachment';
+  | 'attachment'
+  | 'bankAccount'
+  | 'bankImportBatch'
+  | 'bankTransaction';
 
 interface FindArgs {
   where?: Record<string, unknown>;

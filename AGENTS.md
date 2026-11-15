@@ -4,26 +4,27 @@
 - `Requirements.md` is the spec of record. Read it fully before building; reconcile code to it, never edit it to match code.
 - `issues/prd.md` is the derived build plan (modules, schema, API contracts, testing). Use it as the working plan; `Requirements.md` wins on conflicts.
 - `issues/001-*.md` through `issues/036-*.md` are the vertical-slice implementation issues. Work in number order and respect each `Blocked by`; HITL gates are 001 (scaffold/shell), 029 (approver role), and 036 (design/User-flows QA). Keep local filename references, not GitHub issue numbers.
-- **Progress as of 2026-11-15: issues 001–016 are complete. 017 (bank import) is next and awaiting the client's go-ahead.** Confirm before starting each new issue.
+- **Progress as of 2026-11-15: issues 001–017 are complete. 018 (categorization rules) is next and awaiting the client's go-ahead.** Confirm before starting each new issue.
 - Progress lives in `spine.md` — update its status table and log whenever an issue starts, finishes, or is blocked.
 - Per-issue workflow: TDD vertical slices (`tdd` skill, behavior tests through public interfaces) → Playwright spec green at issue end → update `spine.md` → commit + push via composio-cli (`GITHUB_COMMIT_MULTIPLE_FILES`, never a bare `git push`). GitHub target is `furqaniq/ai-accounting`, branch `main`, author `Furqan Iqbal <furqan93@gmail.com>`; verify pushed files with `GITHUB_GET_REPOSITORY_CONTENT`.
 - Scaffold: `backend/` (NestJS + Prisma), `frontend/` (Next.js App Router), root Playwright, `docker-compose.yml`. Commands: `cp .env.example .env && docker compose up -d --build` → `docker compose exec backend npm run seed` → app on :3000; backend tests `npm run backend:test`; e2e `npm run test:e2e`; builds `npm run backend:build` / `npm run frontend:build`.
 - Compose images bake source in (no bind mounts): after backend/frontend code changes run `docker compose up -d --build backend frontend` before Playwright or manual checks.
 
-## Implemented architecture (through 016)
+## Implemented architecture (through 017)
 ### Backend
 - API prefix `/api/v1`; global `ValidationPipe` with `whitelist`, `forbidNonWhitelisted`, `transform`; CORS from `CORS_ORIGINS`, exposing `Content-Disposition`.
 - Auth: `POST /auth/login`, `/auth/refresh`, `/auth/logout`, `GET /auth/me`; JWT access tokens plus hashed, rotating refresh tokens. Every tenant request sends `Authorization: Bearer <token>` and `X-Organization-Id`.
-- Modules: `auth`, `tenant`, `accounts`, `ledger`, `sales` (customers, items, invoices, estimates, PDFs, payments, AR aging), `purchases` (vendors, bills, bill payments, quick expenses, AP aging), `attachments` (the MinIO-backed `AttachmentStore`).
+- Modules: `auth`, `tenant`, `accounts`, `ledger`, `sales` (customers, items, invoices, estimates, PDFs, payments, AR aging), `purchases` (vendors, bills, bill payments, quick expenses, AP aging), `attachments` (the MinIO-backed `AttachmentStore`), `banking` (bank accounts, imports, transactions).
 - `ScopedDataAccess` is the default tenant boundary: add every new organization-owned model to its `ScopedModel` union and query through it. Direct Prisma calls are for transactional/locking paths only, must still filter `organizationId`, and must never trust a caller-supplied org id.
-- `permissions.ts` is the single role → permission matrix. Permission names follow `${domain}:read|manage`; current domains include org, members, audit, accounts, ledger, customers, items, invoices, estimates, payments, vendors, bills, expenses, attachments, plus `reports:read` (granted to every role). Endpoints declare `@RequirePermission`; Owner/Admin/Accountant/Staff manage business records, Viewer is read-only.
+- `permissions.ts` is the single role → permission matrix. Permission names follow `${domain}:read|manage`; current domains include org, members, audit, accounts, ledger, customers, items, invoices, estimates, payments, vendors, bills, expenses, attachments, banking, plus `reports:read` (granted to every role). Endpoints declare `@RequirePermission`; Owner/Admin/Accountant/Staff manage business records, Viewer is read-only.
 - Audit every state change through `AuditService` (`AuditLogEntry`). Agent logs will be separate (`AgentActionLog`). Action names must match `^[a-z]+(\.[a-z_]+)+$` (for example `bill.pay`); hyphens are rejected.
 - `LedgerEngine` is the only journal writer. Use `postWithin(tx, ...)` when a feature transaction needs an atomic post, otherwise `postEntry`. Journal references are per-org `JE-####`; posted entries are immutable and corrected by reversal. The unique key `(organizationId, sourceType, sourceId)` makes feature postings idempotent.
+- `BankingImportEngine` is the only bank-file parser, mapper, and normalizer; the UI never parses files. It returns preview rows and duplicate fingerprints, and the banking import service persists a batch plus normalized transactions atomically.
 
 ### Frontend
 - Next.js App Router with plain Daybook CSS (`globals.css`, `shell.css`) and typed wrappers in `frontend/lib/api.ts`. Tailwind/shadcn/TanStack Query are **not installed yet**; introduce them deliberately per Requirements §6 when a slice needs them.
 - Session state in localStorage: `daybook.accessToken`, `daybook.refreshToken`, `daybook.activeOrgId`. API base defaults to `http://localhost:3001/api/v1`.
-- Shared shell: `components/app-spine.tsx` (spine, nav, org/user controls) and `components/audit-log-drawer.tsx`. Pages cover login, overview, members/settings, accounts, ledger, customers/items, invoices, estimates, payments, AR and AP aging, vendors, bills, bill payments, and expenses, with attachment pockets on expense and bill details.
+- Shared shell: `components/app-spine.tsx` (spine, nav, org/user controls) and `components/audit-log-drawer.tsx`. Pages cover login, overview, members/settings, accounts, ledger, customers/items, invoices, estimates, payments, AR and AP aging, vendors, bills, bill payments, and expenses, with attachment pockets on expense and bill details, plus the banking workspace with account setup, import mapping, and activity filters.
 - Preserve the Daybook visual system: ruled tables, double-rule totals, pale sage paper, ledger-green spine, Petrona display/figures, Familjen Grotesk UI. Avoid cards, gradients, and generic SaaS dashboards.
 
 ### Domain rules
@@ -36,8 +37,9 @@
 - Bill payments: `BPAY-####`; one SENT payment applies across one or more OPEN/PARTIAL bills for one active vendor, and the payment total must equal the applied sum. Row-lock bill reads; reject drafts, paid bills, mixed vendors, over-application, and mismatched receipts. Partial sets PARTIAL, full sets PAID/`paidAt`, and the payment posts AP `2000` debit / Cash `1000` credit once. Bill payments are create-only; no unapplied credit or reversal yet.
 - AP aging: `GET /reports/ap-aging?asOf=YYYY-MM-DD`; same five buckets. As-of uses bill `issueDate` less `BillPaymentApplication` amounts whose payment `date` is on or before the as-of date; drafts and later payments excluded; totals must reconcile to open bills. `reports:read` covers it.
 - Quick expenses: `EXP-####`; required active EXPENSE category, optional active vendor, date, two-decimal amount, memo, and optional receipt note. Creating posts category debit / Cash `1000` credit once through `LedgerEngine`. Financial edits reverse the prior entry and post a corrected `:vN` entry; memo/vendor-only edits stay off the ledger. List filters by date range, category, vendor, and search; Viewer read-only.
+- Banking: `BankAccount` links one active ledger account (ASSET for checking/savings, LIABILITY for credit cards), unique per organization. `BankingImportEngine` accepts CSV/OFX up to 10 MB, auto-detects headers/delimiters, maps date/description/amount or debit/credit/external-id fields, and normalizes to UTC dates and signed amounts (positive inflow, negative outflow). Duplicate fingerprints use the external ID when mapped, otherwise date+amount+description. `POST /bank-imports/preview` returns headers, mapping, normalized rows, and counts without writing; `POST /bank-imports` skips duplicates and invalid rows, persists a `BankImportBatch` with row/imported/duplicate/invalid counts, and links each row to that batch for undo diagnostics. `GET/POST /bank-accounts`; `GET /bank-transactions` filters by account, date, match state, and search. Transactions start UNMATCHED; matching/categorization lands in 018–020. `banking:read|manage` gates the domain; audited as `bank.account.create` and `bank.import`; no live feed or aggregator.
 - Attachments: `Attachment` metadata carries `entityType` (EXPENSE/BILL), `entityId`, object key, filename, content type, and size. `AttachmentStore` is the only MinIO caller and owns upload, streamed download, deletion, and 15-minute presigned GET URLs. Uploads are capped at 10 MB and limited to PDF/PNG/JPEG/WebP, validated by extension, declared MIME, and magic bytes, with sanitized filenames. Object keys are `{org}/{entity}/{entityId}/{uuid}/{filename}`; the bucket is created lazily. `GET/POST /attachments`, `GET /attachments/:id/url|download`, `DELETE /attachments/:id`; staff manage, viewer read-only, audited as `attachment.upload`/`attachment.delete`, tenant-scoped, and persisted in the `miniodata` volume.
-- **Not built yet:** bank import/reconciliation, categorization rules, reporting exports/dashboards, AI agent/approvals.
+- **Not built yet:** bank reconciliation, categorization rules, reporting exports/dashboards, AI agent/approvals.
 
 ## Design sample (`ui/`)
 - Static, no build step, no framework. Shared `styles.css`, `app.js`, `favicon.svg`; pages: `index.html` (Overview), `invoices.html`, `reconcile.html`, `reports.html`, `agent.html` (Clerk).
@@ -60,18 +62,18 @@
 - Compose ports: frontend 3000, backend 3001, postgres 5432, redis 6379, minio 9000/9001, adminer 8080.
 - Redis + BullMQ for cron, events, and all agent jobs. Agent calls must be queued with backoff + jitter; treat Gemini `429 RESOURCE_EXHAUSTED` as normal load.
 - Gemini behind `AiProviderService` (`generate()`, `callWithTools()`); `GEMINI_API_KEY` in `.env`, never committed. Attachments in MinIO, not disk.
-- MinIO is live for attachments; Redis remains defined in Compose but unused until the agent/banking slices. Target remains: `docker compose up` → seed → log in.
+- MinIO is live for attachments; Redis remains defined in Compose but unused until the agent slices. Target remains: `docker compose up` → seed → log in.
 
 ## Seed accounts (§7)
 - `owner@acme.test`, `accountant@acme.test`, `staff@acme.test`, `viewer@acme.test`; `owner@nimbus.test`, `accountant@nimbus.test`.
 - Password `Passw0rd!2026`; local/demo only, rotate before any non-local use.
 - Current seed: default chart (now includes purchase tax receivable `1300`), customers/items, vendors, mixed-state invoices, estimates, and bills (draft/open, including overdue), plus opening-balance journals.
-- Not seeded yet: customer/bill payments, quick expenses, attachments, the reconciled bank CSV period, and agent cron jobs. Those belong to later slices.
+- Not seeded yet: customer/bill payments, quick expenses, attachments, bank accounts/imported bank activity, the reconciled bank CSV period, and agent cron jobs. Those belong to later slices.
 - Seed is idempotent and safe to rerun. Rerun it after pulling 013 so existing databases gain account `1300`.
 
 ## Testing
 - Backend: Jest behavior tests through public HTTP (`npm --prefix backend test`, in-process against local Postgres). E2E: `npx playwright test` (system Chrome) against the running Compose stack; one spec per flow, added at the end of each issue.
-- As of 016: backend **105 passed / 18 suites**, Playwright **17 passed**. Rerun both after each change; do not trust stale counts.
+- As of 017: backend **113 passed / 20 suites**, Playwright **18 passed**. Rerun both after each change; do not trust stale counts.
 - Flows (§8): auth + cross-tenant isolation, RBAC, invoice lifecycle, expense/bill lifecycle, bank import + reconcile/undo, reporting totals, agent prompt/cron/event, approval.
 - Tenancy + RBAC tests must hit the API directly, not only the UI.
 - Jest runs with `maxWorkers: 1` and Playwright `workers: 1`: both mutate the same database. Never run them concurrently.
@@ -84,6 +86,7 @@
 - Dates that represent calendar days are `@db.Date`; store/parse them as UTC midnight (`toDate`, ISO `YYYY-MM-DD` slices). Do not let local timezones shift bill/invoice/aging boundaries.
 - Money is Prisma `Decimal(14,2)`; never do ledger math in JS floats. Quantities/rates are Decimal and line amounts round to 2 dp.
 - Per-org document numbers are allocated by querying the highest existing suffix and retrying unique collisions; preserve that pattern for new document types.
-- Migrations must stay chronologically ordered by filename: invoices (11:30) → estimates `20261114113500_estimates` → payments `20261114114014_customer_payments` → vendors/bills `20261114120750_vendors_bills` → bill payments `20261115164901_bill_payments` → expenses `20261115222500_expenses` → attachments `20261115233000_attachments`. Renaming a migration requires a matching remote delete when pushing, and fresh shadow-DB `migrate deploy` must still succeed.
+- Migrations must stay chronologically ordered by filename: invoices (11:30) → estimates `20261114113500_estimates` → payments `20261114114014_customer_payments` → vendors/bills `20261114120750_vendors_bills` → bill payments `20261115164901_bill_payments` → expenses `20261115222500_expenses` → attachments `20261115233000_attachments` → banking `20261116001000_banking`. Renaming a migration requires a matching remote delete when pushing, and fresh shadow-DB `migrate deploy` must still succeed.
 - MinIO: the backend container reaches `minio:9000`, while presigned URLs use `MINIO_PUBLIC_ENDPOINT=localhost:9000` so the browser can fetch them. The bucket is auto-created on first upload. Jest uses the in-memory `AttachmentStore` (`ATTACHMENT_DRIVER=memory`); Playwright uses real MinIO, so `minio` must be running and files persist in `miniodata`.
+- Banking imports are signed cash movement: positive is money in, negative is money out. CSV mapping is required when headers are ambiguous; OFX fields are standard. Dates normalize to UTC midnight. Never move CSV/OFX parsing into the frontend.
 - Playwright label/heading selectors are ambiguous across drawers and tables; use `{ exact: true }`, `{ level: 1 }`, or scope to a region. `Payments` also matches `Bill payments`. Wait for drawers to finish animating before screenshots; close them with `Escape`.

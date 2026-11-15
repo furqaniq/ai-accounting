@@ -466,15 +466,7 @@ export default function OverviewPage() {
               </svg>
               Expenses
             </a>
-            <a
-              className="nav__item"
-              href="#"
-              onClick={(event) => {
-                event.preventDefault();
-                setSpineOpen(false);
-                toastLater('Banking');
-              }}
-            >
+            <a className="nav__item" href="/banking" onClick={() => setSpineOpen(false)}>
               <svg className="icon nav__icon" viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M3 21h18M5 21V9l7-5 7 5v12M9 21v-6h6v6" />
               </svg>
@@ -751,14 +743,7 @@ export default function OverviewPage() {
                   </div>
                   <div className="attention__amount">+$1,260.00</div>
                   <div className="attention__action">
-                    <a
-                      className="btn btn--ghost btn--sm"
-                      href="#"
-                      onClick={(event) => {
-                        event.preventDefault();
-                        toastLater('Banking');
-                      }}
-                    >
+                    <a className="btn btn--ghost btn--sm" href="/banking">
                       Open banking
                     </a>
                   </div>
@@ -791,14 +776,7 @@ export default function OverviewPage() {
                 <h2 className="section__title" id="register-title">
                   Checking 2480, recent activity
                 </h2>
-                <a
-                  className="link"
-                  href="#"
-                  onClick={(event) => {
-                    event.preventDefault();
-                    toastLater('Banking');
-                  }}
-                >
+                <a className="link" href="/banking">
                   Open banking
                 </a>
               </div>

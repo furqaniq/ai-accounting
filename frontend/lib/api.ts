@@ -1492,3 +1492,211 @@ export async function fetchAttachmentUrl(
   const body = (await res.json()) as { url: string };
   return body.url;
 }
+
+export type BankAccountType = 'CHECKING' | 'SAVINGS' | 'CREDIT_CARD';
+export type BankImportFormat = 'CSV' | 'OFX';
+export type BankTransactionMatchState = 'UNMATCHED' | 'MATCHED' | 'CATEGORIZED';
+
+export interface BankAccount {
+  id: string;
+  name: string;
+  type: BankAccountType;
+  active: boolean;
+  ledgerAccountId: string;
+  ledgerAccount: { id: string; code: string; name: string; type: AccountType };
+  transactionCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BankAccountInput {
+  name: string;
+  type: BankAccountType;
+  ledgerAccountId: string;
+}
+
+export async function fetchBankAccounts(organizationId: string): Promise<BankAccount[]> {
+  const res = await fetch(`${API_URL}/bank-accounts`, {
+    headers: authHeaders(organizationId),
+  });
+  if (!res.ok) throw new Error('Bank accounts are not available');
+  const body = (await res.json()) as { bankAccounts: BankAccount[] };
+  return body.bankAccounts;
+}
+
+export async function createBankAccount(
+  organizationId: string,
+  input: BankAccountInput,
+): Promise<BankAccount> {
+  const res = await fetch(`${API_URL}/bank-accounts`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders(organizationId) },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not add that bank account'));
+  return res.json();
+}
+
+export interface BankTransaction {
+  id: string;
+  bankAccountId: string;
+  bankAccount: { id: string; name: string; type: string };
+  importBatchId: string;
+  importBatch: {
+    id: string;
+    filename: string;
+    format: BankImportFormat;
+    createdAt: string;
+  };
+  date: string;
+  description: string;
+  amount: number;
+  externalId: string | null;
+  matchState: BankTransactionMatchState;
+  createdAt: string;
+}
+
+export interface BankTransactionFilters {
+  bankAccountId?: string;
+  from?: string;
+  to?: string;
+  matchState?: BankTransactionMatchState;
+  search?: string;
+}
+
+export async function fetchBankTransactions(
+  organizationId: string,
+  filters: BankTransactionFilters = {},
+): Promise<BankTransaction[]> {
+  const params = new URLSearchParams();
+  if (filters.bankAccountId) params.set('bankAccountId', filters.bankAccountId);
+  if (filters.from) params.set('from', filters.from);
+  if (filters.to) params.set('to', filters.to);
+  if (filters.matchState) params.set('matchState', filters.matchState);
+  if (filters.search) params.set('search', filters.search);
+  const query = params.toString();
+  const res = await fetch(`${API_URL}/bank-transactions${query ? `?${query}` : ''}`, {
+    headers: authHeaders(organizationId),
+  });
+  if (!res.ok) throw new Error('Bank transactions are not available');
+  const body = (await res.json()) as { transactions: BankTransaction[] };
+  return body.transactions;
+}
+
+export interface BankImportMapping {
+  dateColumn?: string;
+  descriptionColumn?: string;
+  amountColumn?: string;
+  debitColumn?: string;
+  creditColumn?: string;
+  externalIdColumn?: string;
+}
+
+export interface BankImportCounts {
+  total: number;
+  valid: number;
+  invalid: number;
+  duplicate: number;
+  newCount: number;
+}
+
+export interface BankImportPreviewRow {
+  rowNumber: number;
+  date: string | null;
+  description: string;
+  amount: number | null;
+  externalId: string | null;
+  valid: boolean;
+  duplicate: boolean;
+  error: string | null;
+}
+
+export interface BankImportPreview {
+  filename: string;
+  format: BankImportFormat;
+  headers: string[];
+  mapping: {
+    date: string | null;
+    description: string | null;
+    amount: string | null;
+    debit: string | null;
+    credit: string | null;
+    externalId: string | null;
+  } | null;
+  mappingError: string | null;
+  rows: BankImportPreviewRow[];
+  counts: BankImportCounts;
+}
+
+export interface BankImportBatch {
+  id: string;
+  bankAccountId: string;
+  filename: string;
+  format: BankImportFormat;
+  rowCount: number;
+  importedCount: number;
+  duplicateCount: number;
+  invalidCount: number;
+  createdAt: string;
+}
+
+export interface ImportedBankTransaction {
+  id: string;
+  bankAccountId: string;
+  importBatchId: string;
+  date: string;
+  description: string;
+  amount: number;
+  externalId: string | null;
+  matchState: BankTransactionMatchState;
+  createdAt: string;
+}
+
+export interface BankImportResult {
+  batch: BankImportBatch;
+  transactions: ImportedBankTransaction[];
+}
+
+function bankImportForm(
+  bankAccountId: string,
+  file: File,
+  mapping: BankImportMapping,
+): FormData {
+  const form = new FormData();
+  form.append('bankAccountId', bankAccountId);
+  form.append('file', file);
+  for (const [field, value] of Object.entries(mapping)) {
+    if (typeof value === 'string' && value) form.append(field, value);
+  }
+  return form;
+}
+
+export async function previewBankImport(
+  organizationId: string,
+  bankAccountId: string,
+  file: File,
+  mapping: BankImportMapping = {},
+): Promise<BankImportPreview> {
+  const res = await fetch(`${API_URL}/bank-imports/preview`, {
+    method: 'POST',
+    headers: authHeaders(organizationId),
+    body: bankImportForm(bankAccountId, file, mapping),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not preview that bank file'));
+  return res.json();
+}
+
+export async function importBankTransactions(
+  organizationId: string,
+  bankAccountId: string,
+  file: File,
+  mapping: BankImportMapping = {},
+): Promise<BankImportResult> {
+  const res = await fetch(`${API_URL}/bank-imports`, {
+    method: 'POST',
+    headers: authHeaders(organizationId),
+    body: bankImportForm(bankAccountId, file, mapping),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not import that bank file'));
+  return res.json();
+}

@@ -24,14 +24,14 @@ enum AccountType {
 }
 
 model Organization {
-  id                   String          @id @default(cuid())
+  id                   String            @id @default(cuid())
   name                 String
-  fiscalYearStartMonth Int             @default(1)
-  fiscalYearStartDay   Int             @default(1)
-  baseCurrency         String          @default("USD")
-  defaultTaxRate       Decimal         @default(0) @db.Decimal(5, 4)
-  createdAt            DateTime        @default(now())
-  updatedAt            DateTime        @updatedAt
+  fiscalYearStartMonth Int               @default(1)
+  fiscalYearStartDay   Int               @default(1)
+  baseCurrency         String            @default("USD")
+  defaultTaxRate       Decimal           @default(0) @db.Decimal(5, 4)
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
   memberships          OrgMembership[]
   auditLog             AuditLogEntry[]
   accounts             Account[]
@@ -46,6 +46,9 @@ model Organization {
   bills                Bill[]
   expenses             Expense[]
   attachments          Attachment[]
+  bankAccounts         BankAccount[]
+  bankImportBatches    BankImportBatch[]
+  bankTransactions     BankTransaction[]
 }
 
 model Account {
@@ -65,6 +68,7 @@ model Account {
   estimateLines  EstimateLine[]
   billLines      BillLine[]
   expenses       Expense[]
+  bankAccounts   BankAccount[]
 
   @@unique([organizationId, code])
   @@index([organizationId, type])
@@ -300,6 +304,81 @@ model Attachment {
   organization   Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, entityType, entityId, createdAt])
+}
+
+enum BankAccountType {
+  CHECKING
+  SAVINGS
+  CREDIT_CARD
+}
+
+enum BankImportFormat {
+  CSV
+  OFX
+}
+
+enum BankTransactionMatchState {
+  UNMATCHED
+  MATCHED
+  CATEGORIZED
+}
+
+model BankAccount {
+  id              String            @id @default(cuid())
+  organizationId  String
+  name            String
+  type            BankAccountType
+  ledgerAccountId String
+  active          Boolean           @default(true)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  organization    Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  ledgerAccount   Account           @relation(fields: [ledgerAccountId], references: [id])
+  importBatches   BankImportBatch[]
+  transactions    BankTransaction[]
+
+  @@unique([organizationId, ledgerAccountId])
+  @@index([organizationId, active])
+}
+
+model BankImportBatch {
+  id             String            @id @default(cuid())
+  organizationId String
+  bankAccountId  String
+  filename       String
+  format         BankImportFormat
+  rowCount       Int
+  importedCount  Int               @default(0)
+  duplicateCount Int               @default(0)
+  invalidCount   Int               @default(0)
+  createdAt      DateTime          @default(now())
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  bankAccount    BankAccount       @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+  transactions   BankTransaction[]
+
+  @@index([organizationId, bankAccountId, createdAt])
+}
+
+model BankTransaction {
+  id             String                    @id @default(cuid())
+  organizationId String
+  bankAccountId  String
+  importBatchId  String
+  date           DateTime                  @db.Date
+  description    String
+  amount         Decimal                   @db.Decimal(14, 2)
+  externalId     String?
+  fingerprint    String
+  matchState     BankTransactionMatchState @default(UNMATCHED)
+  raw            Json?
+  createdAt      DateTime                  @default(now())
+  organization   Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  bankAccount    BankAccount               @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+  importBatch    BankImportBatch           @relation(fields: [importBatchId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, bankAccountId, fingerprint])
+  @@index([organizationId, bankAccountId, date])
+  @@index([organizationId, matchState])
 }
 
 model Item {

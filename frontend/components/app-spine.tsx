@@ -16,6 +16,7 @@ export type SpineSection =
   | 'bills'
   | 'bill-payments'
   | 'expenses'
+  | 'banking'
   | 'reports';
 
 interface NavItem {
@@ -166,9 +167,9 @@ const NAV: NavItem[] = [
     ),
   },
   {
-    href: '/',
+    href: '/banking',
     label: 'Banking',
-    comingSoon: true,
+    section: 'banking',
     icon: (
       <>
         <path d="M3 21h18M5 21V9l7-5 7 5v12M9 21v-6h6v6" />
