@@ -163,6 +163,7 @@ test('accountant imports bank activity, categorizes by rule, resolves a transact
   const resolveDrawer = page.locator('#bank-resolve-form');
   const expenseRow = table.locator('tbody tr').filter({ hasText: 'E2E RESOLVE OFFICE CHAIRS' });
   await expenseRow.getByRole('button', { name: /Resolve/ }).click();
+  await resolveDrawer.getByRole('tab', { name: 'Create expense' }).click();
   await expect(resolveDrawer.getByRole('tab', { name: 'Create expense' })).toHaveAttribute(
     'aria-selected',
     'true',

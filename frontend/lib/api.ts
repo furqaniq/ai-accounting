@@ -1658,6 +1658,49 @@ export async function fetchBankTransactions(
   return body.transactions;
 }
 
+export type MatchEntityType = 'INVOICE' | 'BILL' | 'PAYMENT' | 'EXPENSE';
+
+export interface MatchSuggestion {
+  entityType: MatchEntityType;
+  entityId: string;
+  number: string;
+  label: string;
+  amount: number;
+  date: string;
+  score: number;
+  rank: number;
+  daysFromTransaction: number;
+  reasons: string[];
+}
+
+export async function fetchMatchSuggestions(
+  organizationId: string,
+  transactionId: string,
+): Promise<MatchSuggestion[]> {
+  const res = await fetch(
+    `${API_URL}/bank-transactions/${transactionId}/suggestions`,
+    { headers: authHeaders(organizationId) },
+  );
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not read match suggestions'));
+  const body = (await res.json()) as { suggestions: MatchSuggestion[] };
+  return body.suggestions;
+}
+
+export async function matchBankTransaction(
+  organizationId: string,
+  transactionId: string,
+  entityType: MatchEntityType,
+  entityId: string,
+): Promise<BankTransaction> {
+  const res = await fetch(`${API_URL}/bank-transactions/${transactionId}/match`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders(organizationId) },
+    body: JSON.stringify({ entityType, entityId }),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not match that transaction'));
+  return res.json();
+}
+
 export async function categorizeBankTransaction(
   organizationId: string,
   transactionId: string,

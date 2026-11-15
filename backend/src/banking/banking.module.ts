@@ -9,11 +9,14 @@ import { BankImportsController } from './bank-imports.controller';
 import { BankImportService } from './bank-import.service';
 import { BankTransactionsController } from './bank-transactions.controller';
 import { BankTransactionsService } from './bank-transactions.service';
+import { BankTransactionMatchingController } from './bank-transaction-matching.controller';
+import { BankTransactionMatchingService } from './bank-transaction-matching.service';
 import { BankTransactionResolutionController } from './bank-transaction-resolution.controller';
 import { BankTransactionResolutionService } from './bank-transaction-resolution.service';
 import { BankingImportEngine } from './banking-import.engine';
 import { CategorizationRulesController } from './categorization-rules.controller';
 import { CategorizationRulesService } from './categorization-rules.service';
+import { MatchingEngine } from './matching-engine';
 
 @Module({
   imports: [TenantModule, LedgerModule, PurchasesModule, SalesModule],
@@ -21,6 +24,7 @@ import { CategorizationRulesService } from './categorization-rules.service';
     BankAccountsController,
     BankTransactionsController,
     BankTransactionResolutionController,
+    BankTransactionMatchingController,
     BankImportsController,
     CategorizationRulesController,
   ],
@@ -29,6 +33,8 @@ import { CategorizationRulesService } from './categorization-rules.service';
     BankAccountsService,
     BankTransactionsService,
     BankTransactionResolutionService,
+    BankTransactionMatchingService,
+    MatchingEngine,
     BankImportService,
     CategorizationRulesService,
   ],

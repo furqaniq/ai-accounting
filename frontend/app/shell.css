@@ -1584,6 +1584,128 @@
   border-bottom-color: var(--ledger-green);
 }
 
+.bank-match-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+  padding-bottom: 7px;
+  border-bottom: 1px solid var(--rule);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.bank-match-count {
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: var(--ink-faint);
+}
+
+.bank-match-list {
+  display: grid;
+  margin-bottom: 14px;
+}
+
+.bank-match-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 10px;
+  padding: 10px 4px;
+  border-bottom: 1px solid var(--rule);
+  cursor: pointer;
+}
+
+.bank-match-card input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.bank-match-card:hover {
+  background: var(--surface-2);
+}
+
+.bank-match-card.is-selected {
+  background: #eef3eb;
+  box-shadow: inset 2px 0 0 var(--ledger-green);
+}
+
+.bank-match-card:focus-within {
+  outline: 2px solid rgba(31, 78, 58, 0.25);
+  outline-offset: -2px;
+}
+
+.bank-match-rank {
+  display: grid;
+  place-items: center;
+  width: 21px;
+  height: 21px;
+  margin-top: 1px;
+  border: 1px solid #b9c4ba;
+  border-radius: 50%;
+  font-family: var(--font-display);
+  font-size: 11px;
+  color: var(--ink-soft);
+}
+
+.bank-match-card.is-selected .bank-match-rank {
+  border-color: var(--ledger-green);
+  color: var(--ledger-green);
+}
+
+.bank-match-body {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.bank-match-kind {
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--red-ink);
+}
+
+.bank-match-title {
+  overflow: hidden;
+  font-family: var(--font-display);
+  font-size: 15px;
+  color: var(--ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bank-match-meta {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-soft);
+}
+
+.bank-match-reasons {
+  margin-top: 2px;
+  font-size: 10.5px;
+  line-height: 1.45;
+  color: var(--ink-faint);
+}
+
+.bank-match-empty {
+  margin: 12px 0 14px;
+  padding: 12px 0;
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+  font-family: var(--font-display);
+  font-size: 14px;
+  color: var(--ink-soft);
+}
+
 .bank-resolve-amount {
   display: flex;
   align-items: baseline;

@@ -18,6 +18,8 @@ import {
   CategorizationRule,
   Customer,
   Invoice,
+  MatchEntityType,
+  MatchSuggestion,
   Vendor,
   categorizeBankTransaction,
   clearSession,
@@ -32,10 +34,12 @@ import {
   fetchCategorizationRules,
   fetchCustomers,
   fetchInvoices,
+  fetchMatchSuggestions,
   fetchVendors,
   getAccessToken,
   getActiveOrgId,
   importBankTransactions,
+  matchBankTransaction,
   paymentFromBankTransaction,
   previewBankImport,
   setActiveOrgId,
@@ -56,10 +60,18 @@ const MATCH_STATES: Array<{ value: BankTransactionMatchState; label: string }> =
 ];
 
 const RESOLVE_MODE_LABELS: Record<ResolveMode, string> = {
+  match: 'Match existing',
   categorize: 'Categorize',
   expense: 'Create expense',
   payment: 'Record payment',
   transfer: 'Transfer',
+};
+
+const MATCH_TYPE_LABELS: Record<MatchEntityType, string> = {
+  INVOICE: 'Invoice',
+  BILL: 'Bill',
+  PAYMENT: 'Payment',
+  EXPENSE: 'Expense',
 };
 
 const MATCH_CLASS: Record<BankTransactionMatchState, string> = {
@@ -81,7 +93,7 @@ interface RuleForm {
   active: boolean;
 }
 
-type ResolveMode = 'categorize' | 'expense' | 'payment' | 'transfer';
+type ResolveMode = 'match' | 'categorize' | 'expense' | 'payment' | 'transfer';
 
 
 function money(value: number): string {
@@ -180,7 +192,11 @@ export default function BankingPage() {
 
   const [resolveOpen, setResolveOpen] = useState(false);
   const [resolveTransaction, setResolveTransaction] = useState<BankTransaction | null>(null);
-  const [resolveMode, setResolveMode] = useState<ResolveMode>('categorize');
+  const [resolveMode, setResolveMode] = useState<ResolveMode>('match');
+  const [matchSuggestions, setMatchSuggestions] = useState<MatchSuggestion[] | null>(null);
+  const [matchSelectedKey, setMatchSelectedKey] = useState('');
+  const [matchLoading, setMatchLoading] = useState(false);
+  const [matchError, setMatchError] = useState<string | null>(null);
   const [resolveAccountId, setResolveAccountId] = useState('');
   const [resolveCategoryId, setResolveCategoryId] = useState('');
   const [resolveVendorId, setResolveVendorId] = useState('');
@@ -327,6 +343,36 @@ export default function BankingPage() {
   }, [org, resolveOpen, resolveMode, resolveCustomerId]);
 
   useEffect(() => {
+    if (!org || !resolveOpen || resolveMode !== 'match' || !resolveTransaction) return;
+    let cancelled = false;
+    setMatchLoading(true);
+    setMatchError(null);
+    setMatchSuggestions(null);
+    setMatchSelectedKey('');
+    fetchMatchSuggestions(org.organizationId, resolveTransaction.id)
+      .then((rows) => {
+        if (cancelled) return;
+        setMatchSuggestions(rows);
+        setMatchSelectedKey(
+          rows[0] ? `${rows[0].entityType}:${rows[0].entityId}` : '',
+        );
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setMatchError(
+            err instanceof Error ? err.message : 'Match suggestions are not available',
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setMatchLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [org, resolveOpen, resolveMode, resolveTransaction]);
+
+  useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (event.key !== 'Escape') return;
       setAccountFormOpen(false);
@@ -450,10 +496,11 @@ export default function BankingPage() {
   }
 
   function openResolve(transaction: BankTransaction) {
-    const mode: ResolveMode =
-      transaction.amount < 0 ? 'expense' : transaction.amount > 0 ? 'payment' : 'categorize';
     setResolveTransaction(transaction);
-    setResolveMode(mode);
+    setResolveMode('match');
+    setMatchSuggestions(null);
+    setMatchSelectedKey('');
+    setMatchError(null);
     setResolveAccountId('');
     setResolveCategoryId('');
     setResolveVendorId('');
@@ -470,8 +517,15 @@ export default function BankingPage() {
     event.preventDefault();
     if (!org || !resolveTransaction || resolveBusy) return;
     const amount = Math.abs(resolveTransaction.amount);
+    const selectedMatch = matchSuggestions?.find(
+      (row) => `${row.entityType}:${row.entityId}` === matchSelectedKey,
+    );
     setResolveError(null);
 
+    if (resolveMode === 'match' && !selectedMatch) {
+      setResolveError('Choose a suggested record to match.');
+      return;
+    }
     if (resolveMode === 'categorize' && !resolveAccountId) {
       setResolveError('Choose the account this transaction belongs to.');
       return;
@@ -503,7 +557,15 @@ export default function BankingPage() {
     setResolveBusy(true);
     try {
       let resolved: BankTransaction;
-      if (resolveMode === 'categorize') {
+      if (resolveMode === 'match') {
+        if (!selectedMatch) throw new Error('Choose a suggested record to match');
+        resolved = await matchBankTransaction(
+          org.organizationId,
+          resolveTransaction.id,
+          selectedMatch.entityType,
+          selectedMatch.entityId,
+        );
+      } else if (resolveMode === 'categorize') {
         resolved = await categorizeBankTransaction(
           org.organizationId,
           resolveTransaction.id,
@@ -531,9 +593,11 @@ export default function BankingPage() {
       setResolveOpen(false);
       await loadTransactions();
       showToast(
-        resolved.resolutionLabel
-          ? `Transaction resolved as ${resolved.resolutionLabel}.`
-          : 'Transaction resolved.',
+        resolveMode === 'match' && resolved.resolutionLabel
+          ? `Transaction matched to ${resolved.resolutionLabel}.`
+          : resolved.resolutionLabel
+            ? `Transaction resolved as ${resolved.resolutionLabel}.`
+            : 'Transaction resolved.',
       );
     } catch (err) {
       setResolveError(
@@ -701,9 +765,12 @@ export default function BankingPage() {
     importPreview?.rows.filter((row) => row.valid && !row.duplicate && row.rule).length ?? 0;
   const resolveAmount = resolveTransaction ? Math.abs(resolveTransaction.amount) : 0;
   const resolveModes: ResolveMode[] = resolveTransaction
-    ? resolveTransaction.amount > 0
-      ? ['categorize', 'payment', 'transfer']
-      : ['categorize', 'expense', 'transfer']
+    ? [
+        'match',
+        ...(resolveTransaction.amount > 0
+          ? (['categorize', 'payment', 'transfer'] as ResolveMode[])
+          : (['categorize', 'expense', 'transfer'] as ResolveMode[])),
+      ]
     : [];
   const selectedResolveInvoice =
     resolveInvoices.find((invoice) => invoice.id === resolveInvoiceId) ?? null;
@@ -713,8 +780,10 @@ export default function BankingPage() {
   const resolveSourceBank =
     accounts?.find((account) => account.id === resolveTransaction?.bankAccountId) ?? null;
   const resolveSubmitLabel = resolveBusy
-    ? 'Resolving…'
-    : resolveMode === 'categorize'
+    ? 'Working…'
+    : resolveMode === 'match'
+      ? 'Match transaction'
+      : resolveMode === 'categorize'
       ? 'Categorize transaction'
       : resolveMode === 'expense'
         ? 'Create expense'
@@ -1371,6 +1440,81 @@ export default function BankingPage() {
             </div>
 
             <form className="drawer-form" id="bank-resolve-form-body" onSubmit={(event) => void onResolveTransaction(event)}>
+              {resolveMode === 'match' ? (
+                <>
+                  <div className="bank-match-head">
+                    <span>Suggested matches</span>
+                    {matchSuggestions && matchSuggestions.length > 0 ? (
+                      <span className="bank-match-count">
+                        {matchSuggestions.length} ranked
+                      </span>
+                    ) : null}
+                  </div>
+
+                  {matchLoading ? (
+                    <p className="drawer-form__hint">Reading the books for close matches…</p>
+                  ) : null}
+
+                  {matchError ? (
+                    <p className="members__error" role="alert">
+                      {matchError}
+                    </p>
+                  ) : null}
+
+                  {!matchLoading && !matchError && matchSuggestions?.length === 0 ? (
+                    <p className="bank-match-empty">
+                      No close matches. Categorize it, or create an expense or payment instead.
+                    </p>
+                  ) : null}
+
+                  {matchSuggestions && matchSuggestions.length > 0 ? (
+                    <div
+                      className="bank-match-list"
+                      role="radiogroup"
+                      aria-label="Suggested matches"
+                    >
+                      {matchSuggestions.map((suggestion) => {
+                        const key = `${suggestion.entityType}:${suggestion.entityId}`;
+                        return (
+                          <label
+                            key={key}
+                            className={`bank-match-card${
+                              matchSelectedKey === key ? ' is-selected' : ''
+                            }`}
+                          >
+                            <input
+                              type="radio"
+                              name="bank-match"
+                              value={key}
+                              checked={matchSelectedKey === key}
+                              onChange={() => setMatchSelectedKey(key)}
+                            />
+                            <span className="bank-match-rank">{suggestion.rank}</span>
+                            <span className="bank-match-body">
+                              <span className="bank-match-kind">
+                                {MATCH_TYPE_LABELS[suggestion.entityType]}
+                              </span>
+                              <span className="bank-match-title">{suggestion.label}</span>
+                              <span className="bank-match-meta">
+                                {displayDate(suggestion.date)} · {money(suggestion.amount)}
+                              </span>
+                              <span className="bank-match-reasons">
+                                {suggestion.reasons.join(' · ')}
+                              </span>
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+
+                  <p className="drawer-form__hint">
+                    Matching links this bank transaction to the record without posting another
+                    journal.
+                  </p>
+                </>
+              ) : null}
+
               {resolveMode === 'categorize' ? (
                 <>
                   <label className="drawer-form__label" htmlFor="resolve-account">
@@ -1556,6 +1700,8 @@ export default function BankingPage() {
                   type="submit"
                   disabled={
                     resolveBusy ||
+                    matchLoading ||
+                    (resolveMode === 'match' && !matchSelectedKey) ||
                     (resolveMode === 'payment' &&
                       (!paymentCoversBalance || resolveInvoicesLoading))
                   }
