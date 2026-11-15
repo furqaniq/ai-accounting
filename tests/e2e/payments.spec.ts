@@ -125,7 +125,7 @@ test('staff records one receipt across two invoices and closes the receivable lo
   await page.getByLabel('Password').fill('Passw0rd!2026');
   await page.getByRole('button', { name: 'Sign in' }).click();
 
-  await page.getByRole('link', { name: 'Payments' }).click();
+  await page.getByRole('link', { name: 'Payments', exact: true }).click();
   await expect(page).toHaveURL(/\/payments$/);
   await expect(page.getByRole('heading', { name: 'Payments', exact: true })).toBeVisible();
 
@@ -180,7 +180,7 @@ test('staff records one receipt across two invoices and closes the receivable lo
   await expect(journalRow.getByText('Payment', { exact: true })).toBeVisible();
   await expect(journalRow.getByText('$500.00')).toBeVisible();
 
-  await page.getByRole('link', { name: 'Payments' }).click();
+  await page.getByRole('link', { name: 'Payments', exact: true }).click();
   await page.getByLabel('Search payments').fill(paymentNumber);
   const paymentRow = page.locator('.payment-table tbody tr', { hasText: paymentNumber });
   await expect(paymentRow).toBeVisible();

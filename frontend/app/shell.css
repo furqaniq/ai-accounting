@@ -982,7 +982,8 @@
 }
 
 /* Customer payments (issue 011). */
-.side-drawer#payment-form {
+.side-drawer#payment-form,
+.side-drawer#bill-payment-form {
   width: min(620px, 96vw);
 }
 
@@ -1048,7 +1049,8 @@
 }
 
 @media (max-width: 560px) {
-  .side-drawer#payment-form {
+  .side-drawer#payment-form,
+  .side-drawer#bill-payment-form {
     width: 96vw;
   }
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AppSpine } from '@/components/app-spine';
 import {
@@ -130,6 +130,7 @@ export default function BillsPage() {
   const [error, setError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const linkedBillId = useRef<string | null>(null);
 
   const showToast = useCallback((message: string) => {
     setToast(message);
@@ -204,6 +205,21 @@ export default function BillsPage() {
     }, 250);
     return () => window.clearTimeout(timer);
   }, [load, org]);
+
+  useEffect(() => {
+    linkedBillId.current = new URLSearchParams(window.location.search).get('bill');
+  }, []);
+
+  useEffect(() => {
+    if (!bills || !linkedBillId.current) return;
+    const linked = bills.find((bill) => bill.id === linkedBillId.current);
+    linkedBillId.current = null;
+    if (!linked) return;
+    setSelected(linked);
+    window.setTimeout(() => {
+      document.getElementById('bill-detail')?.scrollIntoView({ block: 'start' });
+    }, 0);
+  }, [bills]);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -559,6 +575,14 @@ export default function BillsPage() {
                         Open bill
                       </button>
                     </>
+                  ) : null}
+                  {selected.status !== 'DRAFT' && selected.balanceDue > 0 ? (
+                    <a
+                      className="btn btn--primary"
+                      href={`/bill-payments?bill=${selected.id}`}
+                    >
+                      Record payment
+                    </a>
                   ) : null}
                   <button
                     className="btn btn--ghost"

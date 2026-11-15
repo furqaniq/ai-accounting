@@ -1,6 +1,10 @@
 import { Module } from '@nestjs/common';
 import { LedgerModule } from '../ledger/ledger.module';
 import { TenantModule } from '../tenant/tenant.module';
+import { ApAgingController } from './ap-aging.controller';
+import { ApAgingService } from './ap-aging.service';
+import { BillPaymentsController } from './bill-payments.controller';
+import { BillPaymentsService } from './bill-payments.service';
 import { BillsController } from './bills.controller';
 import { BillsService } from './bills.service';
 import { VendorBalanceService } from './vendor-balance.service';
@@ -9,7 +13,18 @@ import { VendorsService } from './vendors.service';
 
 @Module({
   imports: [TenantModule, LedgerModule],
-  controllers: [VendorsController, BillsController],
-  providers: [VendorBalanceService, VendorsService, BillsService],
+  controllers: [
+    VendorsController,
+    BillsController,
+    BillPaymentsController,
+    ApAgingController,
+  ],
+  providers: [
+    VendorBalanceService,
+    VendorsService,
+    BillsService,
+    BillPaymentsService,
+    ApAgingService,
+  ],
 })
 export class PurchasesModule {}

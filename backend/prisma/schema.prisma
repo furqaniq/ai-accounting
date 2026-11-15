@@ -42,6 +42,7 @@ model Organization {
   invoices             Invoice[]
   estimates            Estimate[]
   payments             Payment[]
+  billPayments         BillPayment[]
   bills                Bill[]
 }
 
@@ -141,7 +142,7 @@ model Customer {
 }
 
 model Vendor {
-  id             String       @id @default(cuid())
+  id             String        @id @default(cuid())
   organizationId String
   code           String
   name           String
@@ -155,11 +156,12 @@ model Vendor {
   postalCode     String?
   country        String?
   notes          String?
-  active         Boolean      @default(true)
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  active         Boolean       @default(true)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   bills          Bill[]
+  billPayments   BillPayment[]
 
   @@unique([organizationId, code])
   @@index([organizationId, name])
@@ -173,26 +175,27 @@ enum BillStatus {
 }
 
 model Bill {
-  id             String       @id @default(cuid())
-  organizationId String
-  number         String
-  vendorId       String
-  status         BillStatus   @default(DRAFT)
-  issueDate      DateTime     @db.Date
-  dueDate        DateTime     @db.Date
-  openedAt       DateTime?
-  paidAt         DateTime?
-  taxRate        Decimal      @default(0) @db.Decimal(5, 4)
-  subtotal       Decimal      @default(0) @db.Decimal(14, 2)
-  taxTotal       Decimal      @default(0) @db.Decimal(14, 2)
-  total          Decimal      @default(0) @db.Decimal(14, 2)
-  amountPaid     Decimal      @default(0) @db.Decimal(14, 2)
-  notes          String?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  vendor         Vendor       @relation(fields: [vendorId], references: [id])
-  lines          BillLine[]
+  id                  String                   @id @default(cuid())
+  organizationId      String
+  number              String
+  vendorId            String
+  status              BillStatus               @default(DRAFT)
+  issueDate           DateTime                 @db.Date
+  dueDate             DateTime                 @db.Date
+  openedAt            DateTime?
+  paidAt              DateTime?
+  taxRate             Decimal                  @default(0) @db.Decimal(5, 4)
+  subtotal            Decimal                  @default(0) @db.Decimal(14, 2)
+  taxTotal            Decimal                  @default(0) @db.Decimal(14, 2)
+  total               Decimal                  @default(0) @db.Decimal(14, 2)
+  amountPaid          Decimal                  @default(0) @db.Decimal(14, 2)
+  notes               String?
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
+  organization        Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  vendor              Vendor                   @relation(fields: [vendorId], references: [id])
+  lines               BillLine[]
+  paymentApplications BillPaymentApplication[]
 
   @@unique([organizationId, number])
   @@index([organizationId, status, dueDate])
@@ -200,20 +203,56 @@ model Bill {
 }
 
 model BillLine {
-  id               String   @id @default(cuid())
+  id               String  @id @default(cuid())
   organizationId   String
   billId           String
   position         Int
   description      String
-  quantity         Decimal  @db.Decimal(14, 2)
-  unitPrice        Decimal  @db.Decimal(14, 2)
-  amount           Decimal  @db.Decimal(14, 2)
+  quantity         Decimal @db.Decimal(14, 2)
+  unitPrice        Decimal @db.Decimal(14, 2)
+  amount           Decimal @db.Decimal(14, 2)
   expenseAccountId String
-  bill             Bill     @relation(fields: [billId], references: [id], onDelete: Cascade)
-  expenseAccount   Account  @relation(fields: [expenseAccountId], references: [id])
+  bill             Bill    @relation(fields: [billId], references: [id], onDelete: Cascade)
+  expenseAccount   Account @relation(fields: [expenseAccountId], references: [id])
 
   @@index([organizationId, billId])
   @@index([organizationId, expenseAccountId])
+}
+
+model BillPayment {
+  id             String                   @id @default(cuid())
+  organizationId String
+  number         String
+  vendorId       String
+  date           DateTime                 @db.Date
+  amount         Decimal                  @db.Decimal(14, 2)
+  method         PaymentMethod            @default(BANK_TRANSFER)
+  reference      String?
+  notes          String?
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+  organization   Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  vendor         Vendor                   @relation(fields: [vendorId], references: [id])
+  applications   BillPaymentApplication[]
+
+  @@unique([organizationId, number])
+  @@index([organizationId, date])
+  @@index([organizationId, vendorId])
+}
+
+model BillPaymentApplication {
+  id             String      @id @default(cuid())
+  organizationId String
+  billPaymentId  String
+  billId         String
+  amount         Decimal     @db.Decimal(14, 2)
+  createdAt      DateTime    @default(now())
+  billPayment    BillPayment @relation(fields: [billPaymentId], references: [id], onDelete: Cascade)
+  bill           Bill        @relation(fields: [billId], references: [id])
+
+  @@unique([billPaymentId, billId])
+  @@index([organizationId, billPaymentId])
+  @@index([organizationId, billId])
 }
 
 model Item {

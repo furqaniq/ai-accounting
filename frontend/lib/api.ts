@@ -979,6 +979,63 @@ export async function fetchArAging(
   return res.json();
 }
 
+export type ApAgingBucketKey = 'current' | '1-30' | '31-60' | '61-90' | '90+';
+
+export interface ApAgingBucket {
+  key: ApAgingBucketKey;
+  label: string;
+  amount: number;
+  count: number;
+}
+
+export interface ApAgingVendor {
+  vendorId: string;
+  vendorCode: string;
+  vendorName: string;
+  current: number;
+  days1To30: number;
+  days31To60: number;
+  days61To90: number;
+  days90Plus: number;
+  total: number;
+}
+
+export interface ApAgingBill {
+  id: string;
+  number: string;
+  vendorId: string;
+  vendorCode: string;
+  vendorName: string;
+  issueDate: string;
+  dueDate: string;
+  daysOverdue: number;
+  bucket: ApAgingBucketKey;
+  balanceDue: number;
+}
+
+export interface ApAgingReport {
+  asOf: string;
+  buckets: ApAgingBucket[];
+  vendors: ApAgingVendor[];
+  bills: ApAgingBill[];
+  overdue: ApAgingBill[];
+  total: number;
+}
+
+export async function fetchApAging(
+  organizationId: string,
+  asOf?: string,
+): Promise<ApAgingReport> {
+  const params = new URLSearchParams();
+  if (asOf) params.set('asOf', asOf);
+  const query = params.toString();
+  const res = await fetch(`${API_URL}/reports/ap-aging${query ? `?${query}` : ''}`, {
+    headers: authHeaders(organizationId),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'The aging report is not available'));
+  return res.json();
+}
+
 export type BillStatus = 'DRAFT' | 'OPEN' | 'PARTIAL' | 'PAID' | 'OVERDUE';
 
 export interface BillLine {
@@ -1098,6 +1155,90 @@ export async function openBill(organizationId: string, billId: string): Promise<
     headers: authHeaders(organizationId),
   });
   if (!res.ok) throw new Error(await failureMessage(res, 'Could not open that bill'));
+  return res.json();
+}
+
+export interface BillPaymentApplication {
+  id: string;
+  billId: string;
+  amount: number;
+  bill: {
+    id: string;
+    number: string;
+    status: BillStatus;
+    total: number;
+    amountPaid: number;
+    balanceDue: number;
+  };
+}
+
+export interface BillPayment {
+  id: string;
+  number: string;
+  direction: 'SENT';
+  vendorId: string;
+  vendor: {
+    id: string;
+    code: string;
+    name: string;
+    email: string | null;
+  };
+  date: string;
+  amount: number;
+  method: PaymentMethod;
+  reference: string | null;
+  notes: string | null;
+  applications: BillPaymentApplication[];
+  createdAt: string;
+}
+
+export interface BillPaymentInput {
+  vendorId: string;
+  date?: string;
+  amount: number;
+  method?: PaymentMethod;
+  reference?: string;
+  notes?: string;
+  applications: Array<{ billId: string; amount: number }>;
+}
+
+export async function fetchBillPayments(
+  organizationId: string,
+  filters: { vendorId?: string; search?: string } = {},
+): Promise<BillPayment[]> {
+  const params = new URLSearchParams();
+  if (filters.vendorId) params.set('vendorId', filters.vendorId);
+  if (filters.search) params.set('search', filters.search);
+  const query = params.toString();
+  const res = await fetch(`${API_URL}/bill-payments${query ? `?${query}` : ''}`, {
+    headers: authHeaders(organizationId),
+  });
+  if (!res.ok) throw new Error('Bill payments are not available');
+  const body = (await res.json()) as { billPayments: BillPayment[] };
+  return body.billPayments;
+}
+
+export async function fetchBillPayment(
+  organizationId: string,
+  billPaymentId: string,
+): Promise<BillPayment> {
+  const res = await fetch(`${API_URL}/bill-payments/${billPaymentId}`, {
+    headers: authHeaders(organizationId),
+  });
+  if (!res.ok) throw new Error('That bill payment is not available');
+  return res.json();
+}
+
+export async function createBillPayment(
+  organizationId: string,
+  input: BillPaymentInput,
+): Promise<BillPayment> {
+  const res = await fetch(`${API_URL}/bill-payments`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders(organizationId) },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not record that bill payment'));
   return res.json();
 }
 

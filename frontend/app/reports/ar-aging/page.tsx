@@ -175,17 +175,22 @@ export default function ArAgingPage() {
               {report ? `${report.customers.length} customer${report.customers.length === 1 ? '' : 's'} with a balance.` : 'Loading the ledger.'}
             </p>
           </div>
-          <div className="page-head__actions aging-asof">
-            <label htmlFor="aging-asof">As of date</label>
-            <input
-              id="aging-asof"
-              type="date"
-              value={asOf}
-              onChange={(event) => {
-                setDrill(null);
-                setAsOf(event.target.value);
-              }}
-            />
+          <div className="page-head__actions">
+            <a className="btn btn--ghost btn--sm" href="/reports/ap-aging">
+              AP aging
+            </a>
+            <div className="aging-asof">
+              <label htmlFor="aging-asof">As of date</label>
+              <input
+                id="aging-asof"
+                type="date"
+                value={asOf}
+                onChange={(event) => {
+                  setDrill(null);
+                  setAsOf(event.target.value);
+                }}
+              />
+            </div>
           </div>
         </header>
 
