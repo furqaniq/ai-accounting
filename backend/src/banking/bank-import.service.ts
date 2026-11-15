@@ -5,22 +5,36 @@ import {
   BankImportFormat,
   BankTransaction,
   BankTransactionMatchState,
+  JournalSourceType,
   Prisma,
 } from '@prisma/client';
-import { toDate, toNumber } from '../ledger/ledger-engine';
+import { LedgerEngine, toDate, toNumber } from '../ledger/ledger-engine';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../tenant/audit.service';
 import { ScopedDataAccess } from '../tenant/scoped-data-access.service';
 import { TenantContextService } from '../tenant/tenant-context.service';
 import {
+  AppliedCategorizationRule,
   BankImportAnalysis,
   BankingImportEngine,
+  CategorizationRuleCandidate,
   CsvMapping,
   CsvMappingInput,
 } from './banking-import.engine';
 import { BankImportConfirmDto, BankImportPreviewDto } from './bank-import.dto';
 
 const MAX_BANK_FILE_BYTES = 10 * 1024 * 1024;
+const RULE_TARGET_INCLUDE = {
+  targetAccount: { select: { id: true, code: true, name: true, type: true } },
+} as const;
+const TRANSACTION_CATEGORY_INCLUDE = {
+  categoryAccount: { select: { id: true, code: true, name: true } },
+  categoryRule: { select: { id: true, descriptionContains: true } },
+} as const;
+type RuleRow = Prisma.CategorizationRuleGetPayload<{ include: typeof RULE_TARGET_INCLUDE }>;
+type BankTransactionRow = Prisma.BankTransactionGetPayload<{
+  include: typeof TRANSACTION_CATEGORY_INCLUDE;
+}>;
 
 export interface BankImportPreviewRow {
   rowNumber: number;
@@ -31,6 +45,7 @@ export interface BankImportPreviewRow {
   valid: boolean;
   duplicate: boolean;
   error: string | null;
+  rule: AppliedCategorizationRule | null;
 }
 
 export interface BankImportPreview {
@@ -66,6 +81,10 @@ export interface BankImportConfirmResult {
     amount: number;
     externalId: string | null;
     matchState: BankTransactionMatchState;
+    categoryAccountId: string | null;
+    categoryRuleId: string | null;
+    categoryAccount: { id: string; code: string; name: string } | null;
+    categoryRule: { id: string; descriptionContains: string } | null;
     createdAt: string;
   }>;
 }
@@ -94,6 +113,7 @@ export class BankImportService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly engine: BankingImportEngine,
+    private readonly ledger: LedgerEngine,
   ) {}
 
   async preview(
@@ -105,6 +125,7 @@ export class BankImportService {
       this.fileInput(file),
       mappingFromDto(input),
       await this.existingFingerprints(account.id),
+      await this.ruleCandidates(account),
     );
     return this.previewView(file, analysis);
   }
@@ -118,6 +139,7 @@ export class BankImportService {
       this.fileInput(file),
       mappingFromDto(input),
       await this.existingFingerprints(account.id),
+      await this.ruleCandidates(account),
     );
     if (analysis.mappingError) throw new BadRequestException(analysis.mappingError);
     if (analysis.counts.valid === 0) {
@@ -152,11 +174,23 @@ export class BankImportService {
             amount: new Prisma.Decimal(row.amount!),
             externalId: row.externalId,
             fingerprint: row.fingerprint!,
+            matchState: row.rule
+              ? BankTransactionMatchState.CATEGORIZED
+              : BankTransactionMatchState.UNMATCHED,
+            categoryAccountId: row.rule?.targetAccountId ?? null,
+            categoryRuleId: row.rule?.id ?? null,
             raw: row.raw as Prisma.InputJsonObject,
           })),
           skipDuplicates: true,
         });
         importedCount = created.count;
+        if (importedCount > 0) {
+          const transactions = await tx.bankTransaction.findMany({
+            where: { importBatchId: batch.id },
+            orderBy: { createdAt: 'asc' },
+          });
+          await this.postRuleJournals(tx, organizationId, account, transactions, newRows);
+        }
       }
 
       const duplicateCount =
@@ -173,13 +207,15 @@ export class BankImportService {
       filename,
       format: analysis.format,
       importedCount: outcome.importedCount,
+      categorizedCount: newRows.filter((row) => row.rule).length,
       duplicateCount: outcome.batch.duplicateCount,
       invalidCount: outcome.batch.invalidCount,
     });
 
-    const transactions = await this.scoped.findMany<BankTransaction>('bankTransaction', {
+    const transactions = await this.scoped.findMany<BankTransactionRow>('bankTransaction', {
       where: { importBatchId: outcome.batch.id },
       orderBy: { createdAt: 'asc' },
+      include: TRANSACTION_CATEGORY_INCLUDE,
     });
     return {
       batch: this.batchView(outcome.batch),
@@ -192,6 +228,10 @@ export class BankImportService {
         amount: toNumber(row.amount),
         externalId: row.externalId,
         matchState: row.matchState,
+        categoryAccountId: row.categoryAccountId,
+        categoryRuleId: row.categoryRuleId,
+        categoryAccount: row.categoryAccount,
+        categoryRule: row.categoryRule,
         createdAt: row.createdAt.toISOString(),
       })),
     };
@@ -212,6 +252,66 @@ export class BankImportService {
     });
     if (!account) throw new NotFoundException('Bank account not found');
     return account;
+  }
+
+  private async ruleCandidates(account: BankAccount): Promise<CategorizationRuleCandidate[]> {
+    const rows = await this.scoped.findMany<RuleRow>('categorizationRule', {
+      where: {
+        active: true,
+        targetAccountId: { not: account.ledgerAccountId },
+        targetAccount: { is: { active: true } },
+      },
+      include: RULE_TARGET_INCLUDE,
+      orderBy: [{ priority: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
+    });
+    return rows.map((row) => ({
+      id: row.id,
+      descriptionContains: row.descriptionContains,
+      priority: row.priority,
+      createdAt: row.createdAt.toISOString(),
+      active: row.active,
+      targetAccountId: row.targetAccountId,
+      targetAccount: row.targetAccount,
+    }));
+  }
+
+  private async postRuleJournals(
+    tx: Prisma.TransactionClient,
+    organizationId: string,
+    account: BankAccount,
+    transactions: BankTransaction[],
+    rows: BankImportAnalysis['rows'],
+  ): Promise<void> {
+    const rules = new Map(
+      rows
+        .filter((row) => row.rule && row.fingerprint)
+        .map((row) => [row.fingerprint!, row.rule!] as const),
+    );
+    for (const transaction of transactions) {
+      const rule = rules.get(transaction.fingerprint);
+      if (!rule) continue;
+      const amount = toNumber(transaction.amount);
+      if (!amount) continue;
+      const absolute = new Prisma.Decimal(Math.abs(amount).toFixed(2));
+      const date = transaction.date.toISOString().slice(0, 10);
+      const lines =
+        amount > 0
+          ? [
+              { accountId: account.ledgerAccountId, debit: absolute },
+              { accountId: rule.targetAccountId, credit: absolute },
+            ]
+          : [
+              { accountId: rule.targetAccountId, debit: absolute },
+              { accountId: account.ledgerAccountId, credit: absolute },
+            ];
+      await this.ledger.postWithin(tx, organizationId, {
+        date,
+        memo: `Bank rule "${rule.descriptionContains}" — ${transaction.description}`,
+        sourceType: JournalSourceType.BANK,
+        sourceId: transaction.id,
+        lines,
+      });
+    }
   }
 
   private async existingFingerprints(bankAccountId: string): Promise<Set<string>> {
@@ -252,6 +352,7 @@ export class BankImportService {
         valid: row.valid,
         duplicate: row.duplicate,
         error: row.error,
+        rule: row.rule,
       })),
       counts: analysis.counts,
     };

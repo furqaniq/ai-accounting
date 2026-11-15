@@ -1220,6 +1220,7 @@
 
 /* Banking (issue 017) — account register, import mapping, and imported activity. */
 .bank-accounts,
+.categorization-rules,
 .bank-transactions {
   margin-top: 28px;
 }
@@ -1288,6 +1289,53 @@
 
 .bank-filters__search input {
   width: 100%;
+}
+
+.bank-rule-head {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 14px;
+}
+
+.bank-rule-head .btn {
+  flex: none;
+}
+
+.bank-rule-match {
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.bank-rule-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.bank-rule-actions .btn {
+  white-space: nowrap;
+}
+
+.bank-rule-delete {
+  color: var(--red-ink);
+}
+
+.bank-category-cell {
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.bank-category-cell > span:first-child {
+  color: var(--ink);
+}
+
+.bank-rule-sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 10px;
+  line-height: 1.35;
+  color: var(--ink-faint);
 }
 
 .bank-source {
@@ -1457,6 +1505,10 @@
   width: min(430px, 96vw);
 }
 
+.side-drawer#bank-rule-form {
+  width: min(460px, 96vw);
+}
+
 .side-drawer#bank-import-form {
   width: min(760px, 96vw);
 }
@@ -1469,6 +1521,13 @@
 
   .section-head .section__meta {
     text-align: left;
+  }
+
+  .bank-rule-head {
+    width: 100%;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-direction: column-reverse;
   }
 
   .bank-filters {

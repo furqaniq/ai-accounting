@@ -1537,6 +1537,73 @@ export async function createBankAccount(
   return res.json();
 }
 
+export interface CategorizationRule {
+  id: string;
+  descriptionContains: string;
+  targetAccountId: string;
+  targetAccount: { id: string; code: string; name: string; type: AccountType };
+  priority: number;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CategorizationRuleInput {
+  descriptionContains: string;
+  targetAccountId: string;
+  priority?: number;
+  active?: boolean;
+}
+
+export async function fetchCategorizationRules(
+  organizationId: string,
+): Promise<CategorizationRule[]> {
+  const res = await fetch(`${API_URL}/categorization-rules`, {
+    headers: authHeaders(organizationId),
+  });
+  if (!res.ok) throw new Error('Categorization rules are not available');
+  const body = (await res.json()) as { rules: CategorizationRule[] };
+  return body.rules;
+}
+
+export async function createCategorizationRule(
+  organizationId: string,
+  input: CategorizationRuleInput,
+): Promise<CategorizationRule> {
+  const res = await fetch(`${API_URL}/categorization-rules`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders(organizationId) },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not save that rule'));
+  return res.json();
+}
+
+export async function updateCategorizationRule(
+  organizationId: string,
+  id: string,
+  input: Partial<CategorizationRuleInput>,
+): Promise<CategorizationRule> {
+  const res = await fetch(`${API_URL}/categorization-rules/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...authHeaders(organizationId) },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not update that rule'));
+  return res.json();
+}
+
+export async function deleteCategorizationRule(
+  organizationId: string,
+  id: string,
+): Promise<void> {
+  const res = await fetch(`${API_URL}/categorization-rules/${id}`, {
+    method: 'DELETE',
+    headers: authHeaders(organizationId),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not delete that rule'));
+}
+
 export interface BankTransaction {
   id: string;
   bankAccountId: string;
@@ -1553,6 +1620,10 @@ export interface BankTransaction {
   amount: number;
   externalId: string | null;
   matchState: BankTransactionMatchState;
+  categoryAccountId: string | null;
+  categoryRuleId: string | null;
+  categoryAccount: { id: string; code: string; name: string } | null;
+  categoryRule: { id: string; descriptionContains: string } | null;
   createdAt: string;
 }
 
@@ -1609,6 +1680,12 @@ export interface BankImportPreviewRow {
   valid: boolean;
   duplicate: boolean;
   error: string | null;
+  rule: {
+    id: string;
+    descriptionContains: string;
+    targetAccountId: string;
+    targetAccount: { id: string; code: string; name: string; type: AccountType };
+  } | null;
 }
 
 export interface BankImportPreview {
@@ -1649,6 +1726,10 @@ export interface ImportedBankTransaction {
   amount: number;
   externalId: string | null;
   matchState: BankTransactionMatchState;
+  categoryAccountId: string | null;
+  categoryRuleId: string | null;
+  categoryAccount: { id: string; code: string; name: string } | null;
+  categoryRule: { id: string; descriptionContains: string } | null;
   createdAt: string;
 }
 

@@ -13,6 +13,8 @@ const TRANSACTION_INCLUDE = {
   importBatch: {
     select: { id: true, filename: true, format: true, createdAt: true },
   },
+  categoryAccount: { select: { id: true, code: true, name: true } },
+  categoryRule: { select: { id: true, descriptionContains: true } },
 } as const;
 
 type BankTransactionRow = Prisma.BankTransactionGetPayload<{
@@ -35,6 +37,10 @@ export interface BankTransactionView {
   amount: number;
   externalId: string | null;
   matchState: BankTransactionMatchState;
+  categoryAccountId: string | null;
+  categoryRuleId: string | null;
+  categoryAccount: { id: string; code: string; name: string } | null;
+  categoryRule: { id: string; descriptionContains: string } | null;
   createdAt: string;
 }
 
@@ -78,6 +84,10 @@ export class BankTransactionsService {
       amount: toNumber(row.amount),
       externalId: row.externalId,
       matchState: row.matchState,
+      categoryAccountId: row.categoryAccountId,
+      categoryRuleId: row.categoryRuleId,
+      categoryAccount: row.categoryAccount,
+      categoryRule: row.categoryRule,
       createdAt: row.createdAt.toISOString(),
     };
   }

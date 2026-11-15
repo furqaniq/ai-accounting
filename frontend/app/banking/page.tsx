@@ -15,17 +15,22 @@ import {
   BankImportPreviewRow,
   BankTransaction,
   BankTransactionMatchState,
+  CategorizationRule,
   clearSession,
   createBankAccount,
+  createCategorizationRule,
+  deleteCategorizationRule,
   fetchAccounts,
   fetchActiveOrganization,
   fetchBankAccounts,
   fetchBankTransactions,
+  fetchCategorizationRules,
   getAccessToken,
   getActiveOrgId,
   importBankTransactions,
   previewBankImport,
   setActiveOrgId,
+  updateCategorizationRule,
 } from '@/lib/api';
 
 const ACCOUNT_TYPES: Array<{ value: BankAccountType; label: string }> = [
@@ -50,6 +55,13 @@ interface AccountForm {
   name: string;
   type: BankAccountType;
   ledgerAccountId: string;
+}
+
+interface RuleForm {
+  descriptionContains: string;
+  targetAccountId: string;
+  priority: string;
+  active: boolean;
 }
 
 
@@ -109,6 +121,7 @@ export default function BankingPage() {
   const [org, setOrg] = useState<ActiveOrganization | null>(null);
   const [accounts, setAccounts] = useState<BankAccount[] | null>(null);
   const [ledgerAccounts, setLedgerAccounts] = useState<Account[]>([]);
+  const [rules, setRules] = useState<CategorizationRule[] | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [transactions, setTransactions] = useState<BankTransaction[] | null>(null);
   const [matchFilter, setMatchFilter] = useState<'' | BankTransactionMatchState>('');
@@ -125,6 +138,17 @@ export default function BankingPage() {
   });
   const [accountError, setAccountError] = useState<string | null>(null);
   const [accountBusy, setAccountBusy] = useState(false);
+
+  const [ruleFormOpen, setRuleFormOpen] = useState(false);
+  const [ruleEditing, setRuleEditing] = useState<CategorizationRule | null>(null);
+  const [ruleForm, setRuleForm] = useState<RuleForm>({
+    descriptionContains: '',
+    targetAccountId: '',
+    priority: '100',
+    active: true,
+  });
+  const [ruleError, setRuleError] = useState<string | null>(null);
+  const [ruleBusy, setRuleBusy] = useState(false);
 
   const [importOpen, setImportOpen] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
@@ -160,15 +184,17 @@ export default function BankingPage() {
         session.memberships.find((m) => m.organizationId === stored) ?? session.memberships[0];
       if (!initial) throw new Error('no organization');
       const activeOrg = await fetchActiveOrganization(initial.organizationId);
-      const [accountRows, bankAccountRows] = await Promise.all([
+      const [accountRows, bankAccountRows, ruleRows] = await Promise.all([
         fetchAccounts(activeOrg.organizationId),
         fetchBankAccounts(activeOrg.organizationId),
+        fetchCategorizationRules(activeOrg.organizationId),
       ]);
       if (cancelled) return;
       setActiveOrgId(activeOrg.organizationId);
       setOrg(activeOrg);
       setLedgerAccounts(accountRows);
       setAccounts(bankAccountRows);
+      setRules(ruleRows);
       setSelectedId(bankAccountRows[0]?.id ?? null);
       setReady(true);
     })().catch(() => {
@@ -228,6 +254,7 @@ export default function BankingPage() {
     function onKeyDown(event: KeyboardEvent) {
       if (event.key !== 'Escape') return;
       setAccountFormOpen(false);
+      setRuleFormOpen(false);
       setImportOpen(false);
     }
     document.addEventListener('keydown', onKeyDown);
@@ -243,6 +270,107 @@ export default function BankingPage() {
       return rows[0]?.id ?? null;
     });
   }, [org]);
+
+  const refreshRules = useCallback(async () => {
+    if (!org) return;
+    setRules(await fetchCategorizationRules(org.organizationId));
+  }, [org]);
+
+  function openRuleForm(rule?: CategorizationRule) {
+    setRuleEditing(rule ?? null);
+    setRuleForm(
+      rule
+        ? {
+            descriptionContains: rule.descriptionContains,
+            targetAccountId: rule.targetAccountId,
+            priority: String(rule.priority),
+            active: rule.active,
+          }
+        : {
+            descriptionContains: '',
+            targetAccountId: '',
+            priority: '100',
+            active: true,
+          },
+    );
+    setRuleError(null);
+    setRuleFormOpen(true);
+  }
+
+  function setRuleField<K extends keyof RuleForm>(field: K, value: RuleForm[K]) {
+    setRuleForm((current) => ({ ...current, [field]: value }));
+  }
+
+  async function onSaveRule(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!org || ruleBusy) return;
+    const descriptionContains = ruleForm.descriptionContains.trim();
+    const priority = Number(ruleForm.priority);
+    if (!descriptionContains) {
+      setRuleError('Choose the text a description must contain.');
+      return;
+    }
+    if (!ruleForm.targetAccountId) {
+      setRuleError('Choose the account matching transactions post to.');
+      return;
+    }
+    if (!Number.isInteger(priority) || priority < 0 || priority > 1000) {
+      setRuleError('Priority must be a whole number from 0 to 1000.');
+      return;
+    }
+    setRuleBusy(true);
+    setRuleError(null);
+    try {
+      if (ruleEditing) {
+        const saved = await updateCategorizationRule(org.organizationId, ruleEditing.id, {
+          descriptionContains,
+          targetAccountId: ruleForm.targetAccountId,
+          priority,
+          active: ruleForm.active,
+        });
+        showToast(`Rule “${saved.descriptionContains}” updated.`);
+      } else {
+        const saved = await createCategorizationRule(org.organizationId, {
+          descriptionContains,
+          targetAccountId: ruleForm.targetAccountId,
+          priority,
+          active: ruleForm.active,
+        });
+        showToast(`Rule “${saved.descriptionContains}” added.`);
+      }
+      setRuleFormOpen(false);
+      await refreshRules();
+    } catch (err) {
+      setRuleError(err instanceof Error ? err.message : 'Could not save that rule');
+    } finally {
+      setRuleBusy(false);
+    }
+  }
+
+  async function onToggleRule(rule: CategorizationRule) {
+    if (!org) return;
+    try {
+      const saved = await updateCategorizationRule(org.organizationId, rule.id, {
+        active: !rule.active,
+      });
+      await refreshRules();
+      showToast(`${saved.descriptionContains} ${saved.active ? 'resumed' : 'paused'}.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not update that rule');
+    }
+  }
+
+  async function onDeleteRule(rule: CategorizationRule) {
+    if (!org) return;
+    try {
+      await deleteCategorizationRule(org.organizationId, rule.id);
+      if (ruleEditing?.id === rule.id) setRuleFormOpen(false);
+      await refreshRules();
+      showToast(`Rule “${rule.descriptionContains}” deleted.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not delete that rule');
+    }
+  }
 
   function openAccountForm() {
     const required = requiredLedgerType('CHECKING');
@@ -344,6 +472,9 @@ export default function BankingPage() {
   async function onConfirmImport() {
     if (!org || !selected || !importFile || !importPreview || importBusy) return;
     if (importPreview.mappingError) return;
+    const categorizedCount = importPreview.rows.filter(
+      (row) => row.valid && !row.duplicate && row.rule,
+    ).length;
     setImportBusy(true);
     setImportError(null);
     try {
@@ -370,6 +501,11 @@ export default function BankingPage() {
           `${batch.invalidCount} invalid row${batch.invalidCount === 1 ? '' : 's'} ignored`,
         );
       }
+      if (categorizedCount > 0) {
+        parts.push(
+          `${categorizedCount} categorized by rule${categorizedCount === 1 ? '' : 's'}`,
+        );
+      }
       showToast(`${parts.join('; ')}.`);
     } catch (err) {
       setImportError(err instanceof Error ? err.message : 'Could not import that bank file');
@@ -389,6 +525,8 @@ export default function BankingPage() {
   const editable = canManage(org?.role ?? '');
   const rows = transactions ?? [];
   const unmatched = rows.filter((row) => row.matchState === 'UNMATCHED').length;
+  const previewRuleCount =
+    importPreview?.rows.filter((row) => row.valid && !row.duplicate && row.rule).length ?? 0;
 
   return (
     <>
@@ -503,6 +641,110 @@ export default function BankingPage() {
             </div>
           </section>
 
+          <section className="categorization-rules" aria-labelledby="categorization-rules-title">
+            <div className="section-head">
+              <div>
+                <h2 id="categorization-rules-title">Categorization rules</h2>
+              </div>
+              <div className="bank-rule-head">
+                <p className="section__meta">
+                  Case-insensitive “if description contains” rules. Lower priority numbers win;
+                  ties go to the older rule, and each transaction uses only one rule.
+                </p>
+                {editable ? (
+                  <button
+                    className="btn btn--ghost btn--sm"
+                    type="button"
+                    onClick={() => openRuleForm()}
+                  >
+                    New rule
+                  </button>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="table-scroll">
+              <table className="data-table rules-table">
+                <caption className="sr-only">Categorization rules applied during bank import</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">If description contains</th>
+                    <th scope="col">Categorize as</th>
+                    <th scope="col" className="num">
+                      Priority
+                    </th>
+                    <th scope="col">Status</th>
+                    {editable ? <th scope="col">Actions</th> : null}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rules === null ? (
+                    <tr>
+                      <td colSpan={editable ? 5 : 4} className="accounts-empty">
+                        Reading the rulebook…
+                      </td>
+                    </tr>
+                  ) : rules.length === 0 ? (
+                    <tr>
+                      <td colSpan={editable ? 5 : 4} className="accounts-empty">
+                        No rules yet. Add one to categorize repeat descriptions on import.
+                      </td>
+                    </tr>
+                  ) : (
+                    rules.map((rule) => (
+                      <tr key={rule.id}>
+                        <td>
+                          <span className="bank-rule-match">“{rule.descriptionContains}”</span>
+                        </td>
+                        <td>
+                          {rule.targetAccount.code} · {rule.targetAccount.name}
+                        </td>
+                        <td className="num">{rule.priority}</td>
+                        <td>
+                          <span className={`status ${rule.active ? 'status--paid' : 'status--draft'}`}>
+                            <span className="dot"></span>
+                            {rule.active ? 'Active' : 'Paused'}
+                          </span>
+                        </td>
+                        {editable ? (
+                          <td>
+                            <div className="bank-rule-actions">
+                              <button
+                                className="btn btn--outline btn--sm"
+                                type="button"
+                                onClick={() => openRuleForm(rule)}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                className="btn btn--ghost btn--sm"
+                                type="button"
+                                onClick={() => void onToggleRule(rule)}
+                              >
+                                {rule.active ? 'Pause' : 'Resume'}
+                              </button>
+                              <button
+                                className="btn btn--ghost btn--sm bank-rule-delete"
+                                type="button"
+                                onClick={() => void onDeleteRule(rule)}
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </td>
+                        ) : null}
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <p className="accounts-note">
+              Rules apply when a file is imported and post to the target account. Existing
+              transactions are not rewritten when a rule changes.
+            </p>
+          </section>
+
           <section className="bank-transactions" aria-labelledby="bank-transactions-title">
             <div className="section-head">
               <div>
@@ -576,6 +818,7 @@ export default function BankingPage() {
                   <tr>
                     <th scope="col">Date</th>
                     <th scope="col">Description</th>
+                    <th scope="col">Category</th>
                     <th scope="col">Source</th>
                     <th scope="col" className="num">
                       Amount
@@ -586,13 +829,13 @@ export default function BankingPage() {
                 <tbody>
                   {transactions === null ? (
                     <tr>
-                      <td colSpan={5} className="accounts-empty">
+                      <td colSpan={6} className="accounts-empty">
                         Turning the pages…
                       </td>
                     </tr>
                   ) : rows.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="accounts-empty">
+                      <td colSpan={6} className="accounts-empty">
                         No bank activity in this view.
                       </td>
                     </tr>
@@ -601,6 +844,23 @@ export default function BankingPage() {
                       <tr key={transaction.id}>
                         <td>{displayDate(transaction.date)}</td>
                         <td>{transaction.description}</td>
+                        <td className="bank-category-cell">
+                          {transaction.categoryAccount ? (
+                            <>
+                              <span>
+                                {transaction.categoryAccount.code} ·{' '}
+                                {transaction.categoryAccount.name}
+                              </span>
+                              {transaction.categoryRule ? (
+                                <span className="bank-rule-sub">
+                                  Rule: {transaction.categoryRule.descriptionContains}
+                                </span>
+                              ) : null}
+                            </>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
                         <td className="bank-source">
                           {transaction.importBatch.filename}
                           <span>{transaction.importBatch.format}</span>
@@ -715,6 +975,105 @@ export default function BankingPage() {
           <div className="drawer-form__foot">
             <button className="btn btn--primary btn--sm" type="submit" disabled={accountBusy}>
               {accountBusy ? 'Adding…' : 'Add bank account'}
+            </button>
+          </div>
+        </form>
+      </aside>
+
+      <aside
+        className={`margin side-drawer${ruleFormOpen ? ' is-open' : ''}`}
+        id="bank-rule-form"
+        aria-label={ruleEditing ? 'Edit categorization rule' : 'New categorization rule'}
+      >
+        <div className="margin__head">
+          <span className="members__mark" aria-hidden="true">
+            <svg className="icon icon--sm" viewBox="0 0 24 24">
+              <path d="M4 6h16M7 12h10M10 18h4" />
+            </svg>
+          </span>
+          <h2 className="margin__title">
+            {ruleEditing ? 'Edit categorization rule' : 'New categorization rule'}
+          </h2>
+          <button
+            className="icon-btn margin__close"
+            type="button"
+            aria-label="Close categorization rule form"
+            onClick={() => setRuleFormOpen(false)}
+          >
+            <svg className="icon icon--sm" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {ruleError ? (
+          <p className="members__error" role="alert">
+            {ruleError}
+          </p>
+        ) : null}
+
+        <form className="drawer-form" id="rule-form" onSubmit={(event) => void onSaveRule(event)}>
+          <label className="drawer-form__label" htmlFor="bank-rule-match">
+            If description contains
+          </label>
+          <input
+            id="bank-rule-match"
+            required
+            value={ruleForm.descriptionContains}
+            onChange={(event) => setRuleField('descriptionContains', event.target.value)}
+            placeholder="FUEL STOP"
+          />
+          <p className="drawer-form__hint">Matching ignores case and extra spaces.</p>
+
+          <label className="drawer-form__label" htmlFor="bank-rule-target">
+            Categorize as
+          </label>
+          <select
+            id="bank-rule-target"
+            required
+            value={ruleForm.targetAccountId}
+            onChange={(event) => setRuleField('targetAccountId', event.target.value)}
+          >
+            <option value="">Choose an account</option>
+            {ledgerAccounts
+              .filter(
+                (account) => account.active || account.id === ruleForm.targetAccountId,
+              )
+              .map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.code} · {account.name}
+                </option>
+              ))}
+          </select>
+
+          <label className="drawer-form__label" htmlFor="bank-rule-priority">
+            Priority
+          </label>
+          <input
+            id="bank-rule-priority"
+            type="number"
+            min={0}
+            max={1000}
+            step={1}
+            value={ruleForm.priority}
+            onChange={(event) => setRuleField('priority', event.target.value)}
+          />
+          <p className="drawer-form__hint">
+            Lower numbers run first. Equal priorities go to the older rule.
+          </p>
+
+          <label className="accounts-toggle accounts-toggle--drawer">
+            <input
+              type="checkbox"
+              checked={ruleForm.active}
+              onChange={(event) => setRuleField('active', event.target.checked)}
+            />
+            Rule is active
+          </label>
+
+          <div className="drawer-form__foot">
+            <button className="btn btn--primary btn--sm" type="submit" disabled={ruleBusy}>
+              {ruleBusy ? 'Saving…' : ruleEditing ? 'Save rule' : 'Add rule'}
             </button>
           </div>
         </form>
@@ -905,6 +1264,7 @@ export default function BankingPage() {
                 <span>{importPreview.counts.newCount} new</span>
                 <span>{importPreview.counts.duplicate} duplicate{importPreview.counts.duplicate === 1 ? '' : 's'}</span>
                 <span>{importPreview.counts.invalid} invalid</span>
+                <span>{previewRuleCount} categorized by rule</span>
               </div>
               <div className="bank-preview-scroll">
                 <table className="bank-preview-table">
@@ -914,6 +1274,7 @@ export default function BankingPage() {
                       <th scope="col">Row</th>
                       <th scope="col">Date</th>
                       <th scope="col">Description</th>
+                      <th scope="col">Categorizes as</th>
                       <th scope="col" className="num">
                         Amount
                       </th>
@@ -940,6 +1301,20 @@ export default function BankingPage() {
                             {row.description || '—'}
                             {row.error ? <span className="bank-row-error">{row.error}</span> : null}
                           </td>
+                          <td className="bank-category-cell">
+                            {row.rule ? (
+                              <>
+                                <span>
+                                  {row.rule.targetAccount.code} · {row.rule.targetAccount.name}
+                                </span>
+                                <span className="bank-rule-sub">
+                                  if “{row.rule.descriptionContains}”
+                                </span>
+                              </>
+                            ) : (
+                              '—'
+                            )}
+                          </td>
                           <td className="num">{row.amount === null ? '—' : signedMoney(row.amount)}</td>
                           <td>
                             <span className="bank-preview-status">{status}</span>
@@ -960,7 +1335,8 @@ export default function BankingPage() {
                   {importBusy ? 'Importing…' : 'Import transactions'}
                 </button>
                 <span className="drawer-form__hint">
-                  {importPreview.counts.newCount} new · {importPreview.counts.duplicate} already in the book
+                  {importPreview.counts.newCount} new · {importPreview.counts.duplicate} already in
+                  the book · {previewRuleCount} matched by rules
                 </span>
               </div>
             </div>
@@ -969,10 +1345,11 @@ export default function BankingPage() {
       </aside>
 
       <div
-        className={`scrim${accountFormOpen || importOpen ? ' is-visible' : ''}`}
+        className={`scrim${accountFormOpen || ruleFormOpen || importOpen ? ' is-visible' : ''}`}
         aria-hidden="true"
         onClick={() => {
           setAccountFormOpen(false);
+          setRuleFormOpen(false);
           setImportOpen(false);
         }}
       />

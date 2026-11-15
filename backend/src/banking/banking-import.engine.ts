@@ -27,6 +27,23 @@ export interface ImportCounts {
   newCount: number;
 }
 
+export interface CategorizationRuleCandidate {
+  id: string;
+  descriptionContains: string;
+  priority: number;
+  createdAt: string | Date;
+  active: boolean;
+  targetAccountId: string;
+  targetAccount: { id: string; code: string; name: string; type: string };
+}
+
+export interface AppliedCategorizationRule {
+  id: string;
+  descriptionContains: string;
+  targetAccountId: string;
+  targetAccount: { id: string; code: string; name: string; type: string };
+}
+
 export interface AnalyzedBankRow {
   rowNumber: number;
   date: string | null;
@@ -38,6 +55,7 @@ export interface AnalyzedBankRow {
   valid: boolean;
   duplicate: boolean;
   error: string | null;
+  rule: AppliedCategorizationRule | null;
 }
 
 export interface BankImportAnalysis {
@@ -338,6 +356,25 @@ function normalizeDescription(value: string): string {
   return value.replace(/\s+/g, ' ').trim();
 }
 
+function ruleMatchText(value: string): string {
+  return value.replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+function ruleTime(value: string | Date): number {
+  const time = value instanceof Date ? value.getTime() : new Date(value).getTime();
+  return Number.isFinite(time) ? time : 0;
+}
+
+function compareRulePrecedence(
+  left: CategorizationRuleCandidate,
+  right: CategorizationRuleCandidate,
+): number {
+  if (left.priority !== right.priority) return left.priority - right.priority;
+  const byAge = ruleTime(left.createdAt) - ruleTime(right.createdAt);
+  if (byAge !== 0) return byAge;
+  return left.id.localeCompare(right.id);
+}
+
 function fingerprint(
   date: string | null,
   amount: number | null,
@@ -362,6 +399,7 @@ export class BankingImportEngine {
     file: BankFileInput,
     requestedMapping: CsvMappingInput = {},
     existingFingerprints: Iterable<string> = [],
+    rules: CategorizationRuleCandidate[] = [],
   ): BankImportAnalysis {
     if (!file.buffer || file.buffer.length === 0) {
       throw new BadRequestException('The bank file is empty');
@@ -386,8 +424,9 @@ export class BankingImportEngine {
     }
 
     const seen = new Set(existingFingerprints);
-    const rows = parsed.rows.map((row) =>
-      this.normalizeRow(row.rowNumber, row.raw, mapping, seen, format),
+    const rows = this.applyRules(
+      parsed.rows.map((row) => this.normalizeRow(row.rowNumber, row.raw, mapping, seen, format)),
+      rules,
     );
     const valid = rows.filter((row) => row.valid).length;
     const duplicate = rows.filter((row) => row.valid && row.duplicate).length;
@@ -405,6 +444,36 @@ export class BankingImportEngine {
         newCount: valid - duplicate,
       },
     };
+  }
+
+  applyRules(
+    rows: AnalyzedBankRow[],
+    rules: CategorizationRuleCandidate[],
+  ): AnalyzedBankRow[] {
+    const ordered = rules
+      .filter((rule) => rule.active && ruleMatchText(rule.descriptionContains))
+      .sort(compareRulePrecedence);
+
+    return rows.map((row) => {
+      if (!row.valid || row.amount === null || row.amount === 0) {
+        return { ...row, rule: null };
+      }
+      const description = ruleMatchText(row.description);
+      const match = ordered.find((rule) =>
+        description.includes(ruleMatchText(rule.descriptionContains)),
+      );
+      return {
+        ...row,
+        rule: match
+          ? {
+              id: match.id,
+              descriptionContains: match.descriptionContains,
+              targetAccountId: match.targetAccountId,
+              targetAccount: { ...match.targetAccount },
+            }
+          : null,
+      };
+    });
   }
 
   private mappingError(mapping: CsvMapping, headers: string[]): string | null {
@@ -476,6 +545,7 @@ export class BankingImportEngine {
       valid: errors.length === 0,
       duplicate,
       error: errors.length > 0 ? errors.join('; ') : null,
+      rule: null,
     };
   }
 }

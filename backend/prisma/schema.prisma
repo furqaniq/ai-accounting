@@ -24,14 +24,14 @@ enum AccountType {
 }
 
 model Organization {
-  id                   String            @id @default(cuid())
+  id                   String               @id @default(cuid())
   name                 String
-  fiscalYearStartMonth Int               @default(1)
-  fiscalYearStartDay   Int               @default(1)
-  baseCurrency         String            @default("USD")
-  defaultTaxRate       Decimal           @default(0) @db.Decimal(5, 4)
-  createdAt            DateTime          @default(now())
-  updatedAt            DateTime          @updatedAt
+  fiscalYearStartMonth Int                  @default(1)
+  fiscalYearStartDay   Int                  @default(1)
+  baseCurrency         String               @default("USD")
+  defaultTaxRate       Decimal              @default(0) @db.Decimal(5, 4)
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
   memberships          OrgMembership[]
   auditLog             AuditLogEntry[]
   accounts             Account[]
@@ -49,26 +49,29 @@ model Organization {
   bankAccounts         BankAccount[]
   bankImportBatches    BankImportBatch[]
   bankTransactions     BankTransaction[]
+  categorizationRules  CategorizationRule[]
 }
 
 model Account {
-  id             String         @id @default(cuid())
-  organizationId String
-  code           String
-  name           String
-  type           AccountType
-  subtype        String?
-  active         Boolean        @default(true)
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  journalLines   JournalLine[]
-  items          Item[]
-  invoiceLines   InvoiceLine[]
-  estimateLines  EstimateLine[]
-  billLines      BillLine[]
-  expenses       Expense[]
-  bankAccounts   BankAccount[]
+  id                      String               @id @default(cuid())
+  organizationId          String
+  code                    String
+  name                    String
+  type                    AccountType
+  subtype                 String?
+  active                  Boolean              @default(true)
+  createdAt               DateTime             @default(now())
+  updatedAt               DateTime             @updatedAt
+  organization            Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  journalLines            JournalLine[]
+  items                   Item[]
+  invoiceLines            InvoiceLine[]
+  estimateLines           EstimateLine[]
+  billLines               BillLine[]
+  expenses                Expense[]
+  bankAccounts            BankAccount[]
+  categorizationRules     CategorizationRule[] @relation("CategorizationRuleTarget")
+  categorizedTransactions BankTransaction[]    @relation("BankTransactionCategory")
 
   @@unique([organizationId, code])
   @@index([organizationId, type])
@@ -323,6 +326,23 @@ enum BankTransactionMatchState {
   CATEGORIZED
 }
 
+model CategorizationRule {
+  id                  String            @id @default(cuid())
+  organizationId      String
+  descriptionContains String
+  targetAccountId     String
+  priority            Int               @default(100)
+  active              Boolean           @default(true)
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+  organization        Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  targetAccount       Account           @relation("CategorizationRuleTarget", fields: [targetAccountId], references: [id])
+  bankTransactions    BankTransaction[]
+
+  @@index([organizationId, active, priority])
+  @@index([organizationId, targetAccountId])
+}
+
 model BankAccount {
   id              String            @id @default(cuid())
   organizationId  String
@@ -360,25 +380,30 @@ model BankImportBatch {
 }
 
 model BankTransaction {
-  id             String                    @id @default(cuid())
-  organizationId String
-  bankAccountId  String
-  importBatchId  String
-  date           DateTime                  @db.Date
-  description    String
-  amount         Decimal                   @db.Decimal(14, 2)
-  externalId     String?
-  fingerprint    String
-  matchState     BankTransactionMatchState @default(UNMATCHED)
-  raw            Json?
-  createdAt      DateTime                  @default(now())
-  organization   Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  bankAccount    BankAccount               @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
-  importBatch    BankImportBatch           @relation(fields: [importBatchId], references: [id], onDelete: Cascade)
+  id                String                    @id @default(cuid())
+  organizationId    String
+  bankAccountId     String
+  importBatchId     String
+  date              DateTime                  @db.Date
+  description       String
+  amount            Decimal                   @db.Decimal(14, 2)
+  externalId        String?
+  fingerprint       String
+  matchState        BankTransactionMatchState @default(UNMATCHED)
+  categoryAccountId String?
+  categoryRuleId    String?
+  raw               Json?
+  createdAt         DateTime                  @default(now())
+  organization      Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  bankAccount       BankAccount               @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+  importBatch       BankImportBatch           @relation(fields: [importBatchId], references: [id], onDelete: Cascade)
+  categoryAccount   Account?                  @relation("BankTransactionCategory", fields: [categoryAccountId], references: [id], onDelete: SetNull)
+  categoryRule      CategorizationRule?       @relation(fields: [categoryRuleId], references: [id], onDelete: SetNull)
 
   @@unique([organizationId, bankAccountId, fingerprint])
   @@index([organizationId, bankAccountId, date])
   @@index([organizationId, matchState])
+  @@index([organizationId, categoryRuleId])
 }
 
 model Item {

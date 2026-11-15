@@ -1,5 +1,5 @@
 import { BankImportFormat } from '@prisma/client';
-import { BankingImportEngine } from './banking-import.engine';
+import { BankingImportEngine, CategorizationRuleCandidate } from './banking-import.engine';
 
 function bankFile(content: string, filename = 'bank.csv') {
   return { filename, buffer: Buffer.from(content) };
@@ -104,6 +104,65 @@ describe('BankingImportEngine', () => {
     );
     expect(duplicate.counts).toMatchObject({ valid: 2, duplicate: 1, newCount: 1 });
     expect(duplicate.rows[1].duplicate).toBe(true);
+  });
+
+
+  it('applies one deterministic rule per transaction by priority and age', () => {
+    const csv =
+      `Date,Description,Amount\n` +
+      `2026-10-01,FUEL STOP 882,-64.20\n` +
+      `2026-10-02,MONTHLY BANK FEE,-18.00\n` +
+      `2026-10-03,CUSTOMER DEPOSIT,1200.00\n`;
+    const analysis = engine.analyze(bankFile(csv));
+    const account = (id: string, code: string, name: string) => ({
+      id,
+      code,
+      name,
+      type: 'EXPENSE',
+    });
+    const rule = (
+      id: string,
+      descriptionContains: string,
+      priority: number,
+      createdAt: string,
+      targetAccountId: string,
+      targetCode: string,
+      targetName: string,
+      active = true,
+    ): CategorizationRuleCandidate => ({
+      id,
+      descriptionContains,
+      priority,
+      createdAt,
+      active,
+      targetAccountId,
+      targetAccount: account(targetAccountId, targetCode, targetName),
+    });
+
+    const rows = engine.applyRules(analysis.rows, [
+      rule('fuel', 'fuel', 200, '2026-01-01T00:00:00.000Z', 'acct-fuel', '6300', 'Fuel'),
+      rule(
+        'fuel-stop',
+        'fuel stop',
+        50,
+        '2026-02-01T00:00:00.000Z',
+        'acct-travel',
+        '6400',
+        'Travel',
+      ),
+      rule('fee-old', 'bank fee', 100, '2026-01-01T00:00:00.000Z', 'acct-fees', '6500', 'Fees'),
+      rule('fee-new', 'bank', 100, '2026-03-01T00:00:00.000Z', 'acct-other', '6600', 'Other'),
+      rule('paused', 'customer deposit', 1, '2026-01-01T00:00:00.000Z', 'acct-hold', '6700', 'Hold', false),
+    ]);
+
+    expect(rows[0].rule).toMatchObject({
+      id: 'fuel-stop',
+      descriptionContains: 'fuel stop',
+      targetAccountId: 'acct-travel',
+      targetAccount: { code: '6400', name: 'Travel' },
+    });
+    expect(rows[1].rule).toMatchObject({ id: 'fee-old', targetAccountId: 'acct-fees' });
+    expect(rows[2].rule).toBeNull();
   });
 
   it('flags invalid dates, descriptions, and amounts instead of dropping rows', () => {

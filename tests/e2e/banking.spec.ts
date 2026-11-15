@@ -4,11 +4,19 @@ import { expect, test } from '@playwright/test';
 
 function cleanTestRows(): void {
   const sql =
+    `DELETE FROM "JournalLine" WHERE "entryId" IN (` +
+    `SELECT id FROM "JournalEntry" WHERE "sourceType" = 'BANK' AND "sourceId" IN (` +
+    `SELECT id FROM "BankTransaction" WHERE "bankAccountId" IN (` +
+    `SELECT id FROM "BankAccount" WHERE name LIKE 'E2E Bank%'))); ` +
+    `DELETE FROM "JournalEntry" WHERE "sourceType" = 'BANK' AND "sourceId" IN (` +
+    `SELECT id FROM "BankTransaction" WHERE "bankAccountId" IN (` +
+    `SELECT id FROM "BankAccount" WHERE name LIKE 'E2E Bank%')); ` +
     `DELETE FROM "BankTransaction" WHERE "bankAccountId" IN (` +
     `SELECT id FROM "BankAccount" WHERE name LIKE 'E2E Bank%'); ` +
     `DELETE FROM "BankImportBatch" WHERE "bankAccountId" IN (` +
     `SELECT id FROM "BankAccount" WHERE name LIKE 'E2E Bank%'); ` +
-    `DELETE FROM "BankAccount" WHERE name LIKE 'E2E Bank%';`;
+    `DELETE FROM "BankAccount" WHERE name LIKE 'E2E Bank%'; ` +
+    `DELETE FROM "CategorizationRule" WHERE "descriptionContains" = 'DEPOT';`;
   execFileSync(
     'docker',
     ['compose', 'exec', '-T', 'postgres', 'psql', '-U', 'daybook', '-d', 'daybook', '-c', sql],
@@ -24,7 +32,7 @@ test.afterAll(() => {
   cleanTestRows();
 });
 
-test('accountant creates a bank account, maps a CSV, imports it, filters activity, and re-imports duplicates', async ({
+test('accountant creates a bank account and rule, previews categorization, imports, filters activity, and re-imports duplicates', async ({
   page,
 }) => {
   await page.goto('/login');
@@ -45,6 +53,17 @@ test('accountant creates a bank account, maps a CSV, imports it, filters activit
   await expect(accountForm).toBeHidden();
   await expect(page.getByRole('cell', { name: 'E2E Bank Checking' })).toBeVisible();
 
+  await page.getByRole('button', { name: 'New rule' }).click();
+  const ruleForm = page.locator('#bank-rule-form');
+  await ruleForm.getByLabel('If description contains').fill('DEPOT');
+  await ruleForm.getByLabel('Categorize as').selectOption({ label: '6200 · Supplies expense' });
+  await ruleForm.getByRole('button', { name: 'Add rule' }).click();
+  await expect(ruleForm).toBeHidden();
+  const rulesTable = page.locator('.rules-table');
+  await expect(rulesTable).toContainText('“DEPOT”');
+  await expect(rulesTable).toContainText('6200 · Supplies expense');
+  await expect(rulesTable).toContainText('Active');
+
   const importForm = page.locator('#bank-import-form');
   const fixture = join(process.cwd(), 'tests/e2e/fixtures/bank-activity.csv');
 
@@ -60,10 +79,15 @@ test('accountant creates a bank account, maps a CSV, imports it, filters activit
 
   const preview = importForm.locator('.bank-import-preview');
   await expect(preview).toContainText('3 new');
+  await expect(preview).toContainText('1 categorized by rule');
   await expect(preview).toContainText('INVOICE PAYMENT NORTHWIND');
   await expect(preview).toContainText('OFFICE SUPPLIES, DEPOT');
+  await expect(preview).toContainText('6200 · Supplies expense');
+  await expect(preview).toContainText('if “DEPOT”');
   await preview.getByRole('button', { name: 'Import transactions' }).click();
-  await expect(page.getByText('Imported 3 transactions.')).toBeVisible();
+  await expect(
+    page.getByText('Imported 3 transactions; 1 categorized by rule.'),
+  ).toBeVisible();
 
   const table = page.locator('.bank-transaction-table');
   await expect(table.locator('tbody tr')).toHaveCount(3);
@@ -72,13 +96,24 @@ test('accountant creates a bank account, maps a CSV, imports it, filters activit
   await expect(table).toContainText('-$84.25');
   await expect(table).toContainText('bank-activity.csv');
   await expect(table).toContainText('Unmatched');
+  await expect(table).toContainText('Categorized');
+  await expect(table).toContainText('6200 · Supplies expense');
+  await expect(table).toContainText('Rule: DEPOT');
 
   await page.getByLabel('Filter transactions by match state').selectOption({ label: 'Matched' });
   await expect(table.locator('tbody')).toContainText('No bank activity in this view.');
   await page
     .getByLabel('Filter transactions by match state')
+    .selectOption({ label: 'Categorized' });
+  await expect(table.locator('tbody tr')).toHaveCount(1);
+  await expect(table).toContainText('OFFICE SUPPLIES, DEPOT');
+  await page
+    .getByLabel('Filter transactions by match state')
     .selectOption({ label: 'Unmatched' });
-  await expect(table.locator('tbody tr')).toHaveCount(3);
+  await expect(table.locator('tbody tr')).toHaveCount(2);
+  await page
+    .getByLabel('Filter transactions by match state')
+    .selectOption({ label: 'All states' });
 
   await page.getByLabel('Search bank transactions').fill('NORTHWIND');
   await expect(table.locator('tbody tr')).toHaveCount(1);

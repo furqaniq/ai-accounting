@@ -25,7 +25,8 @@ type ScopedModel =
   | 'attachment'
   | 'bankAccount'
   | 'bankImportBatch'
-  | 'bankTransaction';
+  | 'bankTransaction'
+  | 'categorizationRule';
 
 interface FindArgs {
   where?: Record<string, unknown>;
