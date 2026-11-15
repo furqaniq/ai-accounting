@@ -479,7 +479,7 @@ export default function OverviewPage() {
               </svg>
               Reconcile
             </a>
-            <a className="nav__item" href="/reports/ar-aging" onClick={() => setSpineOpen(false)}>
+            <a className="nav__item" href="/reports" onClick={() => setSpineOpen(false)}>
               <svg className="icon nav__icon" viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
               </svg>

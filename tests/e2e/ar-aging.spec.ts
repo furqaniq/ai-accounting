@@ -9,6 +9,8 @@ test('accountant ages receivables, changes the as-of date, and drills into an in
   await page.getByRole('button', { name: 'Sign in' }).click();
 
   await page.getByRole('link', { name: 'Reports' }).click();
+  await expect(page).toHaveURL(/\/reports$/);
+  await page.getByRole('link', { name: 'AR aging' }).click();
   await expect(page).toHaveURL(/\/reports\/ar-aging$/);
   await expect(page.getByRole('heading', { name: 'AR aging' })).toBeVisible();
 

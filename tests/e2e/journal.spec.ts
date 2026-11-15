@@ -26,6 +26,10 @@ test.beforeAll(() => {
   cleanTestEntries();
 });
 
+test.afterAll(() => {
+  cleanTestEntries();
+});
+
 test('accountant posts a balanced entry, inspects the register, and reverses it', async ({
   page,
 }) => {

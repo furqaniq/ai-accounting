@@ -189,7 +189,7 @@ const NAV: NavItem[] = [
     ),
   },
   {
-    href: '/reports/ar-aging',
+    href: '/reports',
     label: 'Reports',
     section: 'reports',
     icon: <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />,

@@ -2056,6 +2056,54 @@ table {
   padding-top: 26px;
 }
 
+.statement-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  margin-bottom: 26px;
+}
+
+.statement-controls label {
+  display: grid;
+  gap: 4px;
+  font-size: 11.5px;
+  color: var(--ink-soft);
+}
+
+.statement-controls input {
+  min-height: 36px;
+  padding: 7px 9px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  background: var(--surface);
+  border: 1px solid var(--rule-strong);
+  border-radius: 3px;
+}
+
+.statement-controls input:focus {
+  border-color: var(--ledger);
+  outline: 2px solid rgba(31, 90, 67, 0.18);
+  outline-offset: 0;
+}
+
+.statement-sheet {
+  max-width: 900px;
+}
+
+.report-status {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.report-status.is-ok {
+  color: var(--ledger);
+}
+
+.report-status.is-off {
+  color: var(--red-ink);
+}
+
 .report-sheet {
   max-width: 820px;
 }

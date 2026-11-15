@@ -82,7 +82,19 @@ describe('Customer payments', () => {
       });
       await prisma.payment.deleteMany({ where: { id: { in: payments.map((row) => row.id) } } });
     }
-    await prisma.invoice.deleteMany({ where: { notes: { startsWith: 'TEST PAY' } } });
+    const invoices = await prisma.invoice.findMany({
+      where: { notes: { startsWith: 'TEST PAY' } },
+      select: { id: true },
+    });
+    if (invoices.length > 0) {
+      await prisma.journalEntry.deleteMany({
+        where: {
+          sourceType: 'INVOICE',
+          sourceId: { in: invoices.map((row) => row.id) },
+        },
+      });
+      await prisma.invoice.deleteMany({ where: { id: { in: invoices.map((row) => row.id) } } });
+    }
   }
 
   async function createSentInvoice(notes: string): Promise<InvoiceView> {

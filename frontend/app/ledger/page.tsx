@@ -126,11 +126,18 @@ export default function LedgerPage() {
       setActiveOrgId(activeOrg.organizationId);
       setOrg(activeOrg);
       setAccounts(chart);
+      const params = new URLSearchParams(window.location.search);
+      const linkedAccountId = params.get('account');
+      const linkedFrom = params.get('from') ?? '';
+      const linkedTo = params.get('to') ?? '';
       const preferred =
+        chart.find((account) => account.id === linkedAccountId) ??
         chart.find((account) => account.code === '1000' && account.active) ??
         chart.find((account) => account.active) ??
         chart[0];
       setRegisterAccountId(preferred?.id ?? '');
+      setRegisterFrom(linkedFrom);
+      setRegisterTo(linkedTo);
       setReady(true);
     })().catch(() => {
       if (cancelled) return;

@@ -126,7 +126,7 @@ test('staff pays two bills in one run, updates AP aging, and posts one payables 
   await page.getByRole('button', { name: 'Sign in' }).click();
 
   await page.getByRole('link', { name: 'Reports' }).click();
-  await expect(page).toHaveURL(/\/reports\/ar-aging$/);
+  await expect(page).toHaveURL(/\/reports$/);
   await page.getByRole('link', { name: 'AP aging' }).click();
   await expect(page).toHaveURL(/\/reports\/ap-aging$/);
   await expect(page.getByRole('heading', { name: 'AP aging' })).toBeVisible();

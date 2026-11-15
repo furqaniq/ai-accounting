@@ -1036,6 +1036,146 @@ export async function fetchApAging(
   return res.json();
 }
 
+export interface ReportAccountRow {
+  accountId: string | null;
+  code: string | null;
+  name: string;
+  amount: number;
+  synthetic?: boolean;
+}
+
+export interface StatementGroup {
+  key: string;
+  label: string;
+  accounts: ReportAccountRow[];
+  total: number;
+}
+
+export interface ProfitLossReport {
+  report: 'profit-loss';
+  from: string;
+  to: string;
+  groups: StatementGroup[];
+  totalIncome: number;
+  totalExpenses: number;
+  netIncome: number;
+}
+
+export interface BalanceSheetReport {
+  report: 'balance-sheet';
+  asOf: string;
+  groups: StatementGroup[];
+  totalAssets: number;
+  totalLiabilities: number;
+  totalEquity: number;
+  totalLiabilitiesAndEquity: number;
+  currentEarnings: number;
+  balanced: boolean;
+}
+
+export interface TrialBalanceRow {
+  accountId: string;
+  code: string;
+  name: string;
+  type: string;
+  debit: number;
+  credit: number;
+}
+
+export interface TrialBalanceReport {
+  report: 'trial-balance';
+  asOf: string;
+  rows: TrialBalanceRow[];
+  totalDebit: number;
+  totalCredit: number;
+  debitsEqualCredits: boolean;
+}
+
+export type CashFlowClassification = 'operating' | 'investing' | 'financing';
+
+export interface CashFlowLine {
+  accountId: string;
+  code: string;
+  name: string;
+  amount: number;
+}
+
+export interface CashFlowGroup {
+  key: CashFlowClassification;
+  label: string;
+  lines: CashFlowLine[];
+  total: number;
+}
+
+export interface CashFlowReport {
+  report: 'cash-flow';
+  from: string;
+  to: string;
+  cashAccounts: Array<{ id: string; code: string; name: string; type: string }>;
+  beginningCash: number;
+  netChange: number;
+  endingCash: number;
+  groups: CashFlowGroup[];
+  reconciled: boolean;
+}
+
+function reportQuery(values: Record<string, string | undefined>): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(values)) {
+    if (value) params.set(key, value);
+  }
+  const query = params.toString();
+  return query ? `?${query}` : '';
+}
+
+export async function fetchProfitLoss(
+  organizationId: string,
+  period: { from?: string; to?: string } = {},
+): Promise<ProfitLossReport> {
+  const res = await fetch(
+    `${API_URL}/reports/profit-loss${reportQuery({ from: period.from, to: period.to })}`,
+    { headers: authHeaders(organizationId) },
+  );
+  if (!res.ok) throw new Error(await failureMessage(res, 'The profit and loss statement is not available'));
+  return res.json();
+}
+
+export async function fetchBalanceSheet(
+  organizationId: string,
+  asOf?: string,
+): Promise<BalanceSheetReport> {
+  const res = await fetch(
+    `${API_URL}/reports/balance-sheet${reportQuery({ asOf })}`,
+    { headers: authHeaders(organizationId) },
+  );
+  if (!res.ok) throw new Error(await failureMessage(res, 'The balance sheet is not available'));
+  return res.json();
+}
+
+export async function fetchCashFlow(
+  organizationId: string,
+  period: { from?: string; to?: string } = {},
+): Promise<CashFlowReport> {
+  const res = await fetch(
+    `${API_URL}/reports/cash-flow${reportQuery({ from: period.from, to: period.to })}`,
+    { headers: authHeaders(organizationId) },
+  );
+  if (!res.ok) throw new Error(await failureMessage(res, 'The cash flow statement is not available'));
+  return res.json();
+}
+
+export async function fetchTrialBalance(
+  organizationId: string,
+  asOf?: string,
+): Promise<TrialBalanceReport> {
+  const res = await fetch(
+    `${API_URL}/reports/trial-balance${reportQuery({ asOf })}`,
+    { headers: authHeaders(organizationId) },
+  );
+  if (!res.ok) throw new Error(await failureMessage(res, 'The trial balance is not available'));
+  return res.json();
+}
+
 export type BillStatus = 'DRAFT' | 'OPEN' | 'PARTIAL' | 'PAID' | 'OVERDUE';
 
 export interface BillLine {
