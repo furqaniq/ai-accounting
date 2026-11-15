@@ -18,6 +18,7 @@ interface ReconciliationView {
   difference: number;
   balanced: boolean;
   status: string;
+  completedAt: string | null;
   clearedCount: number;
   transactionCount: number;
   transactions: Array<{
@@ -425,5 +426,116 @@ describe('Bank reconciliation workbench', () => {
           row.entityId === session.id && row.metadata?.transactionId === withdrawal.id,
       ),
     ).toBe(true);
+  });
+
+  it('completes only a balanced session, locks it, and undoes the completion', async () => {
+    const { session } = await setup();
+    const deposit = session.transactions.find((row) => row.amount === 500)!;
+    const withdrawal = session.transactions.find((row) => row.amount === -200)!;
+
+    await call('post', `/reconciliations/${session.id}/complete`, staffToken, acmeId).expect(400);
+
+    for (const transaction of [deposit, withdrawal]) {
+      await call(
+        'patch',
+        `/reconciliations/${session.id}/transactions/${transaction.id}`,
+        staffToken,
+        acmeId,
+      )
+        .send({ cleared: true })
+        .expect(200);
+    }
+
+    await call('post', `/reconciliations/${session.id}/complete`, viewerToken, acmeId).expect(403);
+
+    const completed = await call(
+      'post',
+      `/reconciliations/${session.id}/complete`,
+      staffToken,
+      acmeId,
+    ).expect(200);
+    expect(completed.body).toMatchObject({
+      id: session.id,
+      status: 'COMPLETED',
+      difference: 0,
+      balanced: true,
+      clearedTotal: 300,
+      clearedBalance: 1300,
+      completedAt: expect.any(String),
+    });
+
+    await call(
+      'patch',
+      `/reconciliations/${session.id}/transactions/${deposit.id}`,
+      staffToken,
+      acmeId,
+    )
+      .send({ cleared: false })
+      .expect(409);
+    await call('post', `/reconciliations/${session.id}/complete`, staffToken, acmeId).expect(409);
+    await call(
+      'post',
+      `/reconciliations/${session.id}/undo`,
+      nimbusOwnerToken,
+      nimbusId,
+    ).expect(404);
+    await call('post', `/reconciliations/${session.id}/undo`, viewerToken, acmeId).expect(403);
+
+    const completeAudit = await call(
+      'get',
+      '/audit-log?action=reconciliation.complete&limit=20',
+      ownerToken,
+      acmeId,
+    ).expect(200);
+    expect(
+      completeAudit.body.entries.find((row: { entityId: string }) => row.entityId === session.id),
+    ).toMatchObject({
+      entityType: 'ReconciliationSession',
+      action: 'reconciliation.complete',
+      metadata: { difference: 0, clearedCount: 2 },
+    });
+
+    const undone = await call(
+      'post',
+      `/reconciliations/${session.id}/undo`,
+      staffToken,
+      acmeId,
+    ).expect(200);
+    expect(undone.body).toMatchObject({
+      id: session.id,
+      status: 'ACTIVE',
+      completedAt: null,
+      clearedTotal: 300,
+      clearedBalance: 1300,
+      difference: 0,
+      clearedCount: 2,
+    });
+
+    await call('post', `/reconciliations/${session.id}/undo`, staffToken, acmeId).expect(409);
+
+    const editableAgain = await call(
+      'patch',
+      `/reconciliations/${session.id}/transactions/${deposit.id}`,
+      staffToken,
+      acmeId,
+    )
+      .send({ cleared: false })
+      .expect(200);
+    expect(editableAgain.body).toMatchObject({
+      clearedTotal: -200,
+      clearedBalance: 800,
+      difference: 500,
+      clearedCount: 1,
+    });
+
+    const undoAudit = await call(
+      'get',
+      '/audit-log?action=reconciliation.undo&limit=20',
+      ownerToken,
+      acmeId,
+    ).expect(200);
+    expect(
+      undoAudit.body.entries.find((row: { entityId: string }) => row.entityId === session.id),
+    ).toMatchObject({ entityType: 'ReconciliationSession', action: 'reconciliation.undo' });
   });
 });

@@ -1,4 +1,8 @@
-import { summarizeReconciliation } from './reconciliation-engine';
+import {
+  canComplete,
+  canUndo,
+  summarizeReconciliation,
+} from './reconciliation-engine';
 
 describe('summarizeReconciliation', () => {
   it('starts from the opening balance when nothing is cleared', () => {
@@ -102,6 +106,32 @@ describe('summarizeReconciliation', () => {
       difference: 0,
       balanced: true,
       clearedCount: 1,
+    });
+  });
+});
+
+describe('reconciliation state transitions', () => {
+  it('permits completion only for active, balanced sessions', () => {
+    expect(canComplete('ACTIVE', 0)).toEqual({ allowed: true });
+    expect(canComplete('ACTIVE', 0.01)).toEqual({
+      allowed: false,
+      reason: 'UNBALANCED',
+    });
+    expect(canComplete('ACTIVE', -125.5)).toEqual({
+      allowed: false,
+      reason: 'UNBALANCED',
+    });
+    expect(canComplete('COMPLETED', 0)).toEqual({
+      allowed: false,
+      reason: 'NOT_ACTIVE',
+    });
+  });
+
+  it('permits undo only for completed sessions', () => {
+    expect(canUndo('COMPLETED')).toEqual({ allowed: true });
+    expect(canUndo('ACTIVE')).toEqual({
+      allowed: false,
+      reason: 'NOT_COMPLETED',
     });
   });
 });

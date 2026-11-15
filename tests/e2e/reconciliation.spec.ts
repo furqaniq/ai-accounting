@@ -66,6 +66,10 @@ test.beforeAll(() => {
   cleanTestRows();
 });
 
+test.beforeEach(() => {
+  cleanTestRows();
+});
+
 test.afterAll(() => {
   cleanTestRows();
 });
@@ -203,4 +207,127 @@ test('accountant starts a reconciliation, marks items cleared, and resumes the s
   await expect(value('Cleared total')).toHaveText('$500.00');
   await expect(value('Difference')).toHaveText('-$200.00');
   await expect(withdrawalRow.getByRole('checkbox')).not.toBeChecked();
+});
+
+test('completes a balanced reconciliation, locks it, and undoes the completion', async ({
+  page,
+  request,
+}) => {
+  const session = await apiSession(request);
+  const accounts = await (
+    await request.get(`${API}/accounts`, { headers: session.headers })
+  ).json();
+  const cashId = accounts.accounts.find(
+    (account: { code: string }) => account.code === '1000',
+  ).id;
+
+  const ledgerRes = await request.post(`${API}/accounts`, {
+    headers: session.headers,
+    data: { code: '1911', name: 'E2E Reconcile Ledger', type: 'ASSET' },
+  });
+  expect(ledgerRes.status()).toBe(201);
+  const ledger = await ledgerRes.json();
+
+  const bankRes = await request.post(`${API}/bank-accounts`, {
+    headers: session.headers,
+    data: {
+      name: 'E2E Reconcile Bank Checking',
+      type: 'CHECKING',
+      ledgerAccountId: ledger.id,
+    },
+  });
+  expect(bankRes.status()).toBe(201);
+  const bank = await bankRes.json();
+
+  async function postJournal(date: string, debit: number, memo: string): Promise<void> {
+    const res = await request.post(`${API}/journal-entries`, {
+      headers: session.headers,
+      data: {
+        date,
+        memo: `E2E reconcile ${memo}`,
+        lines: [
+          { accountId: ledger.id, debit },
+          { accountId: cashId, credit: debit },
+        ],
+      },
+    });
+    expect(res.status()).toBe(201);
+  }
+
+  await postJournal('2026-09-30', 1000, 'opening balance');
+  await postJournal('2026-10-10', 150, 'mid-period entry');
+
+  const csv =
+    'Date,Description,Amount,Reference\n' +
+    '2026-10-05,E2E RECON DEPOSIT,500.00,E2E-RECON-1\n' +
+    '2026-10-06,E2E RECON WITHDRAWAL,-200.00,E2E-RECON-2\n';
+  const importRes = await request.post(`${API}/bank-imports`, {
+    headers: { Authorization: session.headers.Authorization, 'X-Organization-Id': session.orgId },
+    multipart: {
+      bankAccountId: bank.id,
+      file: {
+        name: 'e2e-reconciliation-complete.csv',
+        mimeType: 'text/csv',
+        buffer: Buffer.from(csv),
+      },
+    },
+  });
+  expect(importRes.status()).toBe(201);
+
+  await page.goto('/login');
+  await page.getByLabel('Email').fill('accountant@acme.test');
+  await page.getByLabel('Password').fill('Passw0rd!2026');
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await page.getByRole('link', { name: 'Reconcile', exact: true }).click();
+  await expect(page).toHaveURL(/\/reconcile$/);
+
+  const form = page.locator('#reconcile-form');
+  await page.getByRole('button', { name: 'New session' }).click();
+  await form
+    .getByLabel('Bank account')
+    .selectOption({ label: 'E2E Reconcile Bank Checking · 1911 E2E Reconcile Ledger' });
+  await form.getByLabel('Period start').fill('2026-10-01');
+  await form.getByLabel('Period end').fill('2026-10-31');
+  await form.getByLabel('Statement ending balance').fill('1300');
+  await form.getByRole('button', { name: 'Start reconciliation' }).click();
+  await expect(form).toBeHidden();
+
+  const completeButton = page.getByRole('button', {
+    name: 'Complete reconciliation',
+    exact: true,
+  });
+  const undoButton = page.getByRole('button', { name: 'Undo reconciliation', exact: true });
+  await expect(completeButton).toBeDisabled();
+  await expect(undoButton).toHaveCount(0);
+
+  const table = page.locator('.reconcile-transaction-table');
+  const depositRow = table.locator('tbody tr').filter({ hasText: 'E2E RECON DEPOSIT' });
+  const withdrawalRow = table
+    .locator('tbody tr')
+    .filter({ hasText: 'E2E RECON WITHDRAWAL' });
+  await depositRow.getByRole('checkbox').click();
+  await withdrawalRow.getByRole('checkbox').click();
+  await expect(page.locator('.reconcile-summary')).toContainText('$0.00');
+  await expect(completeButton).toBeEnabled();
+
+  await completeButton.click();
+  await expect(undoButton).toBeVisible();
+  await expect(completeButton).toHaveCount(0);
+  await expect(depositRow.getByRole('checkbox')).toBeDisabled();
+  await expect(withdrawalRow.getByRole('checkbox')).toBeDisabled();
+  await expect(page.locator('.reconcile-foot')).toContainText(
+    'complete and locked',
+  );
+  const sessionRow = page
+    .locator('.reconcile-session-table tbody tr')
+    .filter({ hasText: 'E2E Reconcile Bank Checking' });
+  await expect(sessionRow).toContainText('Completed');
+
+  await undoButton.click();
+  await expect(completeButton).toBeVisible();
+  await expect(completeButton).toBeEnabled();
+  await expect(undoButton).toHaveCount(0);
+  await expect(depositRow.getByRole('checkbox')).toBeEnabled();
+  await expect(withdrawalRow.getByRole('checkbox')).toBeEnabled();
+  await expect(sessionRow).toContainText('Active');
 });

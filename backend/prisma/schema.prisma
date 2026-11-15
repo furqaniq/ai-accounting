@@ -434,6 +434,9 @@ model ReconciliationSession {
   bookBalance            Decimal              @default(0) @db.Decimal(14, 2)
   difference             Decimal              @default(0) @db.Decimal(14, 2)
   status                 ReconciliationStatus @default(ACTIVE)
+  completedAt            DateTime?
+  completedById          String?
+  completionSnapshot     Json?
   createdAt              DateTime             @default(now())
   updatedAt              DateTime             @updatedAt
   organization           Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)

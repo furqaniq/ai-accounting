@@ -1,4 +1,28 @@
 export type ReconciliationDirection = 'DEBIT' | 'CREDIT';
+export type ReconciliationLifecycle = 'ACTIVE' | 'COMPLETED';
+
+export type ReconciliationGuard =
+  | { allowed: true }
+  | {
+      allowed: false;
+      reason: 'NOT_ACTIVE' | 'UNBALANCED' | 'NOT_COMPLETED';
+    };
+
+export function canComplete(
+  status: ReconciliationLifecycle,
+  difference: number,
+): ReconciliationGuard {
+  if (status !== 'ACTIVE') return { allowed: false, reason: 'NOT_ACTIVE' };
+  if (Math.round((difference + Number.EPSILON) * 100) / 100 !== 0) {
+    return { allowed: false, reason: 'UNBALANCED' };
+  }
+  return { allowed: true };
+}
+
+export function canUndo(status: ReconciliationLifecycle): ReconciliationGuard {
+  if (status !== 'COMPLETED') return { allowed: false, reason: 'NOT_COMPLETED' };
+  return { allowed: true };
+}
 
 export interface ReconciliationTransactionInput {
   amount: number;

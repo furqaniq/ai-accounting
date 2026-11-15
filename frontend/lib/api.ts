@@ -1800,6 +1800,8 @@ export interface ReconciliationSession {
   difference: number;
   balanced: boolean;
   status: ReconciliationStatus;
+  completedAt: string | null;
+  completedById: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -1864,6 +1866,32 @@ export async function createReconciliation(
     body: JSON.stringify(input),
   });
   if (!res.ok) throw new Error(await failureMessage(res, 'Could not start that reconciliation'));
+  return res.json();
+}
+
+export async function completeReconciliation(
+  organizationId: string,
+  sessionId: string,
+): Promise<ReconciliationDetail> {
+  const res = await fetch(`${API_URL}/reconciliations/${sessionId}/complete`, {
+    method: 'POST',
+    headers: authHeaders(organizationId),
+  });
+  if (!res.ok) {
+    throw new Error(await failureMessage(res, 'Could not complete that reconciliation'));
+  }
+  return res.json();
+}
+
+export async function undoReconciliation(
+  organizationId: string,
+  sessionId: string,
+): Promise<ReconciliationDetail> {
+  const res = await fetch(`${API_URL}/reconciliations/${sessionId}/undo`, {
+    method: 'POST',
+    headers: authHeaders(organizationId),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not undo that reconciliation'));
   return res.json();
 }
 

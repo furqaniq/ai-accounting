@@ -54,6 +54,10 @@ export class TenantContextService {
     return this.organizationId();
   }
 
+  userId(): string | undefined {
+    return this.request.user?.userId;
+  }
+
   private organizationId(): string {
     const header = this.request.headers[ORGANIZATION_HEADER];
     const value = Array.isArray(header) ? header[0] : header;

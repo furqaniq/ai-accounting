@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { RequirePermission } from '../tenant/require-permission.decorator';
 import {
   CreateReconciliationDto,
@@ -33,6 +43,20 @@ export class ReconciliationsController {
   @RequirePermission('banking:manage')
   start(@Body() input: CreateReconciliationDto): Promise<ReconciliationDetailView> {
     return this.reconciliations.start(input);
+  }
+
+  @Post(':id/complete')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermission('banking:manage')
+  complete(@Param('id') id: string): Promise<ReconciliationDetailView> {
+    return this.reconciliations.complete(id);
+  }
+
+  @Post(':id/undo')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermission('banking:manage')
+  undo(@Param('id') id: string): Promise<ReconciliationDetailView> {
+    return this.reconciliations.undo(id);
   }
 
   @Patch(':id/transactions/:transactionId')

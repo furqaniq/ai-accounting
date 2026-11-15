@@ -1824,6 +1824,14 @@
   color: var(--ink-faint);
 }
 
+.reconcile-workbench__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px 12px;
+}
+
 .reconcile-check {
   display: inline-flex;
   align-items: center;

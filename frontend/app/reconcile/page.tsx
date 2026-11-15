@@ -10,6 +10,7 @@ import {
   ReconciliationDetail,
   ReconciliationSession,
   clearSession,
+  completeReconciliation,
   createReconciliation,
   fetchActiveOrganization,
   fetchBankAccounts,
@@ -19,6 +20,7 @@ import {
   getActiveOrgId,
   setActiveOrgId,
   setReconciliationCleared,
+  undoReconciliation,
 } from '@/lib/api';
 
 interface SessionForm {
@@ -52,6 +54,16 @@ function displayPeriod(start: string, end: string): string {
   return `${displayDate(start)} – ${displayDate(end)}`;
 }
 
+function displayStamp(value: string): string {
+  return new Date(value).toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
 function canManage(role: string): boolean {
   return ['OWNER', 'ADMIN', 'ACCOUNTANT', 'STAFF'].includes(role);
 }
@@ -81,6 +93,7 @@ export default function ReconcilePage() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [clearBusyId, setClearBusyId] = useState<string | null>(null);
+  const [actionBusy, setActionBusy] = useState(false);
 
   const [formOpen, setFormOpen] = useState(false);
   const [form, setForm] = useState<SessionForm>({
@@ -292,6 +305,43 @@ export default function ReconcilePage() {
     }
   }
 
+  function applySession(updated: ReconciliationDetail) {
+    setDetail(updated);
+    setSessions((current) =>
+      (current ?? []).map((row) => (row.id === updated.id ? updated : row)),
+    );
+  }
+
+  async function completeSession() {
+    if (!org || !detail || actionBusy) return;
+    setActionBusy(true);
+    setError(null);
+    try {
+      const updated = await completeReconciliation(org.organizationId, detail.id);
+      applySession(updated);
+      showToast('Reconciliation completed and locked.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not complete that reconciliation');
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
+  async function undoSession() {
+    if (!org || !detail || actionBusy) return;
+    setActionBusy(true);
+    setError(null);
+    try {
+      const updated = await undoReconciliation(org.organizationId, detail.id);
+      applySession(updated);
+      showToast('Reconciliation undone and editable again.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not undo that reconciliation');
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
   if (!ready) {
     return (
       <main className="app-loading">
@@ -444,7 +494,11 @@ export default function ReconcilePage() {
                             type="button"
                             onClick={() => selectSession(row.id)}
                           >
-                            {row.id === selectedId ? 'Open' : 'Resume'}
+                            {row.status === 'COMPLETED'
+                              ? 'Review'
+                              : row.id === selectedId
+                                ? 'Open'
+                                : 'Resume'}
                           </button>
                         </td>
                       </tr>
@@ -465,12 +519,41 @@ export default function ReconcilePage() {
                   <p className="section__meta">
                     {accountName} · {detail.clearedCount} of {detail.transactionCount} cleared.
                     {' '}
-                    Unmarked items stay outstanding.
+                    {detail.status === 'COMPLETED' && detail.completedAt
+                      ? `Completed ${displayStamp(detail.completedAt)}.`
+                      : 'Unmarked items stay outstanding.'}
                   </p>
                 </div>
-                <span className="reconcile-period">
-                  {displayPeriod(detail.periodStart, detail.periodEnd)}
-                </span>
+                <div className="reconcile-workbench__actions">
+                  <span className="reconcile-period">
+                    {displayPeriod(detail.periodStart, detail.periodEnd)}
+                  </span>
+                  {editable && detail.status === 'ACTIVE' ? (
+                    <button
+                      className="btn btn--primary btn--sm"
+                      type="button"
+                      onClick={() => void completeSession()}
+                      disabled={actionBusy || !detail.balanced}
+                      title={
+                        detail.balanced
+                          ? 'Lock this balanced reconciliation as complete'
+                          : 'Resolve the difference before completing'
+                      }
+                    >
+                      {actionBusy ? 'Completing…' : 'Complete reconciliation'}
+                    </button>
+                  ) : null}
+                  {editable && detail.status === 'COMPLETED' ? (
+                    <button
+                      className="btn btn--outline btn--sm"
+                      type="button"
+                      onClick={() => void undoSession()}
+                      disabled={actionBusy}
+                    >
+                      {actionBusy ? 'Undoing…' : 'Undo reconciliation'}
+                    </button>
+                  ) : null}
+                </div>
               </div>
 
               <div className="table-scroll">
@@ -530,7 +613,11 @@ export default function ReconcilePage() {
                                 <input
                                   type="checkbox"
                                   checked={transaction.cleared}
-                                  disabled={!editable || clearBusyId !== null}
+                                  disabled={
+                                    !editable ||
+                                    clearBusyId !== null ||
+                                    detail.status !== 'ACTIVE'
+                                  }
                                   onChange={(event) =>
                                     void toggleCleared(transaction.id, event.target.checked)
                                   }
@@ -549,8 +636,9 @@ export default function ReconcilePage() {
               </div>
 
               <p className="reconcile-foot">
-                Statement balance less the opening balance and cleared activity is the
-                difference. Marking an item updates it immediately.
+                {detail.status === 'COMPLETED'
+                  ? 'This reconciliation is complete and locked. Undo it to make changes.'
+                  : 'Statement balance less the opening balance and cleared activity is the difference. Marking an item updates it immediately.'}
               </p>
             </section>
           ) : (

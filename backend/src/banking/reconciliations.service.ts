@@ -21,6 +21,8 @@ import {
   ListReconciliationsDto,
 } from './reconciliation.dto';
 import {
+  canComplete,
+  canUndo,
   ReconciliationDirection,
   summarizeReconciliation,
 } from './reconciliation-engine';
@@ -69,6 +71,8 @@ export interface ReconciliationSessionView {
   difference: number;
   balanced: boolean;
   status: ReconciliationStatus;
+  completedAt: string | null;
+  completedById: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -76,6 +80,18 @@ export interface ReconciliationSessionView {
 export interface ReconciliationTransactionView extends BankTransactionView {
   cleared: boolean;
   clearedElsewhere: boolean;
+}
+
+interface CompletionSnapshot {
+  statementEndingBalance: number;
+  openingBalance: number;
+  clearedTotal: number;
+  clearedBalance: number;
+  bookBalance: number;
+  difference: number;
+  clearedCount: number;
+  transactionCount: number;
+  completedAt: string;
 }
 
 export interface ReconciliationDetailView extends ReconciliationSessionView {
@@ -346,6 +362,170 @@ export class ReconciliationsService {
     return this.find(sessionId);
   }
 
+
+  async complete(sessionId: string): Promise<ReconciliationDetailView> {
+    const { organizationId } = await this.tenant.get();
+    const completedById = this.tenant.userId() ?? null;
+    const completedAt = new Date();
+    const outcome = await this.prisma.$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+        SELECT id FROM "ReconciliationSession"
+        WHERE "organizationId" = ${organizationId} AND id = ${sessionId}
+        FOR UPDATE
+      `);
+      if (locked.length === 0) {
+        throw new NotFoundException('Reconciliation session not found');
+      }
+      const session = await tx.reconciliationSession.findFirst({
+        where: { id: sessionId, organizationId },
+        include: {
+          bankAccount: {
+            select: {
+              name: true,
+              ledgerAccountId: true,
+              ledgerAccount: { select: { type: true } },
+            },
+          },
+        },
+      });
+      if (!session) throw new NotFoundException('Reconciliation session not found');
+      if (session.status !== ReconciliationStatus.ACTIVE) {
+        throw new ConflictException('That reconciliation is already complete');
+      }
+
+      const rows = await tx.bankTransaction.findMany({
+        where: {
+          organizationId,
+          bankAccountId: session.bankAccountId,
+          date: { gte: session.periodStart, lte: session.periodEnd },
+        },
+        select: { amount: true, reconciliationSessionId: true },
+      });
+      const book = await accountBalance(
+        tx,
+        organizationId,
+        session.bankAccount.ledgerAccountId,
+        { asOf: session.periodEnd.toISOString().slice(0, 10) },
+      );
+      const summary = summarizeReconciliation({
+        statementEndingBalance: toNumber(session.statementEndingBalance),
+        openingBalance: toNumber(session.openingBalance),
+        bookBalance: book.balance,
+        direction: this.direction(session.bankAccount.ledgerAccount.type),
+        transactions: rows.map((row) => ({
+          amount: toNumber(row.amount),
+          cleared: row.reconciliationSessionId === session.id,
+        })),
+      });
+
+      const guard = canComplete(session.status, summary.difference);
+      if (!guard.allowed) {
+        if (guard.reason === 'UNBALANCED') {
+          throw new BadRequestException(
+            `Clear the difference of ${summary.difference.toFixed(2)} before completing this reconciliation`,
+          );
+        }
+        throw new ConflictException('That reconciliation is already complete');
+      }
+
+      const snapshot: CompletionSnapshot = {
+        statementEndingBalance: summary.statementEndingBalance,
+        openingBalance: summary.openingBalance,
+        clearedTotal: summary.clearedTotal,
+        clearedBalance: summary.clearedBalance,
+        bookBalance: summary.bookBalance,
+        difference: summary.difference,
+        clearedCount: summary.clearedCount,
+        transactionCount: summary.transactionCount,
+        completedAt: completedAt.toISOString(),
+      };
+      await tx.reconciliationSession.update({
+        where: { id: session.id },
+        data: {
+          status: ReconciliationStatus.COMPLETED,
+          completedAt,
+          completedById,
+          completionSnapshot: snapshot as unknown as Prisma.InputJsonValue,
+          clearedTotal: new Prisma.Decimal(summary.clearedTotal.toFixed(2)),
+          bookBalance: new Prisma.Decimal(summary.bookBalance.toFixed(2)),
+          difference: new Prisma.Decimal(summary.difference.toFixed(2)),
+        },
+      });
+      return {
+        bankAccount: session.bankAccount.name,
+        periodStart: session.periodStart.toISOString().slice(0, 10),
+        periodEnd: session.periodEnd.toISOString().slice(0, 10),
+        snapshot,
+      };
+    });
+
+    await this.audit.record('reconciliation.complete', 'ReconciliationSession', sessionId, {
+      bankAccount: outcome.bankAccount,
+      periodStart: outcome.periodStart,
+      periodEnd: outcome.periodEnd,
+      clearedTotal: outcome.snapshot.clearedTotal,
+      difference: outcome.snapshot.difference,
+      clearedCount: outcome.snapshot.clearedCount,
+      completedAt: outcome.snapshot.completedAt,
+    });
+    return this.find(sessionId);
+  }
+
+  async undo(sessionId: string): Promise<ReconciliationDetailView> {
+    const { organizationId } = await this.tenant.get();
+    const outcome = await this.prisma.$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+        SELECT id FROM "ReconciliationSession"
+        WHERE "organizationId" = ${organizationId} AND id = ${sessionId}
+        FOR UPDATE
+      `);
+      if (locked.length === 0) {
+        throw new NotFoundException('Reconciliation session not found');
+      }
+      const session = await tx.reconciliationSession.findFirst({
+        where: { id: sessionId, organizationId },
+      });
+      if (!session) throw new NotFoundException('Reconciliation session not found');
+      const guard = canUndo(session.status);
+      if (!guard.allowed) {
+        throw new ConflictException('Only a completed reconciliation can be undone');
+      }
+
+      const snapshot = session.completionSnapshot as unknown as CompletionSnapshot | null;
+      const update: Prisma.ReconciliationSessionUpdateInput = {
+        status: ReconciliationStatus.ACTIVE,
+        completedAt: null,
+        completedById: null,
+        completionSnapshot: Prisma.DbNull,
+      };
+      if (snapshot) {
+        update.statementEndingBalance = new Prisma.Decimal(
+          snapshot.statementEndingBalance.toFixed(2),
+        );
+        update.openingBalance = new Prisma.Decimal(snapshot.openingBalance.toFixed(2));
+        update.clearedTotal = new Prisma.Decimal(snapshot.clearedTotal.toFixed(2));
+        update.bookBalance = new Prisma.Decimal(snapshot.bookBalance.toFixed(2));
+        update.difference = new Prisma.Decimal(snapshot.difference.toFixed(2));
+      }
+      await tx.reconciliationSession.update({
+        where: { id: session.id },
+        data: update,
+      });
+      return {
+        clearedTotal: snapshot ? snapshot.clearedTotal : toNumber(session.clearedTotal),
+        difference: snapshot ? snapshot.difference : toNumber(session.difference),
+        completedAt: snapshot?.completedAt ?? session.completedAt?.toISOString() ?? null,
+      };
+    });
+
+    await this.audit.record('reconciliation.undo', 'ReconciliationSession', sessionId, {
+      clearedTotal: outcome.clearedTotal,
+      difference: outcome.difference,
+      completedAt: outcome.completedAt,
+    });
+    return this.find(sessionId);
+  }
+
   private direction(type: AccountType): ReconciliationDirection {
     return type === AccountType.LIABILITY ? 'CREDIT' : 'DEBIT';
   }
@@ -369,6 +549,8 @@ export class ReconciliationsService {
       difference,
       balanced: difference === 0,
       status: row.status,
+      completedAt: row.completedAt ? row.completedAt.toISOString() : null,
+      completedById: row.completedById ?? null,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };
