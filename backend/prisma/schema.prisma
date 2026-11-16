@@ -53,6 +53,8 @@ model Organization {
   reconciliationSessions ReconciliationSession[]
   projects               Project[]
   timeEntries            TimeEntry[]
+  agentJobs              AgentJob[]
+  agentActionLogs        AgentActionLog[]
 }
 
 model Account {
@@ -687,15 +689,17 @@ model TimeEntry {
 }
 
 model User {
-  id            String          @id @default(cuid())
-  email         String          @unique
-  name          String
-  passwordHash  String
-  createdAt     DateTime        @default(now())
-  memberships   OrgMembership[]
-  refreshTokens RefreshToken[]
-  auditLog      AuditLogEntry[]
-  timeEntries   TimeEntry[]
+  id              String           @id @default(cuid())
+  email           String           @unique
+  name            String
+  passwordHash    String
+  createdAt       DateTime         @default(now())
+  memberships     OrgMembership[]
+  refreshTokens   RefreshToken[]
+  auditLog        AuditLogEntry[]
+  timeEntries     TimeEntry[]
+  agentJobs       AgentJob[]
+  agentActionLogs AgentActionLog[]
 }
 
 model OrgMembership {
@@ -736,4 +740,65 @@ model AuditLogEntry {
   actor          User         @relation(fields: [actorUserId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, createdAt])
+}
+
+enum AgentTrigger {
+  PROMPT
+  CRON
+  EVENT
+}
+
+enum AgentJobStatus {
+  QUEUED
+  RUNNING
+  RETRYING
+  COMPLETED
+  FAILED
+}
+
+model AgentJob {
+  id             String         @id @default(cuid())
+  organizationId String
+  userId         String
+  role           Role
+  trigger        AgentTrigger   @default(PROMPT)
+  prompt         String
+  model          String
+  status         AgentJobStatus @default(QUEUED)
+  attempts       Int            @default(0)
+  maxAttempts    Int            @default(3)
+  response       String?
+  error          String?
+  toolNames      Json?
+  logReference   String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, status])
+}
+
+model AgentActionLog {
+  id             String         @id @default(cuid())
+  organizationId String
+  actorUserId    String?
+  trigger        AgentTrigger
+  status         AgentJobStatus
+  model          String?
+  prompt         String?
+  toolNames      Json?
+  input          Json?
+  output         Json?
+  error          String?
+  jobId          String?
+  logReference   String
+  createdAt      DateTime       @default(now())
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  actor          User?          @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, logReference])
+  @@index([organizationId, createdAt])
+  @@index([organizationId, jobId])
 }

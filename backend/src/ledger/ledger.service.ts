@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, Scope } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { Account, JournalSourceType, Prisma } from '@prisma/client';
 import { AuditService } from '../tenant/audit.service';
 import { ScopedDataAccess } from '../tenant/scoped-data-access.service';
@@ -72,7 +72,7 @@ export interface RegisterView {
   lines: RegisterLineView[];
 }
 
-@Injectable({ scope: Scope.REQUEST })
+@Injectable()
 export class LedgerService {
   constructor(
     private readonly scoped: ScopedDataAccess,

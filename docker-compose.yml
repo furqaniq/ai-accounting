@@ -54,6 +54,15 @@ services:
       JWT_SECRET: ${JWT_SECRET:-change-me-to-a-long-random-string}
       CORS_ORIGINS: http://localhost:3000
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      REDIS_URL: redis://redis:6379
+      AI_PROVIDER: ${AI_PROVIDER:-auto}
+      AGENT_DEFAULT_MODEL: ${AGENT_DEFAULT_MODEL:-flash}
+      AGENT_QUEUE_DRIVER: ${AGENT_QUEUE_DRIVER:-bull}
+      AGENT_MAX_ATTEMPTS: ${AGENT_MAX_ATTEMPTS:-3}
+      AGENT_MODEL_FLASH: ${AGENT_MODEL_FLASH:-gemini-2.5-flash}
+      AGENT_MODEL_FLASH_LITE: ${AGENT_MODEL_FLASH_LITE:-gemini-2.5-flash-lite}
+      AGENT_MODEL_PRO: ${AGENT_MODEL_PRO:-gemini-2.5-pro}
+      AGENT_TEST_HOOKS: ${AGENT_TEST_HOOKS:-}
       MINIO_ENDPOINT: minio
       MINIO_PORT: "9000"
       MINIO_USE_SSL: "false"
@@ -66,6 +75,8 @@ services:
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-daybook-minio}
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       minio:
         condition: service_started

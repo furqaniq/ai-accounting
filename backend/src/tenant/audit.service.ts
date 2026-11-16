@@ -1,13 +1,12 @@
-import { Inject, Injectable, Scope } from '@nestjs/common';
-import { REQUEST } from '@nestjs/core';
+import { Injectable } from '@nestjs/common';
 import { ScopedDataAccess } from './scoped-data-access.service';
-import { TenantRequest } from './tenant-context.service';
+import { TenantContextService } from './tenant-context.service';
 
-@Injectable({ scope: Scope.REQUEST })
+@Injectable()
 export class AuditService {
   constructor(
     private readonly scoped: ScopedDataAccess,
-    @Inject(REQUEST) private readonly request: TenantRequest,
+    private readonly tenant: TenantContextService,
   ) {}
 
   async record(
@@ -16,7 +15,7 @@ export class AuditService {
     entityId: string,
     metadata?: Record<string, unknown>,
   ): Promise<void> {
-    const actorUserId = this.request.user?.userId;
+    const actorUserId = this.tenant.userId();
     if (!actorUserId) return;
     await this.scoped.create('auditLogEntry', {
       actorUserId,

@@ -30,7 +30,7 @@ test('staff creates, edits, and sends an invoice into the ledger', async ({ page
   await page.getByLabel('Password').fill('Passw0rd!2026');
   await page.getByRole('button', { name: 'Sign in' }).click();
 
-  await page.getByRole('link', { name: 'Invoices' }).click();
+  await page.getByRole('link', { name: 'Invoices', exact: true }).click();
   await expect(page).toHaveURL(/\/invoices$/);
   await expect(page.getByRole('heading', { name: 'Invoices' })).toBeVisible();
   await expect(page.locator('.invoice-table tbody tr', { hasText: 'INV-1001' })).toBeVisible();
@@ -100,7 +100,7 @@ test('staff creates, edits, and sends an invoice into the ledger', async ({ page
   await expect(postedRow.getByText('Invoice', { exact: true })).toBeVisible();
   await expect(postedRow.locator('.journal-ref')).toHaveText(/^JE-\d{4}$/);
 
-  await page.getByRole('link', { name: 'Invoices' }).click();
+  await page.getByRole('link', { name: 'Invoices', exact: true }).click();
   await expect(page).toHaveURL(/\/invoices$/);
   await page.getByLabel('Search invoices').fill(number);
   const row = page.locator('.invoice-table tbody tr', { hasText: number });

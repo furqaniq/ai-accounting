@@ -644,6 +644,13 @@ export default function OverviewPage() {
               </svg>
               Reports
             </a>
+            <a className="nav__item" href="/agent" onClick={() => setSpineOpen(false)}>
+              <svg className="icon nav__icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 20h9" />
+                <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+              </svg>
+              Clerk
+            </a>
           </nav>
 
           <div className="spine__foot">

@@ -1,4 +1,4 @@
-import { Injectable, Scope } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantContextService } from './tenant-context.service';
 
@@ -29,7 +29,9 @@ type ScopedModel =
   | 'categorizationRule'
   | 'reconciliationSession'
   | 'project'
-  | 'timeEntry';
+  | 'timeEntry'
+  | 'agentJob'
+  | 'agentActionLog';
 
 interface FindArgs {
   where?: Record<string, unknown>;
@@ -45,7 +47,7 @@ interface FindArgs {
  * for rows; they never write `organizationId` filters themselves, so a caller
  * cannot read or mutate another tenant's rows — even with a known id.
  */
-@Injectable({ scope: Scope.REQUEST })
+@Injectable()
 export class ScopedDataAccess {
   constructor(
     private readonly prisma: PrismaService,

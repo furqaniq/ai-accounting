@@ -1,5 +1,5 @@
-import { BadRequestException, ForbiddenException, Inject, Injectable, Scope } from '@nestjs/common';
-import { REQUEST } from '@nestjs/core';
+import { AsyncLocalStorage } from 'node:async_hooks';
+import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { resolveMembership } from './membership-resolution';
 
@@ -15,55 +15,85 @@ export interface TenantRequest {
   tenantMembership?: ActiveMembership;
 }
 
+export interface TenantActor {
+  user?: { userId: string; email: string };
+  membership?: ActiveMembership;
+}
+
+interface TenantStore {
+  actor: TenantActor;
+  request?: TenantRequest;
+}
+
 export const ORGANIZATION_HEADER = 'x-organization-id';
 
-@Injectable({ scope: Scope.REQUEST })
+/**
+ * Resolves the active organization/membership for HTTP requests and background
+ * jobs. The context is carried in AsyncLocalStorage so the same singleton can
+ * serve a request (middleware + guards) and a BullMQ worker (`runAs`).
+ */
+@Injectable()
 export class TenantContextService {
-  private resolved?: ActiveMembership;
+  private readonly storage = new AsyncLocalStorage<TenantStore>();
 
-  constructor(
-    @Inject(REQUEST) private readonly request: TenantRequest,
-    private readonly prisma: PrismaService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
+
+  runWithRequest<T>(request: TenantRequest, fn: () => T): T {
+    return this.storage.run({ actor: {}, request }, fn);
+  }
+
+  runAs<T>(actor: TenantActor, fn: () => T): T {
+    return this.storage.run({ actor }, fn);
+  }
 
   async get(): Promise<ActiveMembership> {
-    if (this.resolved) {
-      return this.resolved;
+    const store = this.store();
+    if (store?.actor.membership) {
+      return store.actor.membership;
     }
-    if (this.request.tenantMembership) {
-      this.resolved = this.request.tenantMembership;
-      return this.resolved;
+    if (store?.request?.tenantMembership) {
+      store.actor.membership = store.request.tenantMembership;
+      store.actor.user = store.request.user;
+      return store.actor.membership;
     }
 
-    const organizationId = this.organizationId();
     const membership = await resolveMembership(
       this.prisma,
-      this.request.user?.userId,
-      organizationId,
+      this.userId(),
+      this.organizationIdHeader(),
     );
     if (!membership) {
       throw new ForbiddenException('Organization not accessible');
     }
 
-    this.resolved = membership;
-    this.request.tenantMembership = membership;
-    return this.resolved;
+    if (store) {
+      store.actor.membership = membership;
+      if (store.request?.user) store.actor.user = store.request.user;
+      if (store.request) store.request.tenantMembership = membership;
+    }
+    return membership;
   }
 
   organizationIdHeader(): string {
-    return this.organizationId();
-  }
-
-  userId(): string | undefined {
-    return this.request.user?.userId;
-  }
-
-  private organizationId(): string {
-    const header = this.request.headers[ORGANIZATION_HEADER];
+    const store = this.store();
+    const membership = store?.actor.membership ?? store?.request?.tenantMembership;
+    if (membership) {
+      return membership.organizationId;
+    }
+    const header = store?.request?.headers?.[ORGANIZATION_HEADER];
     const value = Array.isArray(header) ? header[0] : header;
     if (!value) {
       throw new BadRequestException('Active organization is required');
     }
     return value;
+  }
+
+  userId(): string | undefined {
+    const store = this.store();
+    return store?.actor.user?.userId ?? store?.request?.user?.userId;
+  }
+
+  private store(): TenantStore | undefined {
+    return this.storage.getStore();
   }
 }

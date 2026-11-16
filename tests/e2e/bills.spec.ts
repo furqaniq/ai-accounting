@@ -44,7 +44,7 @@ test('staff creates a vendor, drafts a bill, opens it, and sees the payable bala
   await vendorForm.getByRole('button', { name: 'Add vendor' }).click();
   await expect(page.getByRole('cell', { name: 'E2E Vendor Supply' })).toBeVisible();
 
-  await page.getByRole('link', { name: 'Bills' }).click();
+  await page.getByRole('link', { name: 'Bills', exact: true }).click();
   await expect(page).toHaveURL(/\/bills$/);
   await expect(page.getByRole('heading', { name: 'Bills' })).toBeVisible();
 

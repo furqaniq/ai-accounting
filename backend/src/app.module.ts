@@ -1,8 +1,9 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AccountsModule } from './accounts/accounts.module';
+import { AgentModule } from './agent/agent.module';
 import { AttachmentsModule } from './attachments/attachments.module';
 import { AuthModule } from './auth/auth.module';
 import { BankingModule } from './banking/banking.module';
@@ -14,6 +15,7 @@ import { PurchasesModule } from './purchases/purchases.module';
 import { ReportsModule } from './reports/reports.module';
 import { SalesModule } from './sales/sales.module';
 import { TenantModule } from './tenant/tenant.module';
+import { TenantContextMiddleware } from './tenant/tenant-context.middleware';
 
 @Module({
   imports: [
@@ -30,8 +32,13 @@ import { TenantModule } from './tenant/tenant.module';
     ReportsModule,
     AttachmentsModule,
     BankingModule,
+    AgentModule,
     HealthModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(TenantContextMiddleware).forRoutes('*');
+  }
+}

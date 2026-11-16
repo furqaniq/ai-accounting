@@ -2667,3 +2667,99 @@ export async function importBankTransactions(
   if (!res.ok) throw new Error(await failureMessage(res, 'Could not import that bank file'));
   return res.json();
 }
+
+export type AgentTrigger = 'PROMPT' | 'CRON' | 'EVENT';
+export type AgentJobStatus = 'QUEUED' | 'RUNNING' | 'RETRYING' | 'COMPLETED' | 'FAILED';
+
+export interface AgentLogEntry {
+  id: string;
+  organizationId: string;
+  actorUserId: string | null;
+  trigger: AgentTrigger;
+  status: AgentJobStatus;
+  model: string | null;
+  prompt: string | null;
+  toolNames: string[] | null;
+  input: unknown;
+  output: unknown;
+  error: string | null;
+  jobId: string | null;
+  logReference: string;
+  createdAt: string;
+  actor?: { id: string; name: string; email: string } | null;
+}
+
+export interface AgentJob {
+  jobId: string;
+  status: AgentJobStatus;
+  attempts: number;
+  maxAttempts: number;
+  model: string;
+  prompt: string;
+  response: string | null;
+  error: string | null;
+  toolNames: string[];
+  logReference: string | null;
+  createdAt: string;
+  updatedAt: string;
+  logs: AgentLogEntry[];
+}
+
+export interface AgentPromptSubmission {
+  jobId: string;
+  status: AgentJobStatus;
+  logReference: string;
+}
+
+export async function submitAgentPrompt(
+  organizationId: string,
+  prompt: string,
+  model?: string,
+): Promise<AgentPromptSubmission> {
+  const res = await fetch(`${API_URL}/agent/prompts`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders(organizationId) },
+    body: JSON.stringify({ prompt, ...(model ? { model } : {}) }),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not send that prompt'));
+  return res.json();
+}
+
+export async function fetchAgentJob(
+  organizationId: string,
+  jobId: string,
+): Promise<AgentJob> {
+  const res = await fetch(`${API_URL}/agent/jobs/${jobId}`, {
+    headers: authHeaders(organizationId),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Agent job not available'));
+  return res.json();
+}
+
+export async function fetchAgentLogs(
+  organizationId: string,
+  filters: { trigger?: AgentTrigger; status?: AgentJobStatus; jobId?: string; limit?: number } = {},
+): Promise<AgentLogEntry[]> {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(filters)) {
+    if (value !== undefined && value !== '') params.set(key, String(value));
+  }
+  const query = params.toString();
+  const res = await fetch(`${API_URL}/agent/logs${query ? `?${query}` : ''}`, {
+    headers: authHeaders(organizationId),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Agent activity is not available'));
+  const body = (await res.json()) as { logs: AgentLogEntry[] };
+  return body.logs;
+}
+
+export async function fetchAgentLog(
+  organizationId: string,
+  logId: string,
+): Promise<AgentLogEntry> {
+  const res = await fetch(`${API_URL}/agent/logs/${logId}`, {
+    headers: authHeaders(organizationId),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Agent log entry not available'));
+  return res.json();
+}

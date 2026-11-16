@@ -2847,3 +2847,60 @@ table {
     border-top: 0;
   }
 }
+
+/* Clerk agent workspace (issue 028). */
+.muted {
+  color: var(--ink-soft);
+}
+
+.agent-log-line {
+  margin-top: 10px;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+
+.agent-log-ref {
+  font-variant-numeric: tabular-nums;
+}
+
+.agent-detail {
+  max-width: 820px;
+  padding-top: 18px;
+  margin-top: 24px;
+  border-top: 1px solid var(--rule);
+}
+
+.agent-detail__grid {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr);
+  gap: 6px 18px;
+  margin: 12px 0;
+  font-size: 13px;
+}
+
+.agent-detail__grid dt {
+  color: var(--ink-soft);
+}
+
+.agent-detail__label {
+  margin-top: 14px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+}
+
+.agent-detail__code {
+  max-height: 260px;
+  padding: 10px 12px;
+  margin-top: 6px;
+  overflow: auto;
+  font-family: "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+}
