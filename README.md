@@ -5,6 +5,12 @@ validated, permission-checked, tenant-scoped tool registry. The spec of record i
 [`Requirements.md`](Requirements.md); the derived build plan is
 [`issues/prd.md`](issues/prd.md); progress is tracked in [`spine.md`](spine.md).
 
+## Client walkthrough
+
+Open [`User-flows.html`](User-flows.html) directly in a browser (no build step) for the ten
+documented flows, the AI-01–AI-17 test matrix with evidence, and the responsive/label review
+record. It is the single static 036 review package and is **awaiting client/design sign-off**.
+
 ## Quick start (local/demo)
 
 ```bash
