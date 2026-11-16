@@ -297,7 +297,8 @@ describe('Financial statements API', () => {
     expect(body.balanced).toBe(true);
     expect(body.groups.find((group) => group.key === 'assets')?.accounts).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ code: '1000', amount: 5000 }),
+        expect.objectContaining({ code: '1000', amount: 4500 }),
+        expect.objectContaining({ code: '1020', amount: 500 }),
         expect.objectContaining({ code: '1100', amount: 1274.25 }),
       ]),
     );
@@ -333,6 +334,7 @@ describe('Financial statements API', () => {
     expect(body.debitsEqualCredits).toBe(true);
     expect(body.rows.map((row) => row.code)).toEqual([
       '1000',
+      '1020',
       '1100',
       '1300',
       '2000',
@@ -371,7 +373,7 @@ describe('Financial statements API', () => {
     const body = res.body as CashFlowBody;
 
     expect(body.report).toBe('cash-flow');
-    expect(body.cashAccounts.map((account) => account.code)).toEqual(['1000']);
+    expect(body.cashAccounts.map((account) => account.code)).toEqual(['1000', '1020']);
     expect(body.beginningCash).toBe(0);
     expect(body.netChange).toBe(5000);
     expect(body.endingCash).toBe(5000);

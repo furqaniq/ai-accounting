@@ -1,14 +1,23 @@
 import {
+  AgentAutomationMode,
+  BankAccountType,
+  BankImportFormat,
+  BankTransactionMatchState,
   BillStatus,
   EstimateStatus,
   InvoiceStatus,
   JournalSourceType,
   Prisma,
   PrismaClient,
+  ReconciliationStatus,
   Role,
 } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import { Queue } from 'bullmq';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { ensureDefaultChart } from '../src/accounts/default-chart';
+import { BankingImportEngine } from '../src/banking/banking-import.engine';
 import { postEntry } from '../src/ledger/ledger-engine';
 
 const prisma = new PrismaClient();
@@ -16,6 +25,89 @@ const prisma = new PrismaClient();
 const PASSWORD = 'Passw0rd!2026';
 
 const ORGANIZATIONS = ['Acme Services Co.', 'Nimbus Retail LLC'] as const;
+
+const OWNER_EMAILS: Record<(typeof ORGANIZATIONS)[number], string> = {
+  'Acme Services Co.': 'owner@acme.test',
+  'Nimbus Retail LLC': 'owner@nimbus.test',
+};
+
+const BANK_CSV_FILES: Record<(typeof ORGANIZATIONS)[number], string> = {
+  'Acme Services Co.': 'demo-acme-checking-october.csv',
+  'Nimbus Retail LLC': 'demo-nimbus-checking-october.csv',
+};
+
+const DEMO_BANK_ACCOUNT_NAME = 'Operating checking';
+const DEMO_BATCH_FILENAME = 'demo-checking-october.csv';
+const DEMO_TRANSFER_MEMO = 'Seed transfer to checking';
+const DEMO_TRANSFER_DATE = '2026-09-30';
+const DEMO_TRANSFER_AMOUNT = 500;
+const DEMO_BANK_DATE = '2026-10-20';
+const DEMO_RECON_PERIOD_START = '2026-10-01';
+const DEMO_RECON_PERIOD_END = '2026-10-31';
+const DEMO_RECON_CLEARED_AT = '2026-10-31T12:00:00.000Z';
+const DEMO_RECON_COMPLETED_AT = '2026-11-01T12:00:00.000Z';
+const DEMO_AUTOMATION_NAME = 'Weekly cash review';
+const DEMO_AUTOMATION_PROMPT =
+  'Review cash and receivables for the week and flag anything that needs attention.';
+const DEMO_AUTOMATION_CRON = '0 9 * * 1';
+const DEMO_AUTOMATION_TIMEZONE = 'UTC';
+
+function utcDate(value: string): Date {
+  return new Date(`${value}T00:00:00.000Z`);
+}
+
+/**
+ * Best-effort schedule registration so a seeded cron row starts running in
+ * Compose. Jest and Redis-less local runs stay usable because failure is a
+ * warning, never a seed failure.
+ */
+async function registerAutomationSchedule(
+  automationId: string,
+  organizationId: string,
+): Promise<void> {
+  if ((process.env.AGENT_QUEUE_DRIVER ?? 'bull') === 'inline') return;
+  const url = new URL(process.env.REDIS_URL ?? 'redis://localhost:6379');
+  const db = url.pathname.replace('/', '');
+  const queue = new Queue('agent-automations', {
+    connection: {
+      host: url.hostname,
+      port: Number.parseInt(url.port || '6379', 10),
+      username: url.username || undefined,
+      password: url.password || undefined,
+      db: db ? Number.parseInt(db, 10) : undefined,
+      maxRetriesPerRequest: 1,
+      enableOfflineQueue: false,
+      connectTimeout: 2000,
+    },
+  });
+  queue.on('error', () => undefined);
+  try {
+    await Promise.race([
+      queue.upsertJobScheduler(
+        automationId,
+        { pattern: DEMO_AUTOMATION_CRON, tz: DEMO_AUTOMATION_TIMEZONE },
+        {
+          name: 'automation',
+          data: { automationId, organizationId },
+        },
+      ),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Redis is unavailable')), 3000),
+      ),
+    ]);
+  } catch (error) {
+    console.warn(
+      `Skipped scheduler registration for ${automationId}: ${
+        error instanceof Error ? error.message : 'unknown error'
+      }`,
+    );
+  } finally {
+    await Promise.race([
+      queue.close().catch(() => undefined),
+      new Promise((resolve) => setTimeout(resolve, 1000)),
+    ]);
+  }
+}
 
 const OPENING_BALANCES: Record<(typeof ORGANIZATIONS)[number], number> = {
   'Acme Services Co.': 5000,
@@ -435,12 +527,14 @@ async function main(): Promise<void> {
     await ensureDefaultChart(prisma, org.id);
   }
 
+  const userIds = new Map<string, string>();
   for (const seed of USERS) {
     const user = await prisma.user.upsert({
       where: { email: seed.email },
       update: { name: seed.name, passwordHash },
       create: { email: seed.email, name: seed.name, passwordHash },
     });
+    userIds.set(seed.email, user.id);
 
     for (const membership of seed.memberships) {
       const organizationId = orgs.get(membership.organization);
@@ -843,6 +937,229 @@ async function main(): Promise<void> {
       });
     }
     console.log(`Seeded ${ESTIMATES[name].length} estimates for ${name}`);
+  }
+
+  const engine = new BankingImportEngine();
+  for (const name of ORGANIZATIONS) {
+    const organizationId = orgs.get(name);
+    if (!organizationId) throw new Error(`Missing organization ${name}`);
+
+    const [cash, checking, receivable] = await Promise.all([
+      prisma.account.findFirstOrThrow({ where: { organizationId, code: '1000' } }),
+      prisma.account.findFirstOrThrow({ where: { organizationId, code: '1020' } }),
+      prisma.account.findFirstOrThrow({
+        where: { organizationId, code: '1100', active: true },
+      }),
+    ]);
+
+    let bankAccount = await prisma.bankAccount.findFirst({
+      where: { organizationId, ledgerAccountId: checking.id },
+    });
+    if (!bankAccount) {
+      bankAccount = await prisma.bankAccount.create({
+        data: {
+          organizationId,
+          name: DEMO_BANK_ACCOUNT_NAME,
+          type: BankAccountType.CHECKING,
+          ledgerAccountId: checking.id,
+        },
+      });
+    }
+
+    const existingTransfer = await prisma.journalEntry.findFirst({
+      where: { organizationId, memo: DEMO_TRANSFER_MEMO },
+    });
+    if (!existingTransfer) {
+      await postEntry(prisma, organizationId, {
+        date: DEMO_TRANSFER_DATE,
+        memo: DEMO_TRANSFER_MEMO,
+        lines: [
+          {
+            accountId: checking.id,
+            debit: DEMO_TRANSFER_AMOUNT,
+            description: 'Move cash to checking',
+          },
+          {
+            accountId: cash.id,
+            credit: DEMO_TRANSFER_AMOUNT,
+            description: 'Move cash to checking',
+          },
+        ],
+      });
+      console.log(`Seeded checking transfer for ${name}`);
+    }
+
+    const filename = BANK_CSV_FILES[name];
+    const buffer = readFileSync(join(__dirname, 'seed-data', filename));
+    const analysis = engine.analyze({ filename: DEMO_BATCH_FILENAME, buffer });
+    if (analysis.mappingError) {
+      throw new Error(`Seed bank CSV ${filename}: ${analysis.mappingError}`);
+    }
+    const rows = analysis.rows.filter((row) => row.valid);
+    if (rows.length === 0) {
+      throw new Error(`Seed bank CSV ${filename} has no valid rows`);
+    }
+
+    let batch = await prisma.bankImportBatch.findFirst({
+      where: {
+        organizationId,
+        bankAccountId: bankAccount.id,
+        filename: DEMO_BATCH_FILENAME,
+      },
+    });
+    if (!batch) {
+      batch = await prisma.bankImportBatch.create({
+        data: {
+          organizationId,
+          bankAccountId: bankAccount.id,
+          filename: DEMO_BATCH_FILENAME,
+          format: BankImportFormat.CSV,
+          rowCount: analysis.counts.total,
+          importedCount: rows.length,
+          duplicateCount: 0,
+          invalidCount: analysis.counts.invalid,
+        },
+      });
+    }
+
+    const seededTransactionIds: string[] = [];
+    for (const row of rows) {
+      if (!row.date || row.amount === null || !row.fingerprint) continue;
+      const date = utcDate(row.date);
+      const amount = new Prisma.Decimal(row.amount.toFixed(2));
+      const shared = {
+        importBatchId: batch.id,
+        date,
+        description: row.description,
+        amount,
+        externalId: row.externalId,
+        categoryAccountId: receivable.id,
+        categoryRuleId: null,
+        matchState: BankTransactionMatchState.CATEGORIZED,
+        raw: row.raw as Prisma.InputJsonValue,
+      };
+      const transaction = await prisma.bankTransaction.upsert({
+        where: {
+          organizationId_bankAccountId_fingerprint: {
+            organizationId,
+            bankAccountId: bankAccount.id,
+            fingerprint: row.fingerprint,
+          },
+        },
+        update: shared,
+        create: {
+          organizationId,
+          bankAccountId: bankAccount.id,
+          fingerprint: row.fingerprint,
+          ...shared,
+        },
+      });
+      seededTransactionIds.push(transaction.id);
+
+      const existingEntry = await prisma.journalEntry.findFirst({
+        where: {
+          organizationId,
+          sourceType: JournalSourceType.BANK,
+          sourceId: transaction.id,
+        },
+      });
+      if (!existingEntry) {
+        const magnitude = amount.abs();
+        const inflow = amount.gt(0);
+        const description = `Bank import — ${row.description}`;
+        await postEntry(prisma, organizationId, {
+          date: DEMO_BANK_DATE,
+          memo: description,
+          sourceType: JournalSourceType.BANK,
+          sourceId: transaction.id,
+          lines: inflow
+            ? [
+                { accountId: checking.id, debit: magnitude, description },
+                { accountId: receivable.id, credit: magnitude, description },
+              ]
+            : [
+                { accountId: receivable.id, debit: magnitude, description },
+                { accountId: checking.id, credit: magnitude, description },
+              ],
+        });
+      }
+    }
+
+    const periodStart = utcDate(DEMO_RECON_PERIOD_START);
+    const periodEnd = utcDate(DEMO_RECON_PERIOD_END);
+    let session = await prisma.reconciliationSession.findFirst({
+      where: {
+        organizationId,
+        bankAccountId: bankAccount.id,
+        periodStart,
+        periodEnd,
+      },
+    });
+    if (!session) {
+      const ownerEmail = OWNER_EMAILS[name];
+      const ownerId = userIds.get(ownerEmail);
+      if (!ownerId) throw new Error(`Missing seed owner ${ownerEmail}`);
+      const completedAt = new Date(DEMO_RECON_COMPLETED_AT);
+      session = await prisma.reconciliationSession.create({
+        data: {
+          organizationId,
+          bankAccountId: bankAccount.id,
+          periodStart,
+          periodEnd,
+          statementEndingBalance: new Prisma.Decimal('500.00'),
+          openingBalance: new Prisma.Decimal('500.00'),
+          clearedTotal: new Prisma.Decimal('0.00'),
+          bookBalance: new Prisma.Decimal('500.00'),
+          difference: new Prisma.Decimal('0.00'),
+          status: ReconciliationStatus.COMPLETED,
+          completedAt,
+          completedById: ownerId,
+          completionSnapshot: {
+            statementEndingBalance: 500,
+            openingBalance: 500,
+            clearedTotal: 0,
+            clearedBalance: 500,
+            bookBalance: 500,
+            difference: 0,
+            clearedCount: rows.length,
+            transactionCount: rows.length,
+            completedAt: completedAt.toISOString(),
+          },
+        },
+      });
+      console.log(`Seeded completed reconciliation for ${name}`);
+    }
+
+    await prisma.bankTransaction.updateMany({
+      where: { organizationId, id: { in: seededTransactionIds } },
+      data: {
+        reconciliationSessionId: session.id,
+        clearedAt: new Date(DEMO_RECON_CLEARED_AT),
+      },
+    });
+
+    const ownerEmail = OWNER_EMAILS[name];
+    const ownerId = userIds.get(ownerEmail);
+    if (!ownerId) throw new Error(`Missing seed owner ${ownerEmail}`);
+    let automation = await prisma.agentAutomation.findUnique({
+      where: { organizationId_name: { organizationId, name: DEMO_AUTOMATION_NAME } },
+    });
+    if (!automation) {
+      automation = await prisma.agentAutomation.create({
+        data: {
+          organizationId,
+          name: DEMO_AUTOMATION_NAME,
+          mode: AgentAutomationMode.CRON,
+          cron: DEMO_AUTOMATION_CRON,
+          timezone: DEMO_AUTOMATION_TIMEZONE,
+          prompt: DEMO_AUTOMATION_PROMPT,
+          enabled: true,
+          createdByUserId: ownerId,
+        },
+      });
+      console.log(`Seeded automation for ${name}`);
+    }
+    await registerAutomationSchedule(automation.id, organizationId);
   }
 
 }

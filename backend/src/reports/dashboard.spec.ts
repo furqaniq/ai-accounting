@@ -120,8 +120,15 @@ describe('Dashboard API', () => {
         code: '1000',
         name: 'Cash',
         type: 'ASSET',
-        balance: 5000,
-        netChange: 5000,
+        balance: 4500,
+        netChange: 4500,
+      }),
+      expect.objectContaining({
+        code: '1020',
+        name: 'Checking account',
+        type: 'ASSET',
+        balance: 500,
+        netChange: 500,
       }),
     ]);
 

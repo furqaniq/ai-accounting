@@ -85,7 +85,9 @@ test('creates an event automation, fires it through the test hook, and sees the 
   await page.getByRole('tab', { name: 'Automations' }).click();
   const panel = page.locator('#agent-panel-automations');
   await expect(panel.getByRole('heading', { name: 'Automations' })).toBeVisible();
-  await expect(panel).toContainText('No automations yet');
+  await expect(
+    panel.locator('.automation-table tbody tr', { hasText: 'Weekly cash review' }),
+  ).toBeVisible();
 
   await panel.getByRole('button', { name: 'New automation' }).click();
   await panel.getByLabel('Name').fill(NAME);

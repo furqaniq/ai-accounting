@@ -161,7 +161,10 @@ describe('Scheduled agent automations', () => {
   async function cleanup(): Promise<void> {
     if (!acmeId || !nimbusId) return;
     const rows = await prisma.agentAutomation.findMany({
-      where: { organizationId: { in: [acmeId, nimbusId] } },
+      where: {
+        organizationId: { in: [acmeId, nimbusId] },
+        name: { startsWith: 'PW ' },
+      },
       select: { id: true },
     });
     const ids = [...new Set([...rows.map((row) => row.id), ...automationIds])];

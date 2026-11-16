@@ -9,6 +9,7 @@ export interface DefaultAccount {
 
 export const DEFAULT_CHART: readonly DefaultAccount[] = [
   { code: '1000', name: 'Cash', type: 'ASSET', subtype: 'Current asset' },
+  { code: '1020', name: 'Checking account', type: 'ASSET', subtype: 'Current asset' },
   { code: '1100', name: 'Accounts receivable', type: 'ASSET', subtype: 'Accounts receivable' },
   { code: '1200', name: 'Prepaid expenses', type: 'ASSET', subtype: 'Current asset' },
   { code: '1300', name: 'Purchase tax receivable', type: 'ASSET', subtype: 'Current asset' },
