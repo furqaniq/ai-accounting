@@ -1304,6 +1304,66 @@ export async function fetchTrialBalance(
   return res.json();
 }
 
+export interface DashboardCashAccount {
+  id: string;
+  code: string;
+  name: string;
+  type: string;
+  balance: number;
+  netChange: number;
+}
+
+export interface DashboardTrendBucket {
+  month: string;
+  label: string;
+  income: number;
+  expenses: number;
+  net: number;
+}
+
+export interface DashboardActivity {
+  type: 'invoice' | 'bill' | 'expense' | 'payment' | 'bill-payment';
+  id: string;
+  number: string;
+  party: string | null;
+  date: string;
+  amount: number;
+  status: string;
+  href: string;
+}
+
+export interface DashboardReport {
+  from: string;
+  to: string;
+  cash: { total: number; accounts: DashboardCashAccount[] };
+  receivables: { total: number; overdue: number; openCount: number };
+  payables: { total: number; overdue: number; openCount: number };
+  trend: {
+    buckets: DashboardTrendBucket[];
+    totalIncome: number;
+    totalExpenses: number;
+    netIncome: number;
+  };
+  recentActivity: DashboardActivity[];
+  attention: {
+    overdueInvoices: number;
+    overdueBills: number;
+    unmatchedBankTransactions: number;
+  };
+}
+
+export async function fetchDashboard(
+  organizationId: string,
+  period: { from?: string; to?: string } = {},
+): Promise<DashboardReport> {
+  const res = await fetch(
+    `${API_URL}/dashboard${reportQuery({ from: period.from, to: period.to })}`,
+    { headers: authHeaders(organizationId) },
+  );
+  if (!res.ok) throw new Error(await failureMessage(res, 'The dashboard is not available'));
+  return res.json();
+}
+
 export type ReportExportSlug =
   | 'profit-loss'
   | 'balance-sheet'

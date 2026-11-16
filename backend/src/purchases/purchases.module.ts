@@ -30,6 +30,6 @@ import { VendorsService } from './vendors.service';
     ExpensesService,
     ApAgingService,
   ],
-  exports: [ExpensesService],
+  exports: [ApAgingService, ExpensesService],
 })
 export class PurchasesModule {}

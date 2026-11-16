@@ -365,7 +365,7 @@ export class ReportsService {
     return isoDate(toDate(query.asOf ?? todayIso(), 'asOf'));
   }
 
-  private async resolvePeriod(
+  async resolvePeriod(
     organizationId: string,
     query: PeriodQueryDto,
   ): Promise<{ from: string; to: string }> {

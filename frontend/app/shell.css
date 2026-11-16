@@ -1912,3 +1912,123 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Owner dashboard (issue 026). */
+.cash__figure {
+  display: inline-block;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.cash__figure:hover {
+  color: var(--ledger);
+}
+
+.cash__delta.is-negative {
+  color: var(--red-ink);
+}
+
+.stat__meta {
+  margin-top: 5px;
+  font-size: 11.5px;
+  color: var(--ink-soft);
+}
+
+.dashboard-cash-table {
+  margin: 0;
+}
+
+.dashboard-cash-table th,
+.dashboard-cash-table td {
+  padding-top: 9px;
+  padding-bottom: 9px;
+}
+
+.dashboard-cash-table td.is-negative {
+  color: var(--red-ink);
+}
+
+.dashboard-controls {
+  flex-wrap: wrap;
+  align-items: flex-end;
+  margin-top: 14px;
+}
+
+.dashboard-controls .range {
+  margin-left: auto;
+  margin-top: 0;
+  padding-bottom: 2px;
+}
+
+.trend-shell {
+  margin-top: 12px;
+}
+
+.trend-chart {
+  max-height: 240px;
+}
+
+.trend-legend {
+  display: flex;
+  gap: 18px;
+  padding: 2px 2px 6px;
+  font-size: 11.5px;
+  color: var(--ink-soft);
+}
+
+.trend-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.trend-swatch {
+  width: 9px;
+  height: 9px;
+  border-radius: 1px;
+}
+
+.trend-swatch--income {
+  background: var(--ledger);
+}
+
+.trend-swatch--expense {
+  background: var(--red-ink);
+}
+
+.activity-type {
+  font-size: 12.5px;
+}
+
+a.mini-row {
+  color: inherit;
+  text-decoration: none;
+}
+
+a.mini-row:hover .mini-row__title {
+  color: var(--ledger);
+  text-decoration: underline;
+  text-decoration-color: rgba(31, 90, 67, 0.35);
+  text-underline-offset: 3px;
+}
+
+.mini-row__count {
+  min-width: 20px;
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.mini-row__amount {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .dashboard-controls .range {
+    margin-left: 0;
+  }
+}

@@ -15,6 +15,7 @@ import {
   clearSession,
   createMember,
   fetchActiveOrganization,
+  fetchDashboard,
   fetchMembers,
   getAccessToken,
   getActiveOrgId,
@@ -22,6 +23,7 @@ import {
   setActiveOrgId,
   updateMemberRole,
 } from '@/lib/api';
+import type { DashboardActivity, DashboardReport } from '@/lib/api';
 
 function initials(name: string): string {
   return name
@@ -40,6 +42,118 @@ function todayLine(): string {
   });
 }
 
+function isoToday(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function shiftDate(value: string, days: number): string {
+  const date = new Date(`${value}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function money(value: number): string {
+  const amount = Math.abs(value).toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  return value < 0 ? `-$${amount}` : `$${amount}`;
+}
+
+function shortDate(value: string): string {
+  return new Date(`${value}T00:00:00.000Z`).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'UTC',
+  });
+}
+
+function longDate(value: string): string {
+  return new Date(`${value}T00:00:00.000Z`).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+}
+
+const ACTIVITY_LABELS: Record<DashboardActivity['type'], string> = {
+  invoice: 'Invoice',
+  bill: 'Bill',
+  expense: 'Expense',
+  payment: 'Payment',
+  'bill-payment': 'Bill payment',
+};
+
+function TrendBars({ buckets }: { buckets: DashboardReport['trend']['buckets'] }) {
+  const max = Math.max(1, ...buckets.flatMap((bucket) => [bucket.income, bucket.expenses]));
+  const width = 720;
+  const height = 220;
+  const top = 14;
+  const bottom = 42;
+  const plotHeight = height - top - bottom;
+  const groupWidth = buckets.length > 0 ? (width - 24) / buckets.length : width;
+  const barWidth = Math.min(18, groupWidth * 0.26);
+  const baseline = top + plotHeight;
+
+  return (
+    <svg
+      className="chart trend-chart"
+      viewBox={`0 0 ${width} ${height}`}
+      role="img"
+      aria-label="Monthly income and expense trend"
+    >
+      {[0.25, 0.5, 0.75, 1].map((ratio) => (
+        <line
+          key={ratio}
+          className="chart__grid"
+          x1="12"
+          x2={width - 12}
+          y1={baseline - plotHeight * ratio}
+          y2={baseline - plotHeight * ratio}
+        />
+      ))}
+      <line className="chart__today" x1="12" x2={width - 12} y1={baseline} y2={baseline} />
+      {buckets.map((bucket, index) => {
+        const center = 12 + groupWidth * index + groupWidth / 2;
+        const incomeHeight = (bucket.income / max) * plotHeight;
+        const expenseHeight = (bucket.expenses / max) * plotHeight;
+        return (
+          <g key={bucket.month}>
+            <rect
+              x={center - barWidth - 2}
+              y={baseline - incomeHeight}
+              width={barWidth}
+              height={Math.max(incomeHeight, bucket.income > 0 ? 2 : 0)}
+              fill="var(--ledger)"
+              rx="1"
+            >
+              <title>
+                {bucket.label}: {money(bucket.income)} income
+              </title>
+            </rect>
+            <rect
+              x={center + 2}
+              y={baseline - expenseHeight}
+              width={barWidth}
+              height={Math.max(expenseHeight, bucket.expenses > 0 ? 2 : 0)}
+              fill="var(--red-ink)"
+              rx="1"
+            >
+              <title>
+                {bucket.label}: {money(bucket.expenses)} expenses
+              </title>
+            </rect>
+            <text x={center} y={height - 18} textAnchor="middle">
+              {bucket.label.split(' ')[0]}
+            </text>
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
 export default function OverviewPage() {
   const router = useRouter();
   const [user, setUser] = useState<SessionUser | null>(null);
@@ -56,10 +170,12 @@ export default function OverviewPage() {
   const [auditOpen, setAuditOpen] = useState(false);
   const [activeOrg, setActiveOrg] = useState<ActiveOrganization | null>(null);
   const [memberCount, setMemberCount] = useState<number | null>(null);
-  const [range, setRange] = useState<'30' | '90' | '365'>('30');
-  const [weeklySummary, setWeeklySummary] = useState(true);
-  const [overdueReminders, setOverdueReminders] = useState(true);
-  const [approvalNoteOpen, setApprovalNoteOpen] = useState(true);
+  const initialTo = isoToday();
+  const [trendFrom, setTrendFrom] = useState(`${initialTo.slice(0, 4)}-01-01`);
+  const [trendTo, setTrendTo] = useState(initialTo);
+  const [dashboard, setDashboard] = useState<DashboardReport | null>(null);
+  const [dashboardLoading, setDashboardLoading] = useState(false);
+  const [dashboardError, setDashboardError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -137,6 +253,37 @@ export default function OverviewPage() {
       cancelled = true;
     };
   }, [user]);
+
+  useEffect(() => {
+    if (!activeOrg || !trendFrom || !trendTo) return;
+    let cancelled = false;
+    setDashboardLoading(true);
+    fetchDashboard(activeOrg.organizationId, { from: trendFrom, to: trendTo })
+      .then((report) => {
+        if (cancelled) return;
+        setDashboard(report);
+        setDashboardError(null);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setDashboard(null);
+        setDashboardError(error instanceof Error ? error.message : 'The dashboard is not available');
+      })
+      .finally(() => {
+        if (!cancelled) setDashboardLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeOrg, trendFrom, trendTo]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const from = params.get('from');
+    const to = params.get('to');
+    if (from) setTrendFrom(from);
+    if (to) setTrendTo(to);
+  }, []);
 
   const switchOrg = useCallback(
     async (organizationId: string) => {
@@ -279,11 +426,6 @@ export default function OverviewPage() {
     toastLater('Search');
   }
 
-  function onAskSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    toastLater('Clerk');
-  }
-
   if (!user) {
     return (
       <main className="app-loading">
@@ -296,6 +438,16 @@ export default function OverviewPage() {
   const orgName = activeOrg?.organizationName ?? membership?.organizationName ?? '';
   const role = activeOrg?.role ?? membership?.role ?? '';
   const roleLabel = role.charAt(0) + role.slice(1).toLowerCase();
+
+  const cashChange = dashboard
+    ? dashboard.cash.accounts.reduce((sum, account) => sum + account.netChange, 0)
+    : 0;
+  const trendActive = (days: number) => trendFrom === shiftDate(trendTo, -(days - 1));
+  const attentionCount = dashboard
+    ? dashboard.attention.overdueInvoices +
+      dashboard.attention.overdueBills +
+      dashboard.attention.unmatchedBankTransactions
+    : 0;
 
   return (
     <>
@@ -485,26 +637,6 @@ export default function OverviewPage() {
               </svg>
               Reports
             </a>
-            <a
-              className="nav__item"
-              href="#"
-              id="nav-clerk-link"
-              aria-label="Clerk, 2 pending approvals"
-              onClick={(event) => {
-                event.preventDefault();
-                setSpineOpen(false);
-                toastLater('Clerk');
-              }}
-            >
-              <svg className="icon nav__icon" viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M12 20h9" />
-                <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
-              </svg>
-              Clerk
-              <span className="nav__badge" id="nav-approval-count">
-                2
-              </span>
-            </a>
           </nav>
 
           <div className="spine__foot">
@@ -575,20 +707,13 @@ export default function OverviewPage() {
             <div className="topbar__right">
               <button
                 className="btn btn--outline btn--sm clerk-toggle"
-                id="clerk-toggle"
+                id="period-toggle"
                 type="button"
                 aria-controls="margin"
                 aria-expanded={marginOpen}
                 onClick={() => setMarginOpen((open) => !open)}
               >
-                <svg className="icon icon--sm" viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M12 20h9" />
-                  <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
-                </svg>
-                <span>Clerk</span>
-                <span className="clerk-toggle__count" id="clerk-approval-count">
-                  2
-                </span>
+                <span>Period</span>
               </button>
             </div>
           </header>
@@ -598,25 +723,28 @@ export default function OverviewPage() {
               <div>
                 <h1>Overview</h1>
                 <p className="page-head__meta">
-                  {orgName} Fiscal year 2026. {todayLine()}.
+                  {orgName} ·{' '}
+                  {dashboard
+                    ? `${longDate(dashboard.from)} – ${longDate(dashboard.to)}`
+                    : 'Reading the ledger'}{' '}
+                  · {todayLine()}.
                 </p>
               </div>
               <div className="page-head__actions">
                 <a className="btn btn--outline" href="/reconcile">
                   Reconcile checking
                 </a>
-                <a
-                  className="btn btn--primary"
-                  href="#"
-                  onClick={(event) => {
-                    event.preventDefault();
-                    toastLater('New invoice');
-                  }}
-                >
+                <a className="btn btn--primary" href="/invoices">
                   New invoice
                 </a>
               </div>
             </header>
+
+            {dashboardError ? (
+              <p className="members__error" role="alert">
+                {dashboardError}
+              </p>
+            ) : null}
 
             <section className="cash" aria-labelledby="cash-title">
               <div className="cash__head">
@@ -624,223 +752,269 @@ export default function OverviewPage() {
                   <h2 className="cash__title" id="cash-title">
                     Cash across accounts
                   </h2>
-                  <p className="cash__sub">Checking and savings, last 30 days</p>
+                  <p className="cash__sub">
+                    {dashboard
+                      ? `As of ${longDate(dashboard.to)} · ${dashboard.cash.accounts.length} ${
+                          dashboard.cash.accounts.length === 1 ? 'account' : 'accounts'
+                        }`
+                      : 'Reading balances'}
+                  </p>
                 </div>
                 <div className="cash__aside">
-                  <div className="cash__figure">$84,290.16</div>
-                  <div className="cash__delta">Up $6,210.00 this month</div>
-                  <div className="range" aria-label="Chart range">
-                    {(['30', '90', '365'] as const).map((value) => (
-                      <button
-                        key={value}
-                        type="button"
-                        aria-pressed={range === value}
-                        onClick={() => setRange(value)}
-                      >
-                        {value === '30' ? '30 days' : value === '90' ? '90 days' : 'Year'}
-                      </button>
-                    ))}
+                  <a
+                    className="cash__figure"
+                    href={`/reports?tab=cash-flow&from=${trendFrom}&to=${trendTo}`}
+                  >
+                    {dashboard ? money(dashboard.cash.total) : '—'}
+                  </a>
+                  <div
+                    className={`cash__delta${cashChange < 0 ? ' is-negative' : ''}`}
+                    aria-live="polite"
+                  >
+                    {!dashboard
+                      ? '…'
+                      : cashChange === 0
+                        ? 'No movement in this period'
+                        : `${cashChange > 0 ? 'Up' : 'Down'} ${money(
+                            Math.abs(cashChange),
+                          )} this period`}
                   </div>
                 </div>
               </div>
 
               <div className="cash__chart">
-                <svg
-                  className="chart"
-                  viewBox="0 0 760 240"
-                  role="img"
-                  aria-label="Cash balance rose from $78,080 on October 16 to $84,290 on November 13, with a dip around November 3."
-                >
-                  <line className="chart__grid" x1="20" y1="42.5" x2="740" y2="42.5" />
-                  <line className="chart__grid" x1="20" y1="87.5" x2="740" y2="87.5" />
-                  <line className="chart__grid" x1="20" y1="132.5" x2="740" y2="132.5" />
-                  <line className="chart__grid" x1="20" y1="177.5" x2="740" y2="177.5" />
-
-                  <path
-                    className="chart__area"
-                    d="M20,175.7 L45.7,170.3 L71.4,174.8 L97.1,154.1 L122.9,141.5 L148.6,149.6 L174.3,129.8 L200,121.7 L225.7,128.9 L251.4,135.2 L277.1,118.1 L302.9,105.5 L328.6,111.8 L354.3,99.2 L380,107.3 L405.7,115.4 L431.4,149.6 L457.1,135.2 L482.9,119.9 L508.6,109.1 L534.3,93.8 L560,83.4 L585.7,88.8 L611.4,73.1 L637.1,60.5 L662.9,67.7 L688.6,52.8 L714.3,42.3 L740,36 L740,200 L20,200 Z"
-                  />
-
-                  <path
-                    className="chart__line"
-                    pathLength="1"
-                    d="M20,175.7 L45.7,170.3 L71.4,174.8 L97.1,154.1 L122.9,141.5 L148.6,149.6 L174.3,129.8 L200,121.7 L225.7,128.9 L251.4,135.2 L277.1,118.1 L302.9,105.5 L328.6,111.8 L354.3,99.2 L380,107.3 L405.7,115.4 L431.4,149.6 L457.1,135.2 L482.9,119.9 L508.6,109.1 L534.3,93.8 L560,83.4 L585.7,88.8 L611.4,73.1 L637.1,60.5 L662.9,67.7 L688.6,52.8 L714.3,42.3 L740,36"
-                  />
-
-                  <line className="chart__today" x1="740" y1="20" x2="740" y2="200" />
-                  <circle className="chart__end" cx="740" cy="36" r="4.5" />
-                  <circle className="chart__marker" cx="431.4" cy="149.6" r="3.5" />
-
-                  <text x="740" y="26" textAnchor="end" className="chart__label">
-                    $84,290
-                  </text>
-                  <text x="431" y="168" textAnchor="middle" className="chart__annotation">
-                    Payroll, Nov 3
-                  </text>
-                  <text x="20" y="224" textAnchor="start">
-                    Oct 16
-                  </text>
-                  <text x="380" y="224" textAnchor="middle">
-                    Nov 1
-                  </text>
-                  <text x="740" y="224" textAnchor="end">
-                    Nov 13
-                  </text>
-                </svg>
+                {dashboard && dashboard.cash.accounts.length > 0 ? (
+                  <table className="data-table dashboard-cash-table">
+                    <caption className="sr-only">
+                      Cash balances by ledger account as of the selected date
+                    </caption>
+                    <thead>
+                      <tr>
+                        <th scope="col">Account</th>
+                        <th scope="col">Ledger</th>
+                        <th scope="col" className="num">
+                          Balance
+                        </th>
+                        <th scope="col" className="num">
+                          Change in period
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {dashboard.cash.accounts.map((account) => (
+                        <tr key={account.id}>
+                          <td>
+                            <a
+                              className="invoice-link"
+                              href={`/ledger?account=${account.id}&from=${trendFrom}&to=${trendTo}`}
+                            >
+                              {account.name}
+                            </a>
+                          </td>
+                          <td className="muted">{account.code}</td>
+                          <td className="num">{money(account.balance)}</td>
+                          <td className={`num${account.netChange < 0 ? ' is-negative' : ''}`}>
+                            {money(account.netChange)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <p className="empty">
+                    {dashboard ? 'No cash accounts are linked yet.' : 'Reading balances…'}
+                  </p>
+                )}
               </div>
 
               <div className="stats">
                 <div className="stat">
-                  <div className="stat__label">Income this month</div>
-                  <div className="stat__value">$51,040.00</div>
+                  <div className="stat__label">
+                    <a className="link" href="/reports/ar-aging">
+                      Receivables
+                    </a>
+                  </div>
+                  <div className="stat__value">
+                    {dashboard ? money(dashboard.receivables.total) : '—'}
+                  </div>
+                  <div className="stat__meta">
+                    {dashboard
+                      ? `${money(dashboard.receivables.overdue)} overdue · ${
+                          dashboard.receivables.openCount
+                        } open`
+                      : '—'}
+                  </div>
                 </div>
                 <div className="stat">
-                  <div className="stat__label">Expenses this month</div>
-                  <div className="stat__value">$25,564.00</div>
+                  <div className="stat__label">
+                    <a className="link" href="/reports/ap-aging">
+                      Payables
+                    </a>
+                  </div>
+                  <div className="stat__value">
+                    {dashboard ? money(dashboard.payables.total) : '—'}
+                  </div>
+                  <div className="stat__meta">
+                    {dashboard
+                      ? `${money(dashboard.payables.overdue)} overdue · ${
+                          dashboard.payables.openCount
+                        } open`
+                      : '—'}
+                  </div>
                 </div>
                 <div className="stat">
-                  <div className="stat__label">Net income</div>
-                  <div className="stat__value is-positive">$19,356.00</div>
-                </div>
-              </div>
-            </section>
-
-            <section className="section" aria-labelledby="attention-title">
-              <div className="section__head">
-                <h2 className="section__title" id="attention-title">
-                  Needs your attention
-                </h2>
-                <span className="section__meta">3 items</span>
-              </div>
-              <div className="attention">
-                <div className="attention__item">
-                  <span className="dot dot--red"></span>
-                  <div>
-                    <div className="attention__title">Invoice #1042 is 12 days overdue</div>
-                    <div className="attention__meta">Northwind Supply</div>
-                  </div>
-                  <div className="attention__amount">$4,800.00</div>
-                  <div className="attention__action">
+                  <div className="stat__label">
                     <a
-                      className="btn btn--ghost btn--sm"
-                      href="#"
-                      onClick={(event) => {
-                        event.preventDefault();
-                        toastLater('Invoices');
-                      }}
+                      className="link"
+                      href={`/reports?tab=profit-loss&from=${trendFrom}&to=${trendTo}`}
                     >
-                      Review invoice
+                      Net income
                     </a>
                   </div>
-                </div>
-                <div className="attention__item">
-                  <span className="dot dot--amber"></span>
-                  <div>
-                    <div className="attention__title">
-                      Three transactions from your Nov 12 import need a category
-                    </div>
-                    <div className="attention__meta">Checking 2480</div>
+                  <div
+                    className={`stat__value${
+                      dashboard && dashboard.trend.netIncome < 0
+                        ? ' is-negative'
+                        : dashboard
+                          ? ' is-positive'
+                          : ''
+                    }`}
+                  >
+                    {dashboard ? money(dashboard.trend.netIncome) : '—'}
                   </div>
-                  <div className="attention__amount">+$1,260.00</div>
-                  <div className="attention__action">
-                    <a className="btn btn--ghost btn--sm" href="/banking">
-                      Open banking
-                    </a>
-                  </div>
-                </div>
-                <div className="attention__item">
-                  <span className="dot dot--amber"></span>
-                  <div>
-                    <div className="attention__title">Bill #2210 from Halden Paper is due Friday</div>
-                    <div className="attention__meta">Halden Paper</div>
-                  </div>
-                  <div className="attention__amount">$2,843.00</div>
-                  <div className="attention__action">
-                    <a
-                      className="btn btn--ghost btn--sm"
-                      href="#"
-                      onClick={(event) => {
-                        event.preventDefault();
-                        toastLater('Purchases');
-                      }}
-                    >
-                      Review payment
-                    </a>
+                  <div className="stat__meta">
+                    {dashboard
+                      ? `${money(dashboard.trend.totalIncome)} income − ${money(
+                          dashboard.trend.totalExpenses,
+                        )} expenses`
+                      : '—'}
                   </div>
                 </div>
               </div>
             </section>
 
-            <section className="section" aria-labelledby="register-title">
+            <section className="section" aria-labelledby="trend-title">
               <div className="section__head">
-                <h2 className="section__title" id="register-title">
-                  Checking 2480, recent activity
-                </h2>
-                <a className="link" href="/banking">
-                  Open banking
+                <div>
+                  <h2 className="section__title" id="trend-title">
+                    Income vs expenses
+                  </h2>
+                  <p className="section__meta">
+                    {dashboard
+                      ? `${longDate(dashboard.from)} – ${longDate(dashboard.to)}`
+                      : 'Reading the ledger'}
+                  </p>
+                </div>
+                <a
+                  className="link"
+                  href={`/reports?tab=profit-loss&from=${trendFrom}&to=${trendTo}`}
+                >
+                  Open profit &amp; loss
                 </a>
+              </div>
+              <div className="statement-controls dashboard-controls">
+                <label>
+                  From
+                  <input
+                    type="date"
+                    aria-label="From date"
+                    value={trendFrom}
+                    onChange={(event) => setTrendFrom(event.target.value)}
+                  />
+                </label>
+                <label>
+                  To
+                  <input
+                    type="date"
+                    aria-label="To date"
+                    value={trendTo}
+                    onChange={(event) => setTrendTo(event.target.value)}
+                  />
+                </label>
+                <div className="range" aria-label="Trend range">
+                  {[30, 90, 365].map((days) => (
+                    <button
+                      key={days}
+                      type="button"
+                      aria-pressed={trendActive(days)}
+                      onClick={() => setTrendFrom(shiftDate(trendTo, -(days - 1)))}
+                    >
+                      {days === 30 ? '30 days' : days === 90 ? '90 days' : 'Year'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {dashboard && dashboard.trend.buckets.some((bucket) => bucket.income > 0 || bucket.expenses > 0) ? (
+                <div className="cash__chart trend-shell">
+                  <div className="trend-legend">
+                    <span>
+                      <i className="trend-swatch trend-swatch--income" /> Income
+                    </span>
+                    <span>
+                      <i className="trend-swatch trend-swatch--expense" /> Expenses
+                    </span>
+                  </div>
+                  <TrendBars buckets={dashboard.trend.buckets} />
+                </div>
+              ) : (
+                <p className="empty">
+                  {dashboardLoading ? 'Reading the ledger…' : 'No income or expense posted in this period.'}
+                </p>
+              )}
+            </section>
+
+            <section className="section" aria-labelledby="recent-title">
+              <div className="section__head">
+                <h2 className="section__title" id="recent-title">
+                  Recent activity
+                </h2>
+                <span className="section__meta">
+                  {dashboard ? `${longDate(dashboard.from)} – ${longDate(dashboard.to)}` : ''}
+                </span>
               </div>
               <div className="table-scroll">
                 <table className="data-table">
                   <caption className="sr-only">
-                    Recent activity in checking account 2480 with running balance
+                    Recent invoices, bills, expenses, and payments in the selected period
                   </caption>
                   <thead>
                     <tr>
                       <th scope="col">Date</th>
-                      <th scope="col">Description</th>
-                      <th scope="col">Account</th>
+                      <th scope="col">Document</th>
+                      <th scope="col">Party</th>
+                      <th scope="col">Type</th>
                       <th scope="col" className="num">
                         Amount
-                      </th>
-                      <th scope="col" className="num balance">
-                        Balance
                       </th>
                     </tr>
                   </thead>
                   <tbody>
-                    <tr>
-                      <td>Nov 12</td>
-                      <td>ACME WIRE 4471</td>
-                      <td>Invoice #1038 payment</td>
-                      <td className="num">+$1,000.00</td>
-                      <td className="num balance">$65,890.16</td>
-                    </tr>
-                    <tr>
-                      <td>Nov 12</td>
-                      <td>CHECK 2041</td>
-                      <td>Invoice #1041 payment</td>
-                      <td className="num">+$160.00</td>
-                      <td className="num balance">$64,890.16</td>
-                    </tr>
-                    <tr>
-                      <td>Nov 11</td>
-                      <td>CARD CREDIT</td>
-                      <td>Halden Paper refund</td>
-                      <td className="num">+$100.00</td>
-                      <td className="num balance">$64,730.16</td>
-                    </tr>
-                    <tr>
-                      <td>Nov 10</td>
-                      <td>BANK FEE</td>
-                      <td>Bank fees</td>
-                      <td className="num">−$18.00</td>
-                      <td className="num balance">$64,630.16</td>
-                    </tr>
-                    <tr>
-                      <td>Nov 9</td>
-                      <td>PAYROLL NOV</td>
-                      <td>Payroll expense</td>
-                      <td className="num">−$8,400.00</td>
-                      <td className="num balance">$64,648.16</td>
-                    </tr>
-                    <tr>
-                      <td>Nov 8</td>
-                      <td>RENT NOV</td>
-                      <td>Rent expense</td>
-                      <td className="num">−$4,200.00</td>
-                      <td className="num balance">$73,048.16</td>
-                    </tr>
+                    {dashboard && dashboard.recentActivity.length > 0 ? (
+                      dashboard.recentActivity.map((row) => (
+                        <tr key={`${row.type}-${row.id}`}>
+                          <td>{shortDate(row.date)}</td>
+                          <td>
+                            <a className="invoice-link" href={row.href}>
+                              {row.number}
+                            </a>
+                          </td>
+                          <td>{row.party ?? '—'}</td>
+                          <td>
+                            <span className="activity-type">{ACTIVITY_LABELS[row.type]}</span>
+                            <span className="muted"> · {row.status}</span>
+                          </td>
+                          <td className="num">{money(row.amount)}</td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={5} className="accounts-empty">
+                          {dashboardLoading
+                            ? 'Reading the ledger…'
+                            : 'No activity in this period.'}
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -848,23 +1022,17 @@ export default function OverviewPage() {
           </main>
         </div>
 
-        <aside className={`margin${marginOpen ? ' is-open' : ''}`} id="margin" aria-label="Clerk">
+        <aside className={`margin${marginOpen ? ' is-open' : ''}`} id="margin" aria-label="Period summary">
           <div className="margin__head">
-            <span className="msg__icon" aria-hidden="true">
-              <svg className="icon icon--sm" viewBox="0 0 24 24">
-                <path d="M12 20h9" />
-                <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
-              </svg>
-            </span>
-            <h2 className="margin__title">Clerk</h2>
+            <h2 className="margin__title">Period</h2>
             <span className="margin__status">
-              <span className="dot dot--green"></span>Ready
+              {dashboard ? `${shortDate(dashboard.from)} – ${shortDate(dashboard.to)}` : ''}
             </span>
             <button
               className="icon-btn margin__close"
               id="close-margin"
               type="button"
-              aria-label="Close clerk"
+              aria-label="Close period summary"
               onClick={() => setMarginOpen(false)}
             >
               <svg className="icon icon--sm" viewBox="0 0 24 24" aria-hidden="true">
@@ -873,130 +1041,110 @@ export default function OverviewPage() {
             </button>
           </div>
 
-          {approvalNoteOpen ? (
-            <div className="margin-note">
-              <div className="margin-note__kicker">
-                <span className="dot dot--red"></span>Needs your approval
-              </div>
-              <p className="margin-note__body">
-                Northwind Supply is <strong>12 days overdue</strong>. I drafted a reminder that
-                links to invoice #1042.
-              </p>
-              <div className="margin-note__actions">
-                <a
-                  className="btn btn--primary btn--sm"
-                  href="#"
-                  onClick={(event) => {
-                    event.preventDefault();
-                    toastLater('Approvals');
-                  }}
-                >
-                  Review draft
-                </a>
-                <button
-                  className="btn btn--ghost btn--sm"
-                  type="button"
-                  onClick={() => {
-                    setApprovalNoteOpen(false);
-                    showToast('Dismissed for now.');
-                  }}
-                >
-                  Not now
-                </button>
-              </div>
+          <div className="margin-note">
+            <div className={`margin-note__kicker${attentionCount === 0 ? ' margin-note__kicker--quiet' : ''}`}>
+              {attentionCount > 0 ? (
+                <>
+                  <span className="dot dot--red"></span>Needs attention
+                </>
+              ) : (
+                'All clear'
+              )}
             </div>
-          ) : null}
+            {dashboard && attentionCount > 0 ? (
+              <div className="mini-list">
+                {dashboard.attention.overdueInvoices > 0 ? (
+                  <a className="mini-row" href="/reports/ar-aging">
+                    <span>
+                      <span className="mini-row__title">Overdue invoices</span>
+                      <span className="mini-row__meta">Open receivables past due</span>
+                    </span>
+                    <span className="mini-row__count">
+                      {dashboard.attention.overdueInvoices}
+                    </span>
+                  </a>
+                ) : null}
+                {dashboard.attention.overdueBills > 0 ? (
+                  <a className="mini-row" href="/reports/ap-aging">
+                    <span>
+                      <span className="mini-row__title">Overdue bills</span>
+                      <span className="mini-row__meta">Open payables past due</span>
+                    </span>
+                    <span className="mini-row__count">{dashboard.attention.overdueBills}</span>
+                  </a>
+                ) : null}
+                {dashboard.attention.unmatchedBankTransactions > 0 ? (
+                  <a className="mini-row" href="/banking">
+                    <span>
+                      <span className="mini-row__title">Unmatched bank activity</span>
+                      <span className="mini-row__meta">Imported transactions to resolve</span>
+                    </span>
+                    <span className="mini-row__count">
+                      {dashboard.attention.unmatchedBankTransactions}
+                    </span>
+                  </a>
+                ) : null}
+              </div>
+            ) : (
+              <p className="margin-note__body">
+                {dashboard ? 'All clear for this period.' : 'Reading the ledger…'}
+              </p>
+            )}
+          </div>
 
           <div className="margin-note">
-            <div className="margin-note__kicker margin-note__kicker--quiet">Scheduled</div>
+            <div className="margin-note__kicker margin-note__kicker--quiet">This period</div>
             <div className="mini-list">
-              <div className="mini-row">
-                <div>
-                  <div className="mini-row__title">Weekly cash flow summary</div>
-                  <div className="mini-row__meta">Mondays at 9:00</div>
-                </div>
-                <button
-                  className="switch"
-                  type="button"
-                  role="switch"
-                  aria-checked={weeklySummary}
-                  aria-label="Pause weekly cash flow summary"
-                  onClick={() => {
-                    const next = !weeklySummary;
-                    setWeeklySummary(next);
-                    showToast(
-                      next
-                        ? 'Weekly cash flow summary resumed.'
-                        : 'Weekly cash flow summary paused.',
-                    );
-                  }}
-                ></button>
-              </div>
-              <div className="mini-row">
-                <div>
-                  <div className="mini-row__title">Overdue reminders</div>
-                  <div className="mini-row__meta">When an invoice is 7 days late</div>
-                </div>
-                <button
-                  className="switch"
-                  type="button"
-                  role="switch"
-                  aria-checked={overdueReminders}
-                  aria-label="Pause overdue reminders"
-                  onClick={() => {
-                    const next = !overdueReminders;
-                    setOverdueReminders(next);
-                    showToast(next ? 'Overdue reminders resumed.' : 'Overdue reminders paused.');
-                  }}
-                ></button>
-              </div>
-            </div>
-            <div className="margin__foot">
               <a
-                className="link"
-                href="#"
-                onClick={(event) => {
-                  event.preventDefault();
-                  toastLater('Automations');
-                }}
+                className="mini-row"
+                href={`/reports?tab=profit-loss&from=${trendFrom}&to=${trendTo}`}
               >
-                Manage automations
+                <span className="mini-row__title">Income</span>
+                <span className="mini-row__amount">
+                  {dashboard ? money(dashboard.trend.totalIncome) : '—'}
+                </span>
+              </a>
+              <a
+                className="mini-row"
+                href={`/reports?tab=profit-loss&from=${trendFrom}&to=${trendTo}`}
+              >
+                <span className="mini-row__title">Expenses</span>
+                <span className="mini-row__amount">
+                  {dashboard ? money(dashboard.trend.totalExpenses) : '—'}
+                </span>
+              </a>
+              <a
+                className="mini-row"
+                href={`/reports?tab=profit-loss&from=${trendFrom}&to=${trendTo}`}
+              >
+                <span className="mini-row__title">Net income</span>
+                <span className="mini-row__amount">
+                  {dashboard ? money(dashboard.trend.netIncome) : '—'}
+                </span>
               </a>
             </div>
           </div>
 
           <div className="margin-note">
-            <div className="margin-note__kicker margin-note__kicker--quiet">Ask the clerk</div>
-            <form className="ask" id="ask-clerk-form" onSubmit={onAskSubmit}>
-              <label className="sr-only" htmlFor="ask-clerk-input">
-                Ask the clerk about your books
-              </label>
-              <div className="ask__row">
-                <input
-                  id="ask-clerk-input"
-                  name="ask"
-                  type="text"
-                  placeholder="Ask about your books"
-                  autoComplete="off"
-                />
-                <button className="btn btn--primary btn--sm" type="submit">
-                  Ask
-                </button>
-              </div>
-            </form>
-          </div>
-
-          <div className="margin__foot">
-            <a
-              className="link"
-              href="#"
-              onClick={(event) => {
-                event.preventDefault();
-                toastLater('Agent activity');
-              }}
-            >
-              View activity
-            </a>
+            <div className="margin-note__kicker margin-note__kicker--quiet">Jump to</div>
+            <div className="mini-list">
+              <a className="mini-row" href={`/reports?tab=profit-loss&from=${trendFrom}&to=${trendTo}`}>
+                <span className="mini-row__title">Profit &amp; loss</span>
+                <span className="mini-row__meta">Statement</span>
+              </a>
+              <a className="mini-row" href="/reports/ar-aging">
+                <span className="mini-row__title">AR aging</span>
+                <span className="mini-row__meta">Receivables</span>
+              </a>
+              <a className="mini-row" href="/reports/ap-aging">
+                <span className="mini-row__title">AP aging</span>
+                <span className="mini-row__meta">Payables</span>
+              </a>
+              <a className="mini-row" href="/banking">
+                <span className="mini-row__title">Banking</span>
+                <span className="mini-row__meta">Activity and matching</span>
+              </a>
+            </div>
           </div>
         </aside>
       </div>

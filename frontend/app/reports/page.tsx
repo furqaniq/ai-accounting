@@ -110,6 +110,22 @@ export default function ReportsPage() {
   const [error, setError] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
   const [exporting, setExporting] = useState<ReportExportFormat | null>(null);
+  const [queryReady, setQueryReady] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tabParam = params.get('tab');
+    if (tabParam && tabParam in TAB_LABELS) {
+      setTab(tabParam as ReportTab);
+    }
+    const fromParam = params.get('from');
+    const toParam = params.get('to');
+    const asOfParam = params.get('asOf');
+    if (fromParam) setFrom(fromParam);
+    if (toParam) setTo(toParam);
+    if (asOfParam) setAsOf(asOfParam);
+    setQueryReady(true);
+  }, []);
 
   useEffect(() => {
     const token = getAccessToken();
@@ -147,7 +163,7 @@ export default function ReportsPage() {
   }, [router]);
 
   useEffect(() => {
-    if (!org) return;
+    if (!org || !queryReady) return;
     let cancelled = false;
     setLoading(true);
     const load = async (): Promise<Report> => {
@@ -188,7 +204,7 @@ export default function ReportsPage() {
     return () => {
       cancelled = true;
     };
-  }, [org, tab, from, to, asOf]);
+  }, [org, tab, from, to, asOf, queryReady]);
 
   const periodTab = !(tab === 'balance-sheet' || tab === 'trial-balance');
   const analysisTab = ANALYSIS_KEYS.has(tab);
