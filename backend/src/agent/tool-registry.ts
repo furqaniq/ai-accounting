@@ -162,6 +162,7 @@ interface ToolDefinition {
   description: string;
   permission: Permission;
   readOnly: boolean;
+  sensitive: boolean;
   policy: ToolPolicy;
   dto: new () => object;
   parameters: Record<string, unknown>;
@@ -172,6 +173,7 @@ interface ToolDefinition {
 export interface AgentTool extends AgentToolDeclaration {
   permission: Permission;
   readOnly: boolean;
+  sensitive: boolean;
   policy: ToolPolicy;
 }
 
@@ -224,6 +226,7 @@ export class ToolRegistry {
           'Read-only snapshot of the organization: cash, receivables, payables, income/expense trend, and attention counts. Use for natural-language questions about the books.',
         permission: 'reports:read',
         readOnly: true,
+        sensitive: false,
         policy: 'auto',
         dto: InsightQueryArgs,
         parameters: {
@@ -266,6 +269,7 @@ export class ToolRegistry {
           'Generate one read-only report: profit-loss, balance-sheet, cash-flow, trial-balance, sales-by-customer, sales-by-item, expenses-by-category, ar-aging, or ap-aging.',
         permission: 'reports:read',
         readOnly: true,
+        sensitive: false,
         policy: 'auto',
         dto: ReportGenerateArgs,
         parameters: {
@@ -312,6 +316,7 @@ export class ToolRegistry {
           'Propose a new DRAFT sales invoice. The invoice is created only after an Owner or Admin approves the proposal. Supply customerId or customerName and each line by itemId, itemCode, or itemName.',
         permission: 'invoices:manage',
         readOnly: false,
+        sensitive: true,
         policy: 'approve',
         dto: InvoiceCreateArgs,
         parameters: {
@@ -362,6 +367,14 @@ export class ToolRegistry {
     return this.tools
       .filter((tool) => hasPermission(role, tool.permission))
       .map((tool) => this.toAgentTool(tool));
+  }
+
+  /**
+   * Every registered tool, independent of the caller's role. Policy
+   * configuration needs the full catalog; execution always re-checks role.
+   */
+  listAll(): AgentTool[] {
+    return this.tools.map((tool) => this.toAgentTool(tool));
   }
 
   declarationsForRole(role: Role | string): AgentToolDeclaration[] {
@@ -571,6 +584,7 @@ export class ToolRegistry {
       parameters: tool.parameters,
       permission: tool.permission,
       readOnly: tool.readOnly,
+      sensitive: tool.sensitive,
       policy: tool.policy,
     };
   }

@@ -2848,3 +2848,44 @@ export async function rejectAgentProposal(
   if (!res.ok) throw new Error(await failureMessage(res, 'Could not reject that proposal'));
   return res.json();
 }
+
+export type AgentPolicyMode = 'auto' | 'approve';
+
+export interface AgentPolicyView {
+  id: string | null;
+  toolName: string;
+  description: string;
+  permission: string;
+  readOnly: boolean;
+  sensitive: boolean;
+  configurable: boolean;
+  defaultPolicy: AgentPolicyMode;
+  policy: AgentPolicyMode;
+  updatedAt: string | null;
+  updatedBy: { id: string; name: string; email: string } | null;
+}
+
+export async function fetchAgentPolicies(
+  organizationId: string,
+): Promise<AgentPolicyView[]> {
+  const res = await fetch(`${API_URL}/agent/policies`, {
+    headers: authHeaders(organizationId),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Agent policies are not available'));
+  const body = (await res.json()) as { policies: AgentPolicyView[] };
+  return body.policies;
+}
+
+export async function updateAgentPolicy(
+  organizationId: string,
+  toolName: string,
+  policy: AgentPolicyMode,
+): Promise<AgentPolicyView> {
+  const res = await fetch(`${API_URL}/agent/policies/${encodeURIComponent(toolName)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...authHeaders(organizationId) },
+    body: JSON.stringify({ policy }),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not save that policy'));
+  return res.json();
+}

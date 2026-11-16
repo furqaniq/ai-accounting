@@ -1,5 +1,6 @@
 import {
   IsEnum,
+  IsIn,
   IsInt,
   IsNotEmpty,
   IsOptional,
@@ -70,4 +71,9 @@ export class RejectAgentProposalDto {
   @IsString()
   @MaxLength(1000)
   reason?: string;
+}
+
+export class UpdateAgentPolicyDto {
+  @IsIn(['auto', 'approve'])
+  policy!: 'auto' | 'approve';
 }

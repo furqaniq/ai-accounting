@@ -56,6 +56,7 @@ model Organization {
   agentJobs              AgentJob[]
   agentActionLogs        AgentActionLog[]
   agentProposals         AgentProposal[]
+  agentToolPolicies      AgentToolPolicy[]
 }
 
 model Account {
@@ -690,19 +691,20 @@ model TimeEntry {
 }
 
 model User {
-  id              String           @id @default(cuid())
-  email           String           @unique
-  name            String
-  passwordHash    String
-  createdAt       DateTime         @default(now())
-  memberships     OrgMembership[]
-  refreshTokens   RefreshToken[]
-  auditLog        AuditLogEntry[]
-  timeEntries     TimeEntry[]
-  agentJobs       AgentJob[]
-  agentActionLogs AgentActionLog[]
-  requestedAgentProposals AgentProposal[] @relation("AgentProposalRequester")
-  decidedAgentProposals   AgentProposal[] @relation("AgentProposalDecider")
+  id                       String            @id @default(cuid())
+  email                    String            @unique
+  name                     String
+  passwordHash             String
+  createdAt                DateTime          @default(now())
+  memberships              OrgMembership[]
+  refreshTokens            RefreshToken[]
+  auditLog                 AuditLogEntry[]
+  timeEntries              TimeEntry[]
+  agentJobs                AgentJob[]
+  agentActionLogs          AgentActionLog[]
+  requestedAgentProposals  AgentProposal[]   @relation("AgentProposalRequester")
+  decidedAgentProposals    AgentProposal[]   @relation("AgentProposalDecider")
+  updatedAgentToolPolicies AgentToolPolicy[] @relation("AgentToolPolicyUpdater")
 }
 
 model OrgMembership {
@@ -768,24 +770,24 @@ enum AgentProposalStatus {
 }
 
 model AgentJob {
-  id             String         @id @default(cuid())
+  id             String          @id @default(cuid())
   organizationId String
   userId         String
   role           Role
-  trigger        AgentTrigger   @default(PROMPT)
+  trigger        AgentTrigger    @default(PROMPT)
   prompt         String
   model          String
-  status         AgentJobStatus @default(QUEUED)
-  attempts       Int            @default(0)
-  maxAttempts    Int            @default(3)
+  status         AgentJobStatus  @default(QUEUED)
+  attempts       Int             @default(0)
+  maxAttempts    Int             @default(3)
   response       String?
   error          String?
   toolNames      Json?
   logReference   String?
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   proposals      AgentProposal[]
 
   @@index([organizationId, createdAt])
@@ -817,6 +819,26 @@ model AgentProposal {
 
   @@index([organizationId, status, createdAt])
   @@index([organizationId, jobId])
+}
+
+enum AgentToolPolicyMode {
+  AUTO
+  APPROVE
+}
+
+model AgentToolPolicy {
+  id              String              @id @default(cuid())
+  organizationId  String
+  toolName        String
+  policy          AgentToolPolicyMode
+  updatedByUserId String?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  organization    Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  updatedBy       User?               @relation("AgentToolPolicyUpdater", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, toolName])
+  @@index([organizationId])
 }
 
 model AgentActionLog {

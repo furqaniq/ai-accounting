@@ -115,16 +115,29 @@ describe('ToolRegistry', () => {
       'insight.query',
       'report.generate',
     ]);
-    expect(viewerTools.every((tool) => tool.readOnly && tool.policy === 'auto')).toBe(true);
+    expect(
+      viewerTools.every((tool) => tool.readOnly && !tool.sensitive && tool.policy === 'auto'),
+    ).toBe(true);
 
     const staffTools = registry().tools.listForRole('STAFF');
     expect(staffTools.map((tool) => tool.name)).toContain('invoice.create');
     expect(staffTools.find((tool) => tool.name === 'invoice.create')).toMatchObject({
       readOnly: false,
+      sensitive: true,
       policy: 'approve',
       permission: 'invoices:manage',
     });
     expect(registry().tools.listForRole('NOPE')).toEqual([]);
+  });
+
+  it('exposes every registered tool for policy configuration', () => {
+    const all = registry().tools.listAll();
+    expect(all.map((tool) => tool.name).sort()).toEqual([
+      'insight.query',
+      'invoice.create',
+      'report.generate',
+    ]);
+    expect(all.filter((tool) => !tool.readOnly).every((tool) => tool.sensitive)).toBe(true);
   });
 
   it('rejects unknown tools', async () => {

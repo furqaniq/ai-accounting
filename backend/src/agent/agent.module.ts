@@ -6,6 +6,7 @@ import { TenantModule } from '../tenant/tenant.module';
 import { AgentController } from './agent.controller';
 import { AgentJobsService } from './agent-jobs.service';
 import { AgentLogService } from './agent-log.service';
+import { AgentPolicyService } from './agent-policy.service';
 import { AgentQueueService } from './agent-queue.service';
 import { AgentRunnerService } from './agent-runner.service';
 import { AiProviderService } from './ai-provider.service';
@@ -21,6 +22,7 @@ import { ToolRegistry } from './tool-registry';
     AgentJobsService,
     AiProviderService,
     ToolRegistry,
+    AgentPolicyService,
     ApprovalService,
     AgentOrchestrator,
     AgentRunnerService,

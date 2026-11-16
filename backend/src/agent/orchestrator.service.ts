@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { AgentJob, AgentJobStatus, Role } from '@prisma/client';
 import { AgentLogService } from './agent-log.service';
+import { AgentPolicyService } from './agent-policy.service';
 import { AiProviderService } from './ai-provider.service';
 import { ApprovalService } from './approval.service';
 import { resolveAgentModel } from './model-catalog';
@@ -25,6 +26,7 @@ export class AgentOrchestrator {
     private readonly registry: ToolRegistry,
     private readonly logs: AgentLogService,
     private readonly approvals: ApprovalService,
+    private readonly policies: AgentPolicyService,
   ) {}
 
   async run(job: AgentJob): Promise<AgentRunResult> {
@@ -34,6 +36,7 @@ export class AgentOrchestrator {
     const toolResults: AgentToolResult[] = [];
     const toolNames: string[] = [];
     const proposalIds: string[] = [];
+    const autoExecuted: string[] = [];
     let response = '';
 
     for (let round = 0; round < MAX_ROUNDS; round += 1) {
@@ -67,7 +70,11 @@ export class AgentOrchestrator {
           throw new BadRequestException(`Unknown tool: ${call.name}`);
         }
 
-        if (tool.policy === 'approve' || !tool.readOnly) {
+        const effectivePolicy = tool.readOnly
+          ? 'auto'
+          : await this.policies.resolve(call.name);
+
+        if (!tool.readOnly && effectivePolicy === 'approve') {
           if (proposalIds.length >= MAX_WRITE_PROPOSALS) {
             continue;
           }
@@ -95,7 +102,19 @@ export class AgentOrchestrator {
         }
 
         try {
-          const execution = await this.registry.execute(call.name, role, rawArgs);
+          const execution = tool.readOnly
+            ? await this.registry.execute(call.name, role, rawArgs)
+            : await this.registry.executeApproved(call.name, role, rawArgs);
+          if (!tool.readOnly) {
+            const result = execution.result as { number?: unknown; id?: unknown } | null;
+            autoExecuted.push(
+              typeof result?.number === 'string'
+                ? result.number
+                : typeof result?.id === 'string'
+                  ? result.id
+                  : execution.tool,
+            );
+          }
           toolNames.push(execution.tool);
           toolResults.push({
             name: execution.tool,
@@ -134,6 +153,9 @@ export class AgentOrchestrator {
         toolNames.length > 0
           ? `Completed ${toolNames.join(', ')} for this request.`
           : 'I could not produce a response for that request.';
+    }
+    if (autoExecuted.length > 0) {
+      response = `${response} Created ${autoExecuted.join(', ')} automatically under this organization’s auto-execute policy.`;
     }
 
     const finalLog = await this.logs.append({

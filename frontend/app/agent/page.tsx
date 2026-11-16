@@ -9,6 +9,8 @@ import {
   AgentJob,
   AgentJobStatus,
   AgentLogEntry,
+  AgentPolicyMode,
+  AgentPolicyView,
   AgentProposal,
   AgentProposalStatus,
   AgentTrigger,
@@ -18,14 +20,16 @@ import {
   fetchAgentApprovals,
   fetchAgentJob,
   fetchAgentLogs,
+  fetchAgentPolicies,
   getAccessToken,
   getActiveOrgId,
   rejectAgentProposal,
   setActiveOrgId,
   submitAgentPrompt,
+  updateAgentPolicy,
 } from '@/lib/api';
 
-type AgentTab = 'ask' | 'approvals' | 'activity';
+type AgentTab = 'ask' | 'approvals' | 'policies' | 'activity';
 type ProposalFilter = 'PENDING' | 'ALL' | AgentProposalStatus;
 
 interface Turn {
@@ -68,6 +72,14 @@ function proposalStatusClass(status: AgentProposalStatus): string {
 function toolLabel(toolName: string): string {
   if (toolName === 'invoice.create') return 'Create draft invoice';
   return toolName;
+}
+
+function isWriteTool(toolName: string): boolean {
+  return toolName === 'invoice.create';
+}
+
+function policyLabel(policy: AgentPolicyMode): string {
+  return policy === 'auto' ? 'Auto-execute' : 'Requires approval';
 }
 
 function proposalConsequence(toolName: string): string {
@@ -135,6 +147,12 @@ export default function AgentPage() {
   const [decidingId, setDecidingId] = useState<string | null>(null);
   const [approvalNotice, setApprovalNotice] = useState<string | null>(null);
   const [lastDecision, setLastDecision] = useState<AgentProposal | null>(null);
+  const [policies, setPolicies] = useState<AgentPolicyView[]>([]);
+  const [policyDrafts, setPolicyDrafts] = useState<Record<string, AgentPolicyMode>>({});
+  const [policiesLoading, setPoliciesLoading] = useState(false);
+  const [policiesError, setPoliciesError] = useState<string | null>(null);
+  const [policySaving, setPolicySaving] = useState<string | null>(null);
+  const [policyNotice, setPolicyNotice] = useState<string | null>(null);
   const transcriptRef = useRef<HTMLDivElement | null>(null);
 
   const canApprove = org?.role === 'OWNER' || org?.role === 'ADMIN';
@@ -283,6 +301,56 @@ export default function AgentPage() {
     };
   }, [org, tab, proposalFilter, refreshToken, job?.status]);
 
+  useEffect(() => {
+    if (!org || tab !== 'policies') return;
+    let cancelled = false;
+    setPoliciesLoading(true);
+    fetchAgentPolicies(org.organizationId)
+      .then((rows) => {
+        if (cancelled) return;
+        setPolicies(rows);
+        setPolicyDrafts(
+          Object.fromEntries(rows.map((row) => [row.toolName, row.policy])),
+        );
+        setPoliciesError(null);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setPoliciesError(
+          err instanceof Error ? err.message : 'Agent policies are not available',
+        );
+      })
+      .finally(() => {
+        if (!cancelled) setPoliciesLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [org, tab, refreshToken]);
+
+  async function savePolicy(row: AgentPolicyView) {
+    if (!org || policySaving) return;
+    const draft = policyDrafts[row.toolName] ?? row.policy;
+    setPolicySaving(row.toolName);
+    setPolicyNotice(null);
+    try {
+      const updated = await updateAgentPolicy(org.organizationId, row.toolName, draft);
+      setPolicies((current) =>
+        current.map((entry) => (entry.toolName === updated.toolName ? updated : entry)),
+      );
+      setPolicyDrafts((current) => ({ ...current, [updated.toolName]: updated.policy }));
+      setPolicyNotice(
+        `Saved. ${toolLabel(updated.toolName)} will ${
+          updated.policy === 'auto' ? 'execute automatically' : 'wait for approval'
+        } on the next run.`,
+      );
+    } catch (err) {
+      setPoliciesError(err instanceof Error ? err.message : 'Could not save that policy');
+    } finally {
+      setPolicySaving(null);
+    }
+  }
+
   async function send() {
     const text = prompt.trim();
     if (!text || !org || submitting || activeJobId) return;
@@ -366,7 +434,7 @@ export default function AgentPage() {
             <h1>Clerk</h1>
             <p className="page-head__meta">
               Works in {org?.organizationName}. Reads run now with your permissions; write actions
-              wait for Owner or Admin approval.
+              follow this organization’s approval policy.
             </p>
           </div>
           <div className="page-head__actions">
@@ -404,6 +472,19 @@ export default function AgentPage() {
               </span>
             ) : null}
           </button>
+          {canApprove ? (
+            <button
+              className="tab"
+              type="button"
+              role="tab"
+              aria-selected={tab === 'policies'}
+              id="agent-tab-policies"
+              aria-controls="agent-panel-policies"
+              onClick={() => setTab('policies')}
+            >
+              Policies
+            </button>
+          ) : null}
           <button
             className="tab"
             type="button"
@@ -436,7 +517,7 @@ export default function AgentPage() {
               {turns.length === 0 ? (
                 <p className="empty-state">
                   Ask a question about this organization’s books, or ask Clerk to draft an
-                  invoice. Reads run now; write actions wait for Owner or Admin approval.
+                  invoice. Reads run now; write actions follow the organization’s policy.
                 </p>
               ) : null}
               {turns.map((turn) =>
@@ -517,7 +598,7 @@ export default function AgentPage() {
                   </button>
                 ))}
                 <span className="suggestions__meta">
-                  Reads run now · writes need approval
+                  Reads run now · writes follow policy
                 </span>
               </div>
               {error ? (
@@ -609,6 +690,135 @@ export default function AgentPage() {
                 />
               ))
             )}
+          </div>
+        </section>
+
+        <section
+          className="agent-panel"
+          id="agent-panel-policies"
+          role="tabpanel"
+          aria-labelledby="agent-tab-policies"
+          hidden={tab !== 'policies'}
+        >
+          <div className="section__head">
+            <h2 className="section__title">Policies</h2>
+            <span className="section__meta">
+              Choose whether Clerk runs each action now or waits for approval.
+            </span>
+          </div>
+
+          <p className="policy-warning" role="note">
+            <strong>Auto-execute creates records without review.</strong> That includes
+            financial actions such as draft invoices. Sensitive actions default to approval.
+            Every change applies to the next run immediately and is recorded in the audit log.
+          </p>
+
+          {policyNotice ? (
+            <p className="approval__notice" role="status" aria-live="polite">
+              {policyNotice}
+            </p>
+          ) : null}
+          {policiesError ? (
+            <p className="members__error" role="alert">
+              {policiesError}
+            </p>
+          ) : null}
+
+          <div className="table-scroll">
+            <table className="data-table policy-table">
+              <caption className="sr-only">Agent action policies</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Action</th>
+                  <th scope="col">Access</th>
+                  <th scope="col">Default</th>
+                  <th scope="col">Current policy</th>
+                  <th scope="col">Updated</th>
+                  <th scope="col">
+                    <span className="sr-only">Save</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {policies.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="empty-state">
+                      {policiesLoading ? 'Reading policies…' : 'No agent actions registered.'}
+                    </td>
+                  </tr>
+                ) : (
+                  policies.map((row) => {
+                    const draft = policyDrafts[row.toolName] ?? row.policy;
+                    const changed = row.configurable && draft !== row.policy;
+                    const saving = policySaving === row.toolName;
+                    return (
+                      <tr key={row.toolName}>
+                        <td>
+                          <div className="policy-action">
+                            <span className="policy-action__name">{toolLabel(row.toolName)}</span>
+                            <span className="policy-action__tool">{row.toolName}</span>
+                          </div>
+                        </td>
+                        <td>
+                          {row.readOnly ? (
+                            'Read-only'
+                          ) : row.sensitive ? (
+                            <span className="status status--amber">
+                              <span className="dot" />
+                              Sensitive write
+                            </span>
+                          ) : (
+                            'Write'
+                          )}
+                        </td>
+                        <td>{policyLabel(row.defaultPolicy)}</td>
+                        <td>
+                          {row.configurable ? (
+                            <select
+                              className="select"
+                              aria-label={`Policy for ${toolLabel(row.toolName)}`}
+                              value={draft}
+                              onChange={(event) =>
+                                setPolicyDrafts((current) => ({
+                                  ...current,
+                                  [row.toolName]: event.target.value as AgentPolicyMode,
+                                }))
+                              }
+                            >
+                              <option value="approve">Requires approval</option>
+                              <option value="auto">Auto-execute</option>
+                            </select>
+                          ) : (
+                            <span className="muted">Auto-execute (locked)</span>
+                          )}
+                        </td>
+                        <td>
+                          {row.updatedAt
+                            ? `${timeLabel(row.updatedAt)}${
+                                row.updatedBy ? ` · ${row.updatedBy.name}` : ''
+                              }`
+                            : 'Default'}
+                        </td>
+                        <td>
+                          {row.configurable ? (
+                            <button
+                              className="btn btn--outline btn--sm"
+                              type="button"
+                              disabled={!changed || saving}
+                              onClick={() => void savePolicy(row)}
+                            >
+                              {saving ? 'Saving…' : 'Save'}
+                            </button>
+                          ) : (
+                            <span className="muted">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
           </div>
         </section>
 
@@ -867,6 +1077,12 @@ function AgentJobReply({
               {job.proposals[0].logReference ?? 'pending'}
             </button>{' '}
             is waiting for Owner or Admin approval.
+          </p>
+        ) : null}
+        {(!job.proposals || job.proposals.length === 0) &&
+        job.toolNames.some(isWriteTool) ? (
+          <p className="agent-log-line">
+            Executed automatically under this organization’s policy.
           </p>
         ) : null}
       </div>

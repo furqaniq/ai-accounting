@@ -2009,6 +2009,53 @@ table {
   border-top: 1px solid var(--rule);
 }
 
+.policy-warning {
+  max-width: 840px;
+  padding: 10px 0 10px 12px;
+  margin: 16px 0 4px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink);
+  border-left: 2px solid var(--red-ink);
+}
+
+.policy-warning strong {
+  font-weight: 600;
+}
+
+.policy-table {
+  margin-top: 18px;
+}
+
+.policy-table td {
+  vertical-align: middle;
+}
+
+.policy-table .select {
+  min-width: 168px;
+}
+
+.policy-action {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.policy-action__name {
+  font-weight: 500;
+}
+
+.policy-action__tool {
+  font-size: 11px;
+  color: var(--ink-faint);
+}
+
+@media (max-width: 720px) {
+  .policy-table .select {
+    min-width: 0;
+  }
+}
+
 .activity-toolbar {
   display: flex;
   align-items: center;
