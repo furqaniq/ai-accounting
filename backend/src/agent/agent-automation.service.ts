@@ -9,6 +9,7 @@ import {
 import {
   AgentAutomation,
   AgentAutomationMode,
+  AgentDomainEventType,
   AgentJobStatus,
   Prisma,
   Role,
@@ -24,6 +25,12 @@ import {
   validateTimezone,
 } from './agent-automation.schedule';
 import { AgentAutomationScheduler } from './agent-automation-scheduler.service';
+import {
+  describeEventTrigger,
+  EventTriggerConfig,
+  normalizeEventConfig,
+  storedEventConfig,
+} from './domain-event.config';
 import { resolveAgentModel } from './model-catalog';
 
 const AUTOMATION_INCLUDE = {
@@ -34,11 +41,16 @@ type AutomationRow = Prisma.AgentAutomationGetPayload<{
   include: typeof AUTOMATION_INCLUDE;
 }>;
 
+export type AgentAutomationModeInput = 'CRON' | 'EVENT';
+
 export interface CreateAgentAutomationInput {
   name: string;
   prompt: string;
-  cron: string;
+  mode?: AgentAutomationModeInput;
+  cron?: string;
   timezone?: string;
+  eventType?: AgentDomainEventType;
+  eventConfig?: Record<string, unknown>;
   model?: string;
   enabled?: boolean;
 }
@@ -48,6 +60,8 @@ export interface UpdateAgentAutomationInput {
   prompt?: string;
   cron?: string;
   timezone?: string;
+  eventType?: AgentDomainEventType;
+  eventConfig?: Record<string, unknown>;
   model?: string;
   enabled?: boolean;
 }
@@ -56,8 +70,10 @@ export interface AgentAutomationView {
   id: string;
   name: string;
   mode: AgentAutomationMode;
-  cron: string;
+  cron: string | null;
   timezone: string;
+  eventType: AgentDomainEventType | null;
+  eventConfig: EventTriggerConfig | null;
   prompt: string;
   model: string | null;
   enabled: boolean;
@@ -73,17 +89,29 @@ export interface AgentAutomationView {
 }
 
 export function toAgentAutomationView(row: AutomationRow): AgentAutomationView {
+  const isEvent = row.mode === AgentAutomationMode.EVENT;
+  const eventConfig = isEvent ? storedEventConfig(row.eventConfig) : null;
   return {
     id: row.id,
     name: row.name,
     mode: row.mode,
     cron: row.cron,
     timezone: row.timezone,
+    eventType: row.eventType,
+    eventConfig,
     prompt: row.prompt,
     model: row.model,
     enabled: row.enabled,
-    scheduleLabel: describeCron(row.cron),
-    nextRunAt: row.enabled ? nextRunAt(row.cron, row.timezone) : null,
+    scheduleLabel:
+      isEvent && row.eventType
+        ? describeEventTrigger(row.eventType, eventConfig ?? {})
+        : row.cron
+          ? describeCron(row.cron)
+          : '',
+    nextRunAt:
+      !isEvent && row.enabled && row.cron
+        ? nextRunAt(row.cron, row.timezone)
+        : null,
     createdBy: row.createdBy ?? null,
     lastRunAt: row.lastRunAt,
     lastStatus: row.lastStatus,
@@ -96,7 +124,8 @@ export function toAgentAutomationView(row: AutomationRow): AgentAutomationView {
 
 /**
  * Tenant-facing automation CRUD. The service is the only scheduler writer, so
- * paused/deleted/replaced schedules cannot drift from their rows.
+ * paused/deleted/replaced schedules cannot drift from their rows. EVENT
+ * automations never touch the repeatable-job scheduler.
  */
 @Injectable()
 export class AgentAutomationService {
@@ -124,10 +153,21 @@ export class AgentAutomationService {
     const userId = this.tenant.userId()!;
     const name = this.normalizeName(input.name);
     const prompt = this.normalizePrompt(input.prompt);
-    const timezone = validateTimezone(input.timezone);
-    const cron = validateCron(input.cron, timezone);
     const model = this.normalizeModel(input.model);
     const enabled = input.enabled ?? true;
+    const mode =
+      input.mode === 'EVENT'
+        ? AgentAutomationMode.EVENT
+        : AgentAutomationMode.CRON;
+
+    const schedule =
+      mode === AgentAutomationMode.CRON
+        ? this.resolveSchedule(input.cron, input.timezone)
+        : null;
+    const event =
+      mode === AgentAutomationMode.EVENT
+        ? this.resolveEvent(input.eventType, input.eventConfig)
+        : null;
 
     await this.assertNameAvailable(name);
 
@@ -135,9 +175,11 @@ export class AgentAutomationService {
     try {
       row = await this.scoped.create<AgentAutomation>('agentAutomation', {
         name,
-        mode: AgentAutomationMode.CRON,
-        cron,
-        timezone,
+        mode,
+        cron: schedule?.cron ?? null,
+        timezone: schedule?.timezone ?? 'UTC',
+        eventType: event?.eventType ?? null,
+        eventConfig: event?.eventConfig as Prisma.InputJsonValue ?? Prisma.JsonNull,
         prompt,
         model,
         enabled,
@@ -150,19 +192,24 @@ export class AgentAutomationService {
       throw error;
     }
 
-    if (enabled) {
+    if (enabled && schedule) {
       await this.scheduler.register({
         id: row.id,
         organizationId: row.organizationId,
-        cron,
-        timezone,
+        cron: schedule.cron,
+        timezone: schedule.timezone,
       });
     }
 
     await this.audit.record('agent.automation.create', 'AgentAutomation', row.id, {
       name,
-      cron,
-      timezone,
+      mode,
+      ...(schedule
+        ? { cron: schedule.cron, timezone: schedule.timezone }
+        : {}),
+      ...(event
+        ? { eventType: event.eventType, eventConfig: event.eventConfig }
+        : {}),
       enabled,
       changedByRole: role,
     });
@@ -175,36 +222,87 @@ export class AgentAutomationService {
   ): Promise<AgentAutomationView> {
     const { role } = await this.requireManager();
     const existing = await this.requireRow(id);
+    const isEvent = existing.mode === AgentAutomationMode.EVENT;
     const name =
       input.name === undefined ? existing.name : this.normalizeName(input.name);
     const prompt =
       input.prompt === undefined
         ? existing.prompt
         : this.normalizePrompt(input.prompt);
-    const timezone =
-      input.timezone === undefined
-        ? existing.timezone
-        : validateTimezone(input.timezone);
-    const cron =
-      input.cron === undefined
-        ? validateCron(existing.cron, timezone)
-        : validateCron(input.cron, timezone);
     const model =
       input.model === undefined
         ? existing.model
         : this.normalizeModel(input.model);
     const enabled = input.enabled ?? existing.enabled;
 
+    if (isEvent) {
+      if (input.cron !== undefined) {
+        throw new BadRequestException('Event automations cannot have a cron schedule');
+      }
+      if (input.eventType === undefined && input.eventConfig === undefined) {
+        // Nothing trigger-specific to update.
+        await this.applyUpdate(id, name, prompt, model, enabled);
+        await this.recordUpdateAudit(id, existing, { name, enabled, mode: existing.mode, role });
+        return this.find(id);
+      }
+      const nextType = input.eventType ?? existing.eventType ?? undefined;
+      const nextConfig =
+        input.eventConfig !== undefined
+          ? this.resolveEvent(nextType, input.eventConfig)!
+          : input.eventType !== undefined && input.eventType !== existing.eventType
+            ? this.resolveEvent(input.eventType, undefined)!
+            : {
+                eventType: existing.eventType!,
+                eventConfig: storedEventConfig(existing.eventConfig),
+              };
+
+      await this.scoped.updateById('agentAutomation', id, {
+        name,
+        prompt,
+        model,
+        enabled,
+        eventType: nextConfig.eventType,
+        eventConfig: nextConfig.eventConfig as Prisma.InputJsonValue,
+      });
+
+      if (enabled !== existing.enabled) {
+        await this.audit.record(
+          enabled ? 'agent.automation.resume' : 'agent.automation.pause',
+          'AgentAutomation',
+          id,
+          { name, mode: existing.mode, changedByRole: role },
+        );
+      } else {
+        await this.audit.record('agent.automation.update', 'AgentAutomation', id, {
+          name,
+          mode: existing.mode,
+          eventType: nextConfig.eventType,
+          eventConfig: nextConfig.eventConfig,
+          enabled,
+          changedByRole: role,
+        });
+      }
+      return this.find(id);
+    }
+
+    if (input.eventType !== undefined || input.eventConfig !== undefined) {
+      throw new BadRequestException(
+        'Scheduled automations cannot have event trigger settings',
+      );
+    }
+
+    const timezone =
+      input.timezone === undefined
+        ? existing.timezone
+        : validateTimezone(input.timezone);
+    const cron =
+      input.cron === undefined
+        ? validateCron(existing.cron ?? '', timezone)
+        : validateCron(input.cron, timezone);
+
     if (name !== existing.name) await this.assertNameAvailable(name, id);
 
-    await this.scoped.updateById('agentAutomation', id, {
-      name,
-      prompt,
-      timezone,
-      cron,
-      model,
-      enabled,
-    });
+    await this.applyUpdate(id, name, prompt, model, enabled, timezone, cron);
 
     const scheduleChanged =
       cron !== existing.cron || timezone !== existing.timezone;
@@ -226,11 +324,12 @@ export class AgentAutomationService {
         enabled ? 'agent.automation.resume' : 'agent.automation.pause',
         'AgentAutomation',
         id,
-        { name, changedByRole: role },
+        { name, mode: existing.mode, changedByRole: role },
       );
     } else {
       await this.audit.record('agent.automation.update', 'AgentAutomation', id, {
         name,
+        mode: existing.mode,
         cron,
         timezone,
         enabled,
@@ -245,11 +344,15 @@ export class AgentAutomationService {
   async remove(id: string): Promise<void> {
     const { role } = await this.requireManager();
     const existing = await this.requireRow(id);
-    await this.scheduler.remove(id);
+    if (existing.mode === AgentAutomationMode.CRON) {
+      await this.scheduler.remove(id);
+    }
     await this.scoped.deleteById('agentAutomation', id);
     await this.audit.record('agent.automation.delete', 'AgentAutomation', id, {
       name: existing.name,
+      mode: existing.mode,
       cron: existing.cron,
+      eventType: existing.eventType,
       changedByRole: role,
     });
   }
@@ -258,10 +361,81 @@ export class AgentAutomationService {
   async getRunnable(id: string): Promise<AgentAutomation> {
     await this.requireManager();
     const row = await this.requireRow(id);
+    if (row.mode !== AgentAutomationMode.CRON) {
+      throw new ConflictException(
+        'Only scheduled automations can run from this hook',
+      );
+    }
     if (!row.enabled) {
       throw new ConflictException('Automation is paused');
     }
     return row;
+  }
+
+  private async applyUpdate(
+    id: string,
+    name: string,
+    prompt: string,
+    model: string | null,
+    enabled: boolean,
+    timezone?: string,
+    cron?: string,
+  ): Promise<void> {
+    await this.scoped.updateById('agentAutomation', id, {
+      name,
+      prompt,
+      model,
+      enabled,
+      ...(timezone !== undefined ? { timezone } : {}),
+      ...(cron !== undefined ? { cron } : {}),
+    });
+  }
+
+  private async recordUpdateAudit(
+    id: string,
+    existing: AutomationRow,
+    input: { name: string; enabled: boolean; mode: AgentAutomationMode; role: Role },
+  ): Promise<void> {
+    if (input.enabled !== existing.enabled) {
+      await this.audit.record(
+        input.enabled ? 'agent.automation.resume' : 'agent.automation.pause',
+        'AgentAutomation',
+        id,
+        { name: input.name, mode: input.mode, changedByRole: input.role },
+      );
+      return;
+    }
+    await this.audit.record('agent.automation.update', 'AgentAutomation', id, {
+      name: input.name,
+      mode: input.mode,
+      eventType: existing.eventType,
+      enabled: input.enabled,
+      changedByRole: input.role,
+    });
+  }
+
+  private resolveSchedule(
+    cron: string | undefined,
+    timezone: string | undefined,
+  ): { cron: string; timezone: string } {
+    const zone = validateTimezone(timezone);
+    return { cron: validateCron(cron, zone), timezone: zone };
+  }
+
+  private resolveEvent(
+    eventType: AgentDomainEventType | undefined,
+    eventConfig: Record<string, unknown> | undefined,
+  ): { eventType: AgentDomainEventType; eventConfig: Record<string, number> } {
+    if (!eventType) {
+      throw new BadRequestException('eventType is required for event automations');
+    }
+    if (!Object.values(AgentDomainEventType).includes(eventType)) {
+      throw new BadRequestException(`Unknown event type: ${eventType}`);
+    }
+    return {
+      eventType,
+      eventConfig: normalizeEventConfig(eventType, eventConfig),
+    };
   }
 
   private async requireRow(id: string): Promise<AutomationRow> {

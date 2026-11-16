@@ -4,7 +4,14 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Customer, InvoiceStatus, JournalSourceType, Prisma } from '@prisma/client';
+import {
+  AgentDomainEventType,
+  Customer,
+  InvoiceStatus,
+  JournalSourceType,
+  Prisma,
+} from '@prisma/client';
+import { DomainEventsService } from '../events/domain-events.service';
 import { LedgerEngine, toDate, toNumber } from '../ledger/ledger-engine';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../tenant/audit.service';
@@ -163,6 +170,7 @@ export class InvoicesService {
     private readonly ledger: LedgerEngine,
     private readonly audit: AuditService,
     private readonly pdfRenderer: InvoicePdfService,
+    private readonly events: DomainEventsService,
   ) {}
 
   async list(filters: ListInvoicesDto): Promise<InvoiceView[]> {
@@ -426,6 +434,30 @@ export class InvoicesService {
         total: sent.total,
         dueDate: sent.dueDate,
       });
+      const today = new Date().toISOString().slice(0, 10);
+      if (sent.dueDate < today) {
+        const daysOverdue = Math.floor(
+          (Date.parse(`${today}T00:00:00Z`) -
+            Date.parse(`${sent.dueDate}T00:00:00Z`)) /
+            86_400_000,
+        );
+        await this.events.publish({
+          organizationId,
+          type: AgentDomainEventType.INVOICE_OVERDUE,
+          entityType: 'Invoice',
+          entityId: sent.id,
+          data: {
+            invoiceId: sent.id,
+            number: sent.number,
+            customerId: sent.customerId,
+            customerName: sent.customer.name,
+            dueDate: sent.dueDate,
+            daysOverdue,
+            total: sent.total,
+            balanceDue: sent.balanceDue,
+          },
+        });
+      }
     }
     return this.find(id);
   }

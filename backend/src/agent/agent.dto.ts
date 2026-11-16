@@ -4,6 +4,7 @@ import {
   IsIn,
   IsInt,
   IsNotEmpty,
+  IsObject,
   IsOptional,
   IsString,
   Max,
@@ -12,6 +13,7 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import {
+  AgentDomainEventType,
   AgentJobStatus,
   AgentProposalStatus,
   AgentTrigger,
@@ -90,15 +92,27 @@ export class CreateAgentAutomationDto {
   @MaxLength(2000)
   prompt!: string;
 
+  @IsOptional()
+  @IsIn(['CRON', 'EVENT'])
+  mode?: 'CRON' | 'EVENT';
+
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   @MaxLength(200)
-  cron!: string;
+  cron?: string;
 
   @IsOptional()
   @IsString()
   @MaxLength(100)
   timezone?: string;
+
+  @IsOptional()
+  @IsEnum(AgentDomainEventType)
+  eventType?: AgentDomainEventType;
+
+  @IsOptional()
+  @IsObject()
+  eventConfig?: Record<string, unknown>;
 
   @IsOptional()
   @IsString()
@@ -125,7 +139,6 @@ export class UpdateAgentAutomationDto {
 
   @IsOptional()
   @IsString()
-  @IsNotEmpty()
   @MaxLength(200)
   cron?: string;
 
@@ -135,6 +148,14 @@ export class UpdateAgentAutomationDto {
   timezone?: string;
 
   @IsOptional()
+  @IsEnum(AgentDomainEventType)
+  eventType?: AgentDomainEventType;
+
+  @IsOptional()
+  @IsObject()
+  eventConfig?: Record<string, unknown>;
+
+  @IsOptional()
   @IsString()
   @MaxLength(40)
   model?: string;
@@ -142,4 +163,18 @@ export class UpdateAgentAutomationDto {
   @IsOptional()
   @IsBoolean()
   enabled?: boolean;
+}
+
+export class FireDomainEventDto {
+  @IsEnum(AgentDomainEventType)
+  type!: AgentDomainEventType;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  entityId?: string;
+
+  @IsOptional()
+  @IsObject()
+  data?: Record<string, unknown>;
 }

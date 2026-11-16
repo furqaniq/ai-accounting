@@ -1,10 +1,17 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { AgentJobStatus, AgentTrigger } from '@prisma/client';
+import {
+  AgentAutomation,
+  AgentAutomationMode,
+  AgentJobStatus,
+  AgentTrigger,
+} from '@prisma/client';
+import { DomainEvent } from '../events/domain-events.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { resolveMembership } from '../tenant/membership-resolution';
 import { TenantContextService } from '../tenant/tenant-context.service';
 import { AgentJobsService } from './agent-jobs.service';
 import { AgentQueueService } from './agent-queue.service';
+import { buildEventPrompt } from './domain-event.config';
 
 export interface ScheduledRunResult {
   jobId: string | null;
@@ -96,6 +103,83 @@ export class AgentAutomationRunner {
 
         this.logger.log(
           `Queued automation ${automation.id} as agent job ${job.id}`,
+        );
+        return {
+          jobId: job.id,
+          status: job.status,
+          logReference,
+          skipped: false,
+        };
+      },
+    );
+  }
+
+  async runEvent(
+    automation: AgentAutomation,
+    event: DomainEvent,
+  ): Promise<ScheduledRunResult> {
+    if (
+      automation.mode !== AgentAutomationMode.EVENT ||
+      automation.eventType !== event.type ||
+      automation.organizationId !== event.organizationId
+    ) {
+      return { jobId: null, status: null, logReference: null, skipped: true };
+    }
+    if (!automation.enabled) {
+      return {
+        jobId: null,
+        status: null,
+        logReference: null,
+        skipped: true,
+        reason: 'Automation is paused',
+      };
+    }
+
+    const userId = automation.createdByUserId;
+    const membership = await resolveMembership(
+      this.prisma,
+      userId,
+      automation.organizationId,
+    );
+    if (!membership) {
+      await this.markSkipped(automation.id, 'Creator no longer belongs to this organization');
+      return {
+        jobId: null,
+        status: AgentJobStatus.FAILED,
+        logReference: null,
+        skipped: true,
+        reason: 'Creator no longer belongs to this organization',
+      };
+    }
+
+    return this.tenant.runAs(
+      { user: { userId, email: '' }, membership },
+      async () => {
+        const { job, logReference } = await this.jobs.create({
+          prompt: buildEventPrompt(automation.prompt, event),
+          modelAlias: automation.model ?? undefined,
+          trigger: AgentTrigger.EVENT,
+          automationId: automation.id,
+        });
+
+        await this.prisma.agentAutomation.updateMany({
+          where: { id: automation.id, organizationId: automation.organizationId },
+          data: {
+            lastRunAt: new Date(),
+            lastStatus: AgentJobStatus.QUEUED,
+            lastJobId: job.id,
+            lastLogReference: logReference,
+          },
+        });
+
+        await this.queue.enqueue({
+          jobId: job.id,
+          organizationId: automation.organizationId,
+          userId,
+        });
+
+        this.logger.log(
+          `Queued ${event.type} event for automation ${automation.id} as agent job ${job.id}`,
         );
         return {
           jobId: job.id,

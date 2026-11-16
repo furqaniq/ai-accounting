@@ -2892,12 +2892,26 @@ export async function updateAgentPolicy(
 
 export type AgentAutomationMode = 'CRON' | 'EVENT';
 
+export type AgentDomainEventType =
+  | 'BANK_TRANSACTION_IMPORTED'
+  | 'INVOICE_OVERDUE'
+  | 'BILL_OPENED'
+  | 'RECONCILIATION_DISCREPANCY';
+
+export interface AgentEventConfig {
+  daysOverdue?: number;
+  minAmount?: number;
+  minDifference?: number;
+}
+
 export interface AgentAutomation {
   id: string;
   name: string;
   mode: AgentAutomationMode;
-  cron: string;
+  cron: string | null;
   timezone: string;
+  eventType: AgentDomainEventType | null;
+  eventConfig: AgentEventConfig | null;
   prompt: string;
   model: string | null;
   enabled: boolean;
@@ -2915,8 +2929,11 @@ export interface AgentAutomation {
 export interface AgentAutomationInput {
   name: string;
   prompt: string;
-  cron: string;
+  mode?: AgentAutomationMode;
+  cron?: string;
   timezone?: string;
+  eventType?: AgentDomainEventType;
+  eventConfig?: AgentEventConfig;
   enabled?: boolean;
 }
 

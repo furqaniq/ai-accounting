@@ -309,8 +309,9 @@ describe('ToolRegistry', () => {
       tools.prepareArguments('automation.create', 'OWNER', {
         name: 'Weekly close',
         prompt: 'Summarize cash',
+        mode: 'WEEKLY',
       }),
-      /cron/,
+      /CRON|EVENT|mode/i,
     );
     await expectRejection(
       tools.prepareArguments('automation.create', 'OWNER', {
@@ -333,6 +334,20 @@ describe('ToolRegistry', () => {
       prompt: 'Summarize cash',
       cron: '0 9 * * 1',
       timezone: 'America/New_York',
+    });
+
+    const eventPrepared = await tools.prepareArguments('automation.create', 'OWNER', {
+      name: 'Overdue review',
+      prompt: 'Review overdue invoices',
+      mode: 'EVENT',
+      eventType: 'INVOICE_OVERDUE',
+      eventConfig: { daysOverdue: 7 },
+    });
+    expect(eventPrepared.args).toMatchObject({
+      name: 'Overdue review',
+      mode: 'EVENT',
+      eventType: 'INVOICE_OVERDUE',
+      eventConfig: { daysOverdue: 7 },
     });
 
     const executed = await tools.executeApproved('automation.create', 'OWNER', {

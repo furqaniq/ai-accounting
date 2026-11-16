@@ -54,12 +54,13 @@ export class AgentAutomationScheduler implements OnModuleInit, OnModuleDestroy {
     // restart. This is system boot, not a tenant request, so it intentionally
     // reads across organizations.
     const rows = await this.prisma.agentAutomation.findMany({
-      where: { enabled: true, mode: 'CRON' },
+      where: { enabled: true, mode: 'CRON', cron: { not: null } },
       select: { id: true, organizationId: true, cron: true, timezone: true },
     });
     for (const row of rows) {
+      if (!row.cron) continue;
       try {
-        await this.register(row);
+        await this.register({ ...row, cron: row.cron });
       } catch (error) {
         this.logger.error(
           `Could not restore automation ${row.id}: ${

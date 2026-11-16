@@ -7,6 +7,7 @@ import {
   API_URL,
   ActiveOrganization,
   AgentAutomation,
+  AgentDomainEventType,
   AgentJob,
   AgentJobStatus,
   AgentLogEntry,
@@ -39,9 +40,59 @@ type AgentTab = 'ask' | 'automations' | 'approvals' | 'policies' | 'activity';
 interface AutomationFormState {
   name: string;
   prompt: string;
+  mode: 'CRON' | 'EVENT';
   cron: string;
   timezone: string;
   preset: string;
+  eventType: AgentDomainEventType;
+  daysOverdue: string;
+  minAmount: string;
+  minDifference: string;
+}
+
+const EVENT_OPTIONS: Array<{ value: AgentDomainEventType; label: string }> = [
+  { value: 'BANK_TRANSACTION_IMPORTED', label: 'A bank transaction is imported' },
+  { value: 'INVOICE_OVERDUE', label: 'An invoice is overdue' },
+  { value: 'BILL_OPENED', label: 'A bill opens' },
+  { value: 'RECONCILIATION_DISCREPANCY', label: 'A reconciliation has a discrepancy' },
+];
+
+function eventTriggerLabel(form: AutomationFormState): string {
+  switch (form.eventType) {
+    case 'INVOICE_OVERDUE': {
+      const days = Number.parseInt(form.daysOverdue || '0', 10) || 0;
+      return days > 0
+        ? `When an invoice is at least ${days} day${days === 1 ? '' : 's'} overdue`
+        : 'When an invoice is overdue';
+    }
+    case 'BILL_OPENED': {
+      const amount = Number.parseFloat(form.minAmount || '0') || 0;
+      return amount > 0
+        ? `When a bill opens above $${amount.toFixed(2)}`
+        : 'When a bill opens';
+    }
+    case 'RECONCILIATION_DISCREPANCY': {
+      const difference = Number.parseFloat(form.minDifference || '0') || 0;
+      return difference > 0
+        ? `When a reconciliation has a discrepancy of at least $${difference.toFixed(2)}`
+        : 'When a reconciliation has a discrepancy';
+    }
+    default:
+      return 'When a bank transaction is imported';
+  }
+}
+
+function eventConfigFor(form: AutomationFormState): Record<string, number> {
+  switch (form.eventType) {
+    case 'INVOICE_OVERDUE':
+      return { daysOverdue: Number.parseInt(form.daysOverdue || '0', 10) || 0 };
+    case 'BILL_OPENED':
+      return { minAmount: Number.parseFloat(form.minAmount || '0') || 0 };
+    case 'RECONCILIATION_DISCREPANCY':
+      return { minDifference: Number.parseFloat(form.minDifference || '0') || 0 };
+    default:
+      return {};
+  }
 }
 
 const CRON_PRESETS = [
@@ -69,9 +120,14 @@ const COMMON_TIMEZONES = [
 const EMPTY_FORM: AutomationFormState = {
   name: '',
   prompt: '',
+  mode: 'CRON',
   cron: '0 9 * * 1',
   timezone: 'UTC',
   preset: 'monday-9',
+  eventType: 'BILL_OPENED',
+  daysOverdue: '0',
+  minAmount: '0',
+  minDifference: '0',
 };
 
 const WEEKDAYS = [
@@ -488,9 +544,14 @@ export default function AgentPage() {
     setAutomationForm({
       name: row.name,
       prompt: row.prompt,
-      cron: row.cron,
+      mode: row.mode,
+      cron: row.cron ?? '0 9 * * 1',
       timezone: row.timezone,
-      preset: presetFor(row.cron),
+      preset: row.cron ? presetFor(row.cron) : 'custom',
+      eventType: row.eventType ?? 'BILL_OPENED',
+      daysOverdue: String(row.eventConfig?.daysOverdue ?? 0),
+      minAmount: String(row.eventConfig?.minAmount ?? 0),
+      minDifference: String(row.eventConfig?.minDifference ?? 0),
     });
     setEditingId(row.id);
     setFormOpen(true);
@@ -504,18 +565,42 @@ export default function AgentPage() {
     setAutomationSaving(true);
     setAutomationsError(null);
     setAutomationNotice(null);
-    const payload = {
-      name: automationForm.name.trim(),
-      prompt: automationForm.prompt.trim(),
-      cron: automationForm.cron.trim(),
-      timezone: automationForm.timezone.trim() || 'UTC',
-    };
+    const name = automationForm.name.trim();
+    const prompt = automationForm.prompt.trim();
     try {
       if (editingId) {
-        const updated = await updateAgentAutomation(org.organizationId, editingId, payload);
+        const updated =
+          automationForm.mode === 'EVENT'
+            ? await updateAgentAutomation(org.organizationId, editingId, {
+                name,
+                prompt,
+                eventType: automationForm.eventType,
+                eventConfig: eventConfigFor(automationForm),
+              })
+            : await updateAgentAutomation(org.organizationId, editingId, {
+                name,
+                prompt,
+                cron: automationForm.cron.trim(),
+                timezone: automationForm.timezone.trim() || 'UTC',
+              });
         setAutomationNotice(`Saved “${updated.name}”. ${updated.scheduleLabel}.`);
       } else {
-        const created = await createAgentAutomation(org.organizationId, payload);
+        const created =
+          automationForm.mode === 'EVENT'
+            ? await createAgentAutomation(org.organizationId, {
+                name,
+                prompt,
+                mode: 'EVENT',
+                eventType: automationForm.eventType,
+                eventConfig: eventConfigFor(automationForm),
+              })
+            : await createAgentAutomation(org.organizationId, {
+                name,
+                prompt,
+                mode: 'CRON',
+                cron: automationForm.cron.trim(),
+                timezone: automationForm.timezone.trim() || 'UTC',
+              });
         setAutomationNotice(`Created “${created.name}”. ${created.scheduleLabel}.`);
       }
       setFormOpen(false);
@@ -566,7 +651,7 @@ export default function AgentPage() {
       await deleteAgentAutomation(org.organizationId, row.id);
       setAutomations((current) => current.filter((entry) => entry.id !== row.id));
       setConfirmDeleteId(null);
-      setAutomationNotice(`Deleted “${row.name}”. Its schedule was removed.`);
+      setAutomationNotice(`Deleted “${row.name}”. It will not run again.`);
       setRefreshToken((current) => current + 1);
     } catch (err) {
       setAutomationsError(
@@ -874,8 +959,8 @@ export default function AgentPage() {
           <div className="automation-toolbar">
             <p className="section__meta">
               {canManageAutomations
-                ? 'Runs happen on the schedule below. Edits replace the existing schedule.'
-                : 'Read-only — an Owner, Admin, Accountant, or Staff member can change schedules.'}
+                ? 'Runs happen when each trigger fires. Edits apply to the next run.'
+                : 'Read-only — an Owner, Admin, Accountant, or Staff member can change automations.'}
             </p>
             {canManageAutomations ? (
               <button
@@ -910,72 +995,182 @@ export default function AgentPage() {
                   />
                 </div>
                 <div className="field">
-                  <label htmlFor="automation-preset">Schedule preset</label>
+                  <label htmlFor="automation-mode">Trigger</label>
                   <select
-                    id="automation-preset"
-                    value={automationForm.preset}
-                    onChange={(event) => {
-                      const preset = CRON_PRESETS.find(
-                        (entry) => entry.value === event.target.value,
-                      );
+                    id="automation-mode"
+                    value={automationForm.mode}
+                    disabled={Boolean(editingId)}
+                    onChange={(event) =>
                       setAutomationForm((current) => ({
                         ...current,
-                        preset: event.target.value,
-                        cron: preset && preset.value !== 'custom' ? preset.cron : current.cron,
-                      }));
-                    }}
+                        mode: event.target.value as 'CRON' | 'EVENT',
+                      }))
+                    }
                   >
-                    {CRON_PRESETS.map((preset) => (
-                      <option key={preset.value} value={preset.value}>
-                        {preset.label}
-                      </option>
-                    ))}
+                    <option value="CRON">Schedule</option>
+                    <option value="EVENT">Event</option>
                   </select>
                 </div>
-                <div className="field">
-                  <label htmlFor="automation-cron">Cron (five fields)</label>
-                  <input
-                    id="automation-cron"
-                    value={automationForm.cron}
-                    maxLength={200}
-                    placeholder="0 9 * * 1"
-                    onChange={(event) =>
-                      setAutomationForm((current) => ({
-                        ...current,
-                        cron: event.target.value,
-                        preset: presetFor(event.target.value),
-                      }))
-                    }
-                  />
-                </div>
-                <div className="field">
-                  <label htmlFor="automation-timezone">Timezone</label>
-                  <input
-                    id="automation-timezone"
-                    value={automationForm.timezone}
-                    maxLength={100}
-                    list="automation-timezones"
-                    placeholder="UTC"
-                    onChange={(event) =>
-                      setAutomationForm((current) => ({
-                        ...current,
-                        timezone: event.target.value,
-                      }))
-                    }
-                  />
-                  <datalist id="automation-timezones">
-                    {COMMON_TIMEZONES.map((zone) => (
-                      <option key={zone} value={zone} />
-                    ))}
-                  </datalist>
-                </div>
+                {automationForm.mode === 'CRON' ? (
+                  <>
+                    <div className="field">
+                      <label htmlFor="automation-preset">Schedule preset</label>
+                      <select
+                        id="automation-preset"
+                        value={automationForm.preset}
+                        onChange={(event) => {
+                          const preset = CRON_PRESETS.find(
+                            (entry) => entry.value === event.target.value,
+                          );
+                          setAutomationForm((current) => ({
+                            ...current,
+                            preset: event.target.value,
+                            cron:
+                              preset && preset.value !== 'custom'
+                                ? preset.cron
+                                : current.cron,
+                          }));
+                        }}
+                      >
+                        {CRON_PRESETS.map((preset) => (
+                          <option key={preset.value} value={preset.value}>
+                            {preset.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="field">
+                      <label htmlFor="automation-cron">Cron (five fields)</label>
+                      <input
+                        id="automation-cron"
+                        value={automationForm.cron}
+                        maxLength={200}
+                        placeholder="0 9 * * 1"
+                        onChange={(event) =>
+                          setAutomationForm((current) => ({
+                            ...current,
+                            cron: event.target.value,
+                            preset: presetFor(event.target.value),
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="field">
+                      <label htmlFor="automation-timezone">Timezone</label>
+                      <input
+                        id="automation-timezone"
+                        value={automationForm.timezone}
+                        maxLength={100}
+                        list="automation-timezones"
+                        placeholder="UTC"
+                        onChange={(event) =>
+                          setAutomationForm((current) => ({
+                            ...current,
+                            timezone: event.target.value,
+                          }))
+                        }
+                      />
+                      <datalist id="automation-timezones">
+                        {COMMON_TIMEZONES.map((zone) => (
+                          <option key={zone} value={zone} />
+                        ))}
+                      </datalist>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="field">
+                      <label htmlFor="automation-event-type">Event</label>
+                      <select
+                        id="automation-event-type"
+                        value={automationForm.eventType}
+                        onChange={(event) =>
+                          setAutomationForm((current) => ({
+                            ...current,
+                            eventType: event.target.value as AgentDomainEventType,
+                          }))
+                        }
+                      >
+                        {EVENT_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    {automationForm.eventType === 'INVOICE_OVERDUE' ? (
+                      <div className="field">
+                        <label htmlFor="automation-days-overdue">
+                          Minimum days overdue
+                        </label>
+                        <input
+                          id="automation-days-overdue"
+                          type="number"
+                          min={0}
+                          step={1}
+                          value={automationForm.daysOverdue}
+                          onChange={(event) =>
+                            setAutomationForm((current) => ({
+                              ...current,
+                              daysOverdue: event.target.value,
+                            }))
+                          }
+                        />
+                      </div>
+                    ) : null}
+                    {automationForm.eventType === 'BILL_OPENED' ? (
+                      <div className="field">
+                        <label htmlFor="automation-min-amount">Minimum amount</label>
+                        <input
+                          id="automation-min-amount"
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          value={automationForm.minAmount}
+                          onChange={(event) =>
+                            setAutomationForm((current) => ({
+                              ...current,
+                              minAmount: event.target.value,
+                            }))
+                          }
+                        />
+                      </div>
+                    ) : null}
+                    {automationForm.eventType === 'RECONCILIATION_DISCREPANCY' ? (
+                      <div className="field">
+                        <label htmlFor="automation-min-difference">
+                          Minimum difference
+                        </label>
+                        <input
+                          id="automation-min-difference"
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          value={automationForm.minDifference}
+                          onChange={(event) =>
+                            setAutomationForm((current) => ({
+                              ...current,
+                              minDifference: event.target.value,
+                            }))
+                          }
+                        />
+                      </div>
+                    ) : null}
+                    {automationForm.eventType === 'BANK_TRANSACTION_IMPORTED' ? (
+                      <p className="automation-form__note">
+                        Runs once for every imported bank transaction, after the import
+                        commits.
+                      </p>
+                    ) : null}
+                  </>
+                )}
                 <div className="field automation-form__prompt">
                   <label htmlFor="automation-prompt">Prompt</label>
                   <textarea
                     id="automation-prompt"
                     rows={3}
                     maxLength={2000}
-                    placeholder="Review cash and flag anything unusual."
+                    placeholder="Review the event and flag anything unusual."
                     value={automationForm.prompt}
                     onChange={(event) =>
                       setAutomationForm((current) => ({
@@ -987,8 +1182,11 @@ export default function AgentPage() {
                 </div>
               </div>
               <p className="automation-form__preview" aria-live="polite">
-                Runs {readableSchedule(automationForm.cron)} ·{' '}
-                {automationForm.timezone.trim() || 'UTC'}
+                {automationForm.mode === 'EVENT'
+                  ? `Runs ${eventTriggerLabel(automationForm)}`
+                  : `Runs ${readableSchedule(automationForm.cron)} · ${
+                      automationForm.timezone.trim() || 'UTC'
+                    }`}
               </p>
               <div className="automation-form__actions">
                 <button
@@ -998,7 +1196,8 @@ export default function AgentPage() {
                     automationSaving ||
                     !automationForm.name.trim() ||
                     !automationForm.prompt.trim() ||
-                    !automationForm.cron.trim()
+                    (automationForm.mode === 'CRON' &&
+                      !automationForm.cron.trim())
                   }
                 >
                   {automationSaving
@@ -1024,11 +1223,11 @@ export default function AgentPage() {
 
           <div className="table-scroll">
             <table className="data-table automation-table">
-              <caption className="sr-only">Scheduled automations</caption>
+              <caption className="sr-only">Automations</caption>
               <thead>
                 <tr>
                   <th scope="col">Name</th>
-                  <th scope="col">Schedule</th>
+                  <th scope="col">Trigger</th>
                   <th scope="col">Prompt</th>
                   <th scope="col">Enabled</th>
                   <th scope="col">Last run</th>
@@ -1043,7 +1242,7 @@ export default function AgentPage() {
                     <td colSpan={6} className="empty-state">
                       {automationsLoading
                         ? 'Reading automations…'
-                        : 'No automations yet. A scheduled routine runs Clerk on a cron schedule and logs every run.'}
+                        : 'No automations yet. A scheduled or event routine runs Clerk and logs every run.'}
                     </td>
                   </tr>
                 ) : (
@@ -1060,12 +1259,17 @@ export default function AgentPage() {
                       <td>
                         <div>{row.scheduleLabel}</div>
                         <span className="muted">
-                          {row.timezone}
-                          {row.enabled && row.nextRunAt
-                            ? ` · next ${timeLabel(row.nextRunAt)}`
-                            : row.enabled
-                              ? ''
-                              : ' · paused'}
+                          {row.mode === 'EVENT'
+                            ? row.enabled
+                              ? 'Event trigger'
+                              : 'Event trigger · paused'
+                            : `${row.timezone}${
+                                row.enabled && row.nextRunAt
+                                  ? ` · next ${timeLabel(row.nextRunAt)}`
+                                  : row.enabled
+                                    ? ''
+                                    : ' · paused'
+                              }`}
                         </span>
                       </td>
                       <td className="automation-prompt">{row.prompt}</td>
@@ -1099,7 +1303,7 @@ export default function AgentPage() {
                                 className="link agent-log-ref"
                                 type="button"
                                 onClick={() => {
-                                  setLogFilter('CRON');
+                                  setLogFilter(row.mode === 'EVENT' ? 'EVENT' : 'CRON');
                                   setTab('activity');
                                 }}
                               >

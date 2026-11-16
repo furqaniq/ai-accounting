@@ -2999,6 +2999,14 @@ table {
   grid-column: 1 / -1;
 }
 
+.automation-form__note {
+  align-self: end;
+  margin: 0 0 0.55rem;
+  color: var(--ink-3);
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
 .automation-form__preview {
   margin-top: 12px;
   font-size: 12.5px;

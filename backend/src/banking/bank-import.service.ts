@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import {
+  AgentDomainEventType,
   BankAccount,
   BankImportBatch,
   BankImportFormat,
@@ -8,6 +9,7 @@ import {
   JournalSourceType,
   Prisma,
 } from '@prisma/client';
+import { DomainEventsService } from '../events/domain-events.service';
 import { LedgerEngine, toDate, toNumber } from '../ledger/ledger-engine';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../tenant/audit.service';
@@ -114,6 +116,7 @@ export class BankImportService {
     private readonly audit: AuditService,
     private readonly engine: BankingImportEngine,
     private readonly ledger: LedgerEngine,
+    private readonly events: DomainEventsService,
   ) {}
 
   async preview(
@@ -217,6 +220,22 @@ export class BankImportService {
       orderBy: { createdAt: 'asc' },
       include: TRANSACTION_CATEGORY_INCLUDE,
     });
+    for (const transaction of transactions) {
+      await this.events.publish({
+        organizationId,
+        type: AgentDomainEventType.BANK_TRANSACTION_IMPORTED,
+        entityType: 'BankTransaction',
+        entityId: transaction.id,
+        data: {
+          transactionId: transaction.id,
+          bankAccountId: account.id,
+          bankAccountName: account.name,
+          date: transaction.date.toISOString().slice(0, 10),
+          description: transaction.description,
+          amount: toNumber(transaction.amount),
+        },
+      });
+    }
     return {
       batch: this.batchView(outcome.batch),
       transactions: transactions.map((row) => ({

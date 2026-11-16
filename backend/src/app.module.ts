@@ -6,6 +6,7 @@ import { AccountsModule } from './accounts/accounts.module';
 import { AgentModule } from './agent/agent.module';
 import { AttachmentsModule } from './attachments/attachments.module';
 import { AuthModule } from './auth/auth.module';
+import { DomainEventsModule } from './events/domain-events.module';
 import { BankingModule } from './banking/banking.module';
 import { HealthModule } from './health/health.module';
 import { LedgerModule } from './ledger/ledger.module';
@@ -22,6 +23,7 @@ import { TenantContextMiddleware } from './tenant/tenant-context.middleware';
     ConfigModule.forRoot({ isGlobal: true, envFilePath: ['.env', '../.env'] }),
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 200 }]),
     PrismaModule,
+    DomainEventsModule,
     AuthModule,
     TenantModule,
     AccountsModule,

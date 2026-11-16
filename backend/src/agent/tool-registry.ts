@@ -7,8 +7,10 @@ import { plainToInstance, Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
+  IsEnum,
   IsIn,
   IsNotEmpty,
+  IsObject,
   IsNumber,
   IsOptional,
   IsString,
@@ -20,7 +22,7 @@ import {
   ValidateNested,
   validate,
 } from 'class-validator';
-import { Customer, Item, Role } from '@prisma/client';
+import { AgentDomainEventType, Customer, Item, Role } from '@prisma/client';
 import { ApAgingService } from '../purchases/ap-aging.service';
 import { DashboardService } from '../reports/dashboard.service';
 import { ReportsService } from '../reports/reports.service';
@@ -132,15 +134,27 @@ class AutomationCreateArgs {
   @MaxLength(2000)
   prompt!: string;
 
+  @IsOptional()
+  @IsIn(['CRON', 'EVENT'])
+  mode?: 'CRON' | 'EVENT';
+
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   @MaxLength(200)
-  cron!: string;
+  cron?: string;
 
   @IsOptional()
   @IsString()
   @MaxLength(100)
   timezone?: string;
+
+  @IsOptional()
+  @IsEnum(AgentDomainEventType)
+  eventType?: AgentDomainEventType;
+
+  @IsOptional()
+  @IsObject()
+  eventConfig?: Record<string, unknown>;
 }
 
 class InvoiceCreateArgs {
@@ -337,7 +351,7 @@ export class ToolRegistry {
       {
         name: 'automation.create',
         description:
-          'Propose a recurring agent routine: a name, the prompt to run, a five-field cron schedule, and an optional IANA timezone. Owner or Admin approval is required before the schedule is registered.',
+          'Propose an agent routine that runs on a five-field cron schedule or when a domain event fires (bank transaction imported, invoice overdue, bill opened, reconciliation discrepancy). Owner or Admin approval is required before it is registered.',
         permission: 'agent:manage',
         readOnly: false,
         sensitive: true,
@@ -348,16 +362,45 @@ export class ToolRegistry {
           properties: {
             name: { type: 'string', description: 'Short automation name.' },
             prompt: { type: 'string', description: 'What Clerk should do on each run.' },
+            mode: {
+              type: 'string',
+              enum: ['CRON', 'EVENT'],
+              description: 'CRON (default) for a schedule, EVENT for a domain trigger.',
+            },
             cron: {
               type: 'string',
-              description: 'Five-field cron, e.g. "0 9 * * 1" for Mondays at 9:00.',
+              description: 'Five-field cron for CRON mode, e.g. "0 9 * * 1".',
             },
             timezone: {
               type: 'string',
               description: 'IANA timezone, e.g. America/New_York. Defaults to UTC.',
             },
+            eventType: {
+              type: 'string',
+              enum: [
+                'BANK_TRANSACTION_IMPORTED',
+                'INVOICE_OVERDUE',
+                'BILL_OPENED',
+                'RECONCILIATION_DISCREPANCY',
+              ],
+              description: 'Domain event for EVENT mode.',
+            },
+            eventConfig: {
+              type: 'object',
+              description:
+                'Optional thresholds: daysOverdue, minAmount, or minDifference.',
+              additionalProperties: false,
+              properties: {
+                daysOverdue: { type: 'number', description: 'Invoice minimum days overdue.' },
+                minAmount: { type: 'number', description: 'Bill minimum total.' },
+                minDifference: {
+                  type: 'number',
+                  description: 'Reconciliation minimum absolute difference.',
+                },
+              },
+            },
           },
-          required: ['name', 'prompt', 'cron'],
+          required: ['name', 'prompt'],
           additionalProperties: false,
         },
         handler: async (args) => {
@@ -365,8 +408,11 @@ export class ToolRegistry {
           return this.automations.create({
             name: input.name,
             prompt: input.prompt,
-            cron: input.cron,
+            ...(input.mode ? { mode: input.mode } : {}),
+            ...(input.cron ? { cron: input.cron } : {}),
             ...(input.timezone ? { timezone: input.timezone } : {}),
+            ...(input.eventType ? { eventType: input.eventType } : {}),
+            ...(input.eventConfig ? { eventConfig: input.eventConfig } : {}),
           });
         },
       },

@@ -5,11 +5,13 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  AgentDomainEventType,
   BillStatus,
   JournalSourceType,
   Prisma,
   Vendor,
 } from '@prisma/client';
+import { DomainEventsService } from '../events/domain-events.service';
 import { LedgerEngine, toDate, toNumber } from '../ledger/ledger-engine';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../tenant/audit.service';
@@ -114,6 +116,7 @@ export class BillsService {
     private readonly prisma: PrismaService,
     private readonly ledger: LedgerEngine,
     private readonly audit: AuditService,
+    private readonly events: DomainEventsService,
   ) {}
 
   async list(filters: ListBillsDto): Promise<BillView[]> {
@@ -358,6 +361,22 @@ export class BillsService {
         vendor: opened.vendor.name,
         total: opened.total,
         dueDate: opened.dueDate,
+      });
+      await this.events.publish({
+        organizationId,
+        type: AgentDomainEventType.BILL_OPENED,
+        entityType: 'Bill',
+        entityId: opened.id,
+        data: {
+          billId: opened.id,
+          number: opened.number,
+          vendorId: opened.vendorId,
+          vendorName: opened.vendor.name,
+          total: opened.total,
+          balanceDue: opened.balanceDue,
+          issueDate: opened.issueDate,
+          dueDate: opened.dueDate,
+        },
       });
     }
     return this.find(id);

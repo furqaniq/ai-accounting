@@ -15,6 +15,7 @@ import { AgentQueueService } from './agent-queue.service';
 import { AgentRunnerService } from './agent-runner.service';
 import { AiProviderService } from './ai-provider.service';
 import { ApprovalService } from './approval.service';
+import { DomainEventRouter } from './domain-event-router.service';
 import { AgentOrchestrator } from './orchestrator.service';
 import { ToolRegistry } from './tool-registry';
 
@@ -35,6 +36,7 @@ import { ToolRegistry } from './tool-registry';
     AgentAutomationRunner,
     AgentAutomationService,
     AgentAutomationWorker,
+    DomainEventRouter,
   ],
 })
 export class AgentModule {}

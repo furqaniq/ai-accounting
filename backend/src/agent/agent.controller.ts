@@ -11,6 +11,8 @@ import {
   Query,
 } from '@nestjs/common';
 import { AgentJob } from '@prisma/client';
+import { DomainEventsService } from '../events/domain-events.service';
+import { TenantContextService } from '../tenant/tenant-context.service';
 import { RequirePermission } from '../tenant/require-permission.decorator';
 import { AgentAutomationRunner } from './agent-automation-runner.service';
 import { AgentAutomationService } from './agent-automation.service';
@@ -18,12 +20,14 @@ import { AgentJobsService, toAgentJobView } from './agent-jobs.service';
 import { AgentLogService } from './agent-log.service';
 import { AgentPolicyService } from './agent-policy.service';
 import { AgentQueueService } from './agent-queue.service';
+import { eventEntityType } from './domain-event.config';
 import { ApprovalService } from './approval.service';
 import {
   AgentApprovalQueryDto,
   AgentLogQueryDto,
   CreateAgentAutomationDto,
   CreateAgentPromptDto,
+  FireDomainEventDto,
   RejectAgentProposalDto,
   UpdateAgentAutomationDto,
   UpdateAgentPolicyDto,
@@ -39,6 +43,8 @@ export class AgentController {
     private readonly policies: AgentPolicyService,
     private readonly automations: AgentAutomationService,
     private readonly automationRunner: AgentAutomationRunner,
+    private readonly events: DomainEventsService,
+    private readonly tenant: TenantContextService,
   ) {}
 
   @Post('prompts')
@@ -175,6 +181,38 @@ export class AgentController {
     }
     const automation = await this.automations.getRunnable(id);
     return this.automationRunner.runScheduled(automation.id, automation.organizationId);
+  }
+
+  @Post('test/events')
+  @HttpCode(200)
+  @RequirePermission('agent:manage')
+  async fireDomainEvent(
+    @Body() dto: FireDomainEventDto,
+  ): Promise<{
+    published: boolean;
+    type: string;
+    entityType: string;
+    entityId: string;
+    occurredAt: string;
+  }> {
+    if (process.env.AGENT_TEST_HOOKS !== '1') {
+      throw new NotFoundException();
+    }
+    const { organizationId } = await this.tenant.get();
+    const event = await this.events.publish({
+      organizationId,
+      type: dto.type,
+      entityType: eventEntityType(dto.type),
+      entityId: dto.entityId ?? `test-${Date.now()}`,
+      data: dto.data,
+    });
+    return {
+      published: true,
+      type: event.type,
+      entityType: event.entityType,
+      entityId: event.entityId,
+      occurredAt: event.occurredAt,
+    };
   }
 
   @Get('logs')

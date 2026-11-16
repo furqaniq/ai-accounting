@@ -6,10 +6,12 @@ import {
 } from '@nestjs/common';
 import {
   AccountType,
+  AgentDomainEventType,
   BankAccountType,
   Prisma,
   ReconciliationStatus,
 } from '@prisma/client';
+import { DomainEventsService } from '../events/domain-events.service';
 import { accountBalance, toDate, toNumber } from '../ledger/ledger-engine';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../tenant/audit.service';
@@ -116,6 +118,7 @@ export class ReconciliationsService {
     private readonly tenant: TenantContextService,
     private readonly audit: AuditService,
     private readonly transactions: BankTransactionsService,
+    private readonly events: DomainEventsService,
   ) {}
 
   async list(filters: ListReconciliationsDto): Promise<ReconciliationSessionView[]> {
@@ -243,6 +246,7 @@ export class ReconciliationsService {
       periodEnd: session.periodEnd,
       statementEndingBalance: session.statementEndingBalance,
     });
+    await this.publishDiscrepancy(session);
     return session;
   }
 
@@ -359,7 +363,31 @@ export class ReconciliationsService {
         amount: outcome.amount,
       },
     );
-    return this.find(sessionId);
+    const detail = await this.find(sessionId);
+    await this.publishDiscrepancy(detail);
+    return detail;
+  }
+
+  private async publishDiscrepancy(session: ReconciliationSessionView): Promise<void> {
+    if (session.difference === 0) return;
+    const { organizationId } = await this.tenant.get();
+    await this.events.publish({
+      organizationId,
+      type: AgentDomainEventType.RECONCILIATION_DISCREPANCY,
+      entityType: 'ReconciliationSession',
+      entityId: session.id,
+      data: {
+        sessionId: session.id,
+        bankAccountId: session.bankAccountId,
+        bankAccountName: session.bankAccount.name,
+        periodStart: session.periodStart,
+        periodEnd: session.periodEnd,
+        difference: session.difference,
+        statementEndingBalance: session.statementEndingBalance,
+        clearedBalance: session.clearedBalance,
+        bookBalance: session.bookBalance,
+      },
+    });
   }
 
 

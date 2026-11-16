@@ -104,6 +104,89 @@ function automationProposal(prompt: string) {
   };
 }
 
+const EVENT_NAME = 'Event routine';
+
+function eventAutomationIntent(prompt: string): boolean {
+  const event =
+    /\b(overdue|bill|bank transaction|reconciliation|discrepancy)\b/i.test(prompt);
+  const trigger = /\bwhen\b/i.test(prompt);
+  const action =
+    /\b(create|add|set up|setup|propose|make|schedule|automate|run)\b/i.test(prompt);
+  return event && trigger && action;
+}
+
+function amountAfterThreshold(prompt: string): number | undefined {
+  const match = prompt.match(
+    /(?:above|over|more than|at least)\s+\$?\s*([\d,]+(?:\.\d+)?)/i,
+  );
+  if (!match) return undefined;
+  const value = Number.parseFloat(match[1].replace(/,/g, ''));
+  return Number.isFinite(value) ? value : undefined;
+}
+
+function eventAutomationProposal(prompt: string) {
+  const lower = prompt.toLowerCase();
+  const name = automationName(prompt) === 'Recurring routine' ? EVENT_NAME : automationName(prompt);
+  if (/overdue/.test(lower)) {
+    const match = prompt.match(/(?:by|for|at least)\s+(\d+)\s+days?/i);
+    const daysOverdue = match ? Number.parseInt(match[1], 10) : 0;
+    return {
+      name: 'automation.create',
+      args: {
+        name,
+        prompt,
+        mode: 'EVENT',
+        eventType: 'INVOICE_OVERDUE',
+        eventConfig: { daysOverdue },
+      },
+      rationale: `Proposed an event routine “${name}” that runs when an invoice is overdue${
+        daysOverdue > 0 ? ` by at least ${daysOverdue} days` : ''
+      }. An Owner or Admin must approve it before it is registered.`,
+    };
+  }
+  if (/bill/.test(lower)) {
+    const minAmount = amountAfterThreshold(prompt) ?? 0;
+    return {
+      name: 'automation.create',
+      args: {
+        name,
+        prompt,
+        mode: 'EVENT',
+        eventType: 'BILL_OPENED',
+        eventConfig: { minAmount },
+      },
+      rationale: `Proposed an event routine “${name}” that runs when a bill opens${
+        minAmount > 0 ? ` above $${minAmount.toFixed(2)}` : ''
+      }. An Owner or Admin must approve it before it is registered.`,
+    };
+  }
+  if (/reconciliation|discrepancy/.test(lower)) {
+    const minDifference = amountAfterThreshold(prompt) ?? 0;
+    return {
+      name: 'automation.create',
+      args: {
+        name,
+        prompt,
+        mode: 'EVENT',
+        eventType: 'RECONCILIATION_DISCREPANCY',
+        eventConfig: { minDifference },
+      },
+      rationale: `Proposed an event routine “${name}” that runs when a reconciliation has a discrepancy. An Owner or Admin must approve it before it is registered.`,
+    };
+  }
+  return {
+    name: 'automation.create',
+    args: {
+      name,
+      prompt,
+      mode: 'EVENT',
+      eventType: 'BANK_TRANSACTION_IMPORTED',
+      eventConfig: {},
+    },
+    rationale: `Proposed an event routine “${name}” that runs when a bank transaction is imported. An Owner or Admin must approve it before it is registered.`,
+  };
+}
+
 function isoDueDate(prompt: string): { dueDate: string; days: number } {
   const match = prompt.match(/due\s+in\s+(\d+)\s+days?/i);
   const days = match ? Math.max(1, Number.parseInt(match[1], 10)) : 30;
@@ -249,6 +332,15 @@ export class StubProvider implements AiProvider {
 
     if (request.toolResults && request.toolResults.length > 0) {
       return { text: finalText(request.toolResults) };
+    }
+
+    if (eventAutomationIntent(request.prompt)) {
+      if (hasTool(request.tools, 'automation.create')) {
+        return { toolCalls: [eventAutomationProposal(request.prompt)] };
+      }
+      return {
+        text: 'This role cannot create automations. Owner, Admin, Accountant, or Staff access is required.',
+      };
     }
 
     if (automationIntent(request.prompt)) {
