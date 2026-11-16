@@ -8,22 +8,30 @@ import {
   ActiveOrganization,
   BalanceSheetReport,
   CashFlowReport,
+  ExpensesByCategoryReport,
   ProfitLossReport,
   ReportAccountRow,
+  SalesByCustomerReport,
+  SalesByItemReport,
   StatementGroup,
   TrialBalanceReport,
   clearSession,
   fetchActiveOrganization,
   fetchBalanceSheet,
   fetchCashFlow,
+  fetchExpensesByCategory,
   fetchProfitLoss,
+  fetchSalesByCustomer,
+  fetchSalesByItem,
   fetchTrialBalance,
   getAccessToken,
   getActiveOrgId,
   setActiveOrgId,
 } from '@/lib/api';
 
-type ReportTab = 'profit-loss' | 'balance-sheet' | 'cash-flow' | 'trial-balance';
+type StatementTab = 'profit-loss' | 'balance-sheet' | 'cash-flow' | 'trial-balance';
+type AnalysisTab = 'sales-by-customer' | 'sales-by-item' | 'expenses-by-category';
+type ReportTab = StatementTab | AnalysisTab;
 
 type StatementReport =
   | ProfitLossReport
@@ -31,12 +39,34 @@ type StatementReport =
   | CashFlowReport
   | TrialBalanceReport;
 
-const TABS: Array<{ key: ReportTab; label: string }> = [
+type OperationalReport =
+  | SalesByCustomerReport
+  | SalesByItemReport
+  | ExpensesByCategoryReport;
+
+type Report = StatementReport | OperationalReport;
+
+const TABS: Array<{ key: StatementTab; label: string }> = [
   { key: 'profit-loss', label: 'Profit & loss' },
   { key: 'balance-sheet', label: 'Balance sheet' },
   { key: 'cash-flow', label: 'Cash flow' },
   { key: 'trial-balance', label: 'Trial balance' },
 ];
+
+const ANALYSIS_TABS: Array<{ key: AnalysisTab; label: string }> = [
+  { key: 'sales-by-customer', label: 'Sales by customer' },
+  { key: 'sales-by-item', label: 'Sales by item' },
+  { key: 'expenses-by-category', label: 'Expenses by category' },
+];
+
+const TAB_LABELS: Record<ReportTab, string> = {
+  ...(Object.fromEntries(TABS.map((tab) => [tab.key, tab.label])) as Record<StatementTab, string>),
+  ...(Object.fromEntries(
+    ANALYSIS_TABS.map((tab) => [tab.key, tab.label]),
+  ) as Record<AnalysisTab, string>),
+};
+
+const ANALYSIS_KEYS = new Set<ReportTab>(ANALYSIS_TABS.map((tab) => tab.key));
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
@@ -72,7 +102,8 @@ export default function ReportsPage() {
   const [from, setFrom] = useState(`${initialTo.slice(0, 4)}-01-01`);
   const [to, setTo] = useState(initialTo);
   const [asOf, setAsOf] = useState(initialTo);
-  const [report, setReport] = useState<StatementReport | null>(null);
+  const [report, setReport] = useState<Report | null>(null);
+  const [openRows, setOpenRows] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -115,7 +146,7 @@ export default function ReportsPage() {
     if (!org) return;
     let cancelled = false;
     setLoading(true);
-    const load = async (): Promise<StatementReport> => {
+    const load = async (): Promise<Report> => {
       if (tab === 'profit-loss') {
         return fetchProfitLoss(org.organizationId, { from, to });
       }
@@ -125,7 +156,16 @@ export default function ReportsPage() {
       if (tab === 'balance-sheet') {
         return fetchBalanceSheet(org.organizationId, asOf);
       }
-      return fetchTrialBalance(org.organizationId, asOf);
+      if (tab === 'trial-balance') {
+        return fetchTrialBalance(org.organizationId, asOf);
+      }
+      if (tab === 'sales-by-customer') {
+        return fetchSalesByCustomer(org.organizationId, { from, to });
+      }
+      if (tab === 'sales-by-item') {
+        return fetchSalesByItem(org.organizationId, { from, to });
+      }
+      return fetchExpensesByCategory(org.organizationId, { from, to });
     };
     load()
       .then((statement) => {
@@ -146,14 +186,21 @@ export default function ReportsPage() {
     };
   }, [org, tab, from, to, asOf]);
 
-  const periodTab = tab === 'profit-loss' || tab === 'cash-flow';
+  const periodTab = !(tab === 'balance-sheet' || tab === 'trial-balance');
+  const analysisTab = ANALYSIS_KEYS.has(tab);
   const reportLabel = useMemo(() => {
     if (!report) return 'Reading the ledger.';
-    if (report.report === 'balance-sheet' || report.report === 'trial-balance') {
+    if ('asOf' in report) {
       return `As of ${displayDate(report.asOf, 'long')}`;
     }
     return `${displayDate(report.from)} – ${displayDate(report.to, 'long')}`;
   }, [report]);
+
+  function toggleSources(key: string) {
+    setOpenRows((current) =>
+      current.includes(key) ? current.filter((row) => row !== key) : [...current, key],
+    );
+  }
 
   function drillLink(accountId: string | null): string | null {
     if (!accountId) return null;
@@ -174,6 +221,23 @@ export default function ReportsPage() {
         <td>{href ? <a className="invoice-link" href={href}>{accountLabel(row)}</a> : accountLabel(row)}</td>
         <td className="num">{money(row.amount)}</td>
       </tr>
+    );
+  }
+
+  function documentHref(type: 'invoice' | 'bill' | 'expense', id: string): string {
+    if (type === 'invoice') return `/invoices?invoice=${id}`;
+    if (type === 'bill') return `/bills?bill=${id}`;
+    return `/expenses?expense=${id}`;
+  }
+
+  function reconciliationNote(reconciled: boolean, text: string) {
+    return (
+      <p className="report-note">
+        <span className={`report-status${reconciled ? ' is-ok' : ' is-off'}`}>
+          {reconciled ? 'Reconciled' : 'Does not tie to the ledger'}
+        </span>{' '}
+        {text}
+      </p>
     );
   }
 
@@ -340,6 +404,314 @@ export default function ReportsPage() {
       );
     }
 
+    if (report.report === 'sales-by-customer') {
+      return (
+        <>
+          <div className="stats">
+            <div className="stat">
+              <div className="stat__label">Pre-tax sales</div>
+              <div className="stat__value">{money(report.totals.amount)}</div>
+            </div>
+            <div className="stat">
+              <div className="stat__label">Tax collected</div>
+              <div className="stat__value">{money(report.totals.tax)}</div>
+            </div>
+            <div className="stat">
+              <div className="stat__label">Invoiced total</div>
+              <div className="stat__value">{money(report.totals.total)}</div>
+            </div>
+          </div>
+          <table className="report-table" aria-label="Sales by customer">
+            <thead>
+              <tr>
+                <th scope="col">Customer</th>
+                <th scope="col">Documents</th>
+                <th scope="col" className="num">Quantity</th>
+                <th scope="col" className="num">Sales</th>
+                <th scope="col" className="num">Tax</th>
+                <th scope="col" className="num">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {report.rows.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="accounts-empty">
+                    No posted invoices in this period.
+                  </td>
+                </tr>
+              ) : (
+                report.rows.map((row) => {
+                  const key = `customer-${row.customerId}`;
+                  const open = openRows.includes(key);
+                  return (
+                    <Fragment key={key}>
+                      <tr>
+                        <td>
+                          {row.code} — {row.name}
+                        </td>
+                        <td>
+                          <button
+                            type="button"
+                            className="report-row-toggle"
+                            aria-expanded={open}
+                            onClick={() => toggleSources(key)}
+                          >
+                            {row.count} invoice{row.count === 1 ? '' : 's'}
+                          </button>
+                        </td>
+                        <td className="num">{row.quantity}</td>
+                        <td className="num">{money(row.amount)}</td>
+                        <td className="num">{money(row.tax)}</td>
+                        <td className="num">{money(row.total)}</td>
+                      </tr>
+                      {open ? (
+                        <tr className="report-sources-row">
+                          <td colSpan={6}>
+                            <ul className="report-source-list">
+                              {row.sources.map((source) => (
+                                <li key={source.id}>
+                                  <a
+                                    className="invoice-link"
+                                    href={documentHref('invoice', source.id)}
+                                  >
+                                    {source.number}
+                                  </a>
+                                  <span>
+                                    {displayDate(source.date)} · {money(source.amount)} pre-tax
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          </td>
+                        </tr>
+                      ) : null}
+                    </Fragment>
+                  );
+                })
+              )}
+            </tbody>
+            <tfoot>
+              <tr className="is-total">
+                <td colSpan={2}>Total sales</td>
+                <td className="num">{report.totals.quantity}</td>
+                <td className="num">{money(report.totals.amount)}</td>
+                <td className="num">{money(report.totals.tax)}</td>
+                <td className="num">{money(report.totals.total)}</td>
+              </tr>
+            </tfoot>
+          </table>
+          {reconciliationNote(
+            report.reconciled,
+            `Pre-tax sales ${money(report.totals.amount)} against posted income ${money(
+              report.ledgerIncome,
+            )}. Draft invoices are excluded until they post.`,
+          )}
+        </>
+      );
+    }
+
+    if (report.report === 'sales-by-item') {
+      return (
+        <>
+          <div className="stats">
+            <div className="stat">
+              <div className="stat__label">Pre-tax sales</div>
+              <div className="stat__value">{money(report.totals.amount)}</div>
+            </div>
+            <div className="stat">
+              <div className="stat__label">Quantity sold</div>
+              <div className="stat__value">{report.totals.quantity}</div>
+            </div>
+            <div className="stat">
+              <div className="stat__label">Invoice lines</div>
+              <div className="stat__value">{report.totals.count}</div>
+            </div>
+          </div>
+          <table className="report-table" aria-label="Sales by item">
+            <thead>
+              <tr>
+                <th scope="col">Item</th>
+                <th scope="col">Documents</th>
+                <th scope="col" className="num">Quantity</th>
+                <th scope="col" className="num">Sales</th>
+              </tr>
+            </thead>
+            <tbody>
+              {report.rows.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="accounts-empty">
+                    No posted invoices in this period.
+                  </td>
+                </tr>
+              ) : (
+                report.rows.map((row) => {
+                  const key = `item-${row.itemId}`;
+                  const open = openRows.includes(key);
+                  return (
+                    <Fragment key={key}>
+                      <tr>
+                        <td>
+                          {row.code} — {row.name}
+                        </td>
+                        <td>
+                          <button
+                            type="button"
+                            className="report-row-toggle"
+                            aria-expanded={open}
+                            onClick={() => toggleSources(key)}
+                          >
+                            {row.count} line{row.count === 1 ? '' : 's'}
+                          </button>
+                        </td>
+                        <td className="num">{row.quantity}</td>
+                        <td className="num">{money(row.amount)}</td>
+                      </tr>
+                      {open ? (
+                        <tr className="report-sources-row">
+                          <td colSpan={4}>
+                            <ul className="report-source-list">
+                              {row.sources.map((source) => (
+                                <li key={source.lineId}>
+                                  <a
+                                    className="invoice-link"
+                                    href={documentHref('invoice', source.id)}
+                                  >
+                                    {source.number}
+                                  </a>
+                                  <span>
+                                    {displayDate(source.date)} · {source.quantity} ×{' '}
+                                    {money(source.amount)}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          </td>
+                        </tr>
+                      ) : null}
+                    </Fragment>
+                  );
+                })
+              )}
+            </tbody>
+            <tfoot>
+              <tr className="is-total">
+                <td colSpan={2}>Total sales</td>
+                <td className="num">{report.totals.quantity}</td>
+                <td className="num">{money(report.totals.amount)}</td>
+              </tr>
+            </tfoot>
+          </table>
+          {reconciliationNote(
+            report.reconciled,
+            `Pre-tax sales ${money(report.totals.amount)} against posted income ${money(
+              report.ledgerIncome,
+            )}. Quantities come from posted invoice lines only.`,
+          )}
+        </>
+      );
+    }
+
+    if (report.report === 'expenses-by-category') {
+      return (
+        <>
+          <div className="stats">
+            <div className="stat">
+              <div className="stat__label">Total expenses</div>
+              <div className="stat__value">{money(report.totals.amount)}</div>
+            </div>
+            <div className="stat">
+              <div className="stat__label">Categories</div>
+              <div className="stat__value">{report.rows.length}</div>
+            </div>
+            <div className="stat">
+              <div className="stat__label">Documents</div>
+              <div className="stat__value">{report.totals.count}</div>
+            </div>
+          </div>
+          <table className="report-table" aria-label="Expenses by category">
+            <thead>
+              <tr>
+                <th scope="col">Category</th>
+                <th scope="col">Documents</th>
+                <th scope="col" className="num">Expense</th>
+              </tr>
+            </thead>
+            <tbody>
+              {report.rows.length === 0 ? (
+                <tr>
+                  <td colSpan={3} className="accounts-empty">
+                    No posted expenses in this period.
+                  </td>
+                </tr>
+              ) : (
+                report.rows.map((row) => {
+                  const key = `category-${row.accountId}`;
+                  const open = openRows.includes(key);
+                  return (
+                    <Fragment key={key}>
+                      <tr>
+                        <td>
+                          {row.code} — {row.name}
+                        </td>
+                        <td>
+                          <button
+                            type="button"
+                            className="report-row-toggle"
+                            aria-expanded={open}
+                            onClick={() => toggleSources(key)}
+                          >
+                            {row.count} document{row.count === 1 ? '' : 's'}
+                          </button>
+                        </td>
+                        <td className="num">{money(row.amount)}</td>
+                      </tr>
+                      {open ? (
+                        <tr className="report-sources-row">
+                          <td colSpan={3}>
+                            <ul className="report-source-list">
+                              {row.sources.map((source) => (
+                                <li key={`${source.type}-${source.id}`}>
+                                  <a
+                                    className="invoice-link"
+                                    href={documentHref(source.type, source.id)}
+                                  >
+                                    {source.number}
+                                  </a>
+                                  <span>
+                                    {displayDate(source.date)} · {money(source.amount)}
+                                    {source.party ? ` · ${source.party}` : ''}
+                                    {source.memo ? ` · ${source.memo}` : ''}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          </td>
+                        </tr>
+                      ) : null}
+                    </Fragment>
+                  );
+                })
+              )}
+            </tbody>
+            <tfoot>
+              <tr className="is-total">
+                <td colSpan={2}>Total expenses</td>
+                <td className="num">{money(report.totals.amount)}</td>
+              </tr>
+            </tfoot>
+          </table>
+          {reconciliationNote(
+            report.reconciled,
+            `Quick expenses plus pre-tax bill lines ${money(
+              report.totals.amount,
+            )} against posted expenses ${money(
+              report.ledgerExpenses,
+            )}. Draft bills and tax are excluded.`,
+          )}
+        </>
+      );
+    }
+
     return (
       <>
         <table className="report-table" aria-label="Trial balance">
@@ -402,7 +774,7 @@ export default function ReportsPage() {
       <main className="page" id="main">
         <header className="page-head">
           <div>
-            <h1>Financial statements</h1>
+            <h1>Reports</h1>
             <p className="page-head__meta">
               {org?.organizationName}. {reportLabel}
               {loading ? ' Updating…' : ''}
@@ -424,11 +796,37 @@ export default function ReportsPage() {
               aria-selected={tab === item.key}
               aria-controls="statement-panel"
               id={`tab-${item.key}`}
-              onClick={() => setTab(item.key)}
+              onClick={() => {
+                setTab(item.key);
+                setOpenRows([]);
+              }}
             >
               {item.label}
             </button>
           ))}
+        </div>
+
+        <div className="report-subtabs">
+          <span className="report-subtabs__label">Analysis</span>
+          <div className="report-tabs" role="tablist" aria-label="Operational analysis">
+            {ANALYSIS_TABS.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                role="tab"
+                className="report-tab"
+                aria-selected={tab === item.key}
+                aria-controls="statement-panel"
+                id={`tab-${item.key}`}
+                onClick={() => {
+                  setTab(item.key);
+                  setOpenRows([]);
+                }}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         <section
@@ -481,12 +879,16 @@ export default function ReportsPage() {
           <section className="report-sheet statement-sheet" aria-live="polite">
             <div className="report-sheet__head">
               <div>
-                <h2>{TABS.find((item) => item.key === tab)?.label}</h2>
+                <h2>{TAB_LABELS[tab]}</h2>
                 <p className="report-sheet__meta">
                   {org?.organizationName} · {reportLabel}
                 </p>
               </div>
-              <p className="report-sheet__meta">Click an account to open its register.</p>
+              <p className="report-sheet__meta">
+                {analysisTab
+                  ? 'Open a document to inspect its source.'
+                  : 'Click an account to open its register.'}
+              </p>
             </div>
             {renderReport()}
           </section>

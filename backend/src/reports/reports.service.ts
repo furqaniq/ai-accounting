@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { AccountType, Prisma } from '@prisma/client';
+import { AccountType, BillStatus, InvoiceStatus, Prisma } from '@prisma/client';
 import { toDate } from '../ledger/ledger-engine';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantContextService } from '../tenant/tenant-context.service';
@@ -7,9 +7,12 @@ import { PeriodQueryDto, AsOfQueryDto } from './reports.dto';
 import {
   BalanceSheetReport,
   CashFlowReport,
+  ExpensesByCategoryReport,
   ProfitLossReport,
   ReportAccountBalances,
   ReportingEngine,
+  SalesByCustomerReport,
+  SalesByItemReport,
   TrialBalanceReport,
 } from './reporting-engine';
 
@@ -159,6 +162,203 @@ export class ReportsService {
         })),
       })),
     });
+  }
+
+  async salesByCustomer(query: PeriodQueryDto): Promise<SalesByCustomerReport> {
+    const { organizationId } = await this.tenant.get();
+    const period = await this.resolvePeriod(organizationId, query);
+    const from = new Date(`${period.from}T00:00:00.000Z`);
+    const to = new Date(`${period.to}T00:00:00.000Z`);
+
+    const [invoices, ledgerIncome] = await Promise.all([
+      this.prisma.invoice.findMany({
+        where: {
+          organizationId,
+          status: { not: InvoiceStatus.DRAFT },
+          issueDate: { gte: from, lte: to },
+        },
+        orderBy: [{ issueDate: 'asc' }, { number: 'asc' }],
+        select: {
+          id: true,
+          number: true,
+          issueDate: true,
+          subtotal: true,
+          taxTotal: true,
+          total: true,
+          customerId: true,
+          customer: { select: { code: true, name: true } },
+          lines: { select: { quantity: true } },
+        },
+      }),
+      this.ledgerTotal(organizationId, AccountType.INCOME, from, to, 'credit'),
+    ]);
+
+    return this.engine.salesByCustomer(
+      period,
+      invoices.map((invoice) => ({
+        id: invoice.id,
+        number: invoice.number,
+        issueDate: isoDate(invoice.issueDate),
+        customerId: invoice.customerId,
+        customerCode: invoice.customer.code,
+        customerName: invoice.customer.name,
+        subtotal: invoice.subtotal,
+        taxTotal: invoice.taxTotal,
+        total: invoice.total,
+        quantity: invoice.lines.reduce(
+          (sum, line) => sum.plus(line.quantity),
+          new Prisma.Decimal(0),
+        ),
+      })),
+      ledgerIncome,
+    );
+  }
+
+  async salesByItem(query: PeriodQueryDto): Promise<SalesByItemReport> {
+    const { organizationId } = await this.tenant.get();
+    const period = await this.resolvePeriod(organizationId, query);
+    const from = new Date(`${period.from}T00:00:00.000Z`);
+    const to = new Date(`${period.to}T00:00:00.000Z`);
+
+    const [lines, ledgerIncome] = await Promise.all([
+      this.prisma.invoiceLine.findMany({
+        where: {
+          organizationId,
+          invoice: {
+            status: { not: InvoiceStatus.DRAFT },
+            issueDate: { gte: from, lte: to },
+          },
+        },
+        orderBy: [{ invoiceId: 'asc' }, { position: 'asc' }],
+        select: {
+          id: true,
+          invoiceId: true,
+          quantity: true,
+          amount: true,
+          itemId: true,
+          item: { select: { code: true, name: true } },
+          invoice: { select: { number: true, issueDate: true } },
+        },
+      }),
+      this.ledgerTotal(organizationId, AccountType.INCOME, from, to, 'credit'),
+    ]);
+
+    return this.engine.salesByItem(
+      period,
+      lines.map((line) => ({
+        lineId: line.id,
+        invoiceId: line.invoiceId,
+        number: line.invoice.number,
+        issueDate: isoDate(line.invoice.issueDate),
+        itemId: line.itemId,
+        itemCode: line.item.code,
+        itemName: line.item.name,
+        quantity: line.quantity,
+        amount: line.amount,
+      })),
+      ledgerIncome,
+    );
+  }
+
+  async expensesByCategory(query: PeriodQueryDto): Promise<ExpensesByCategoryReport> {
+    const { organizationId } = await this.tenant.get();
+    const period = await this.resolvePeriod(organizationId, query);
+    const from = new Date(`${period.from}T00:00:00.000Z`);
+    const to = new Date(`${period.to}T00:00:00.000Z`);
+
+    const [expenses, billLines, ledgerExpenses] = await Promise.all([
+      this.prisma.expense.findMany({
+        where: { organizationId, date: { gte: from, lte: to } },
+        orderBy: [{ date: 'asc' }, { number: 'asc' }],
+        select: {
+          id: true,
+          number: true,
+          date: true,
+          amount: true,
+          memo: true,
+          categoryAccountId: true,
+          categoryAccount: { select: { code: true, name: true } },
+          vendor: { select: { name: true } },
+        },
+      }),
+      this.prisma.billLine.findMany({
+        where: {
+          organizationId,
+          bill: {
+            status: { not: BillStatus.DRAFT },
+            issueDate: { gte: from, lte: to },
+          },
+        },
+        orderBy: [{ billId: 'asc' }, { position: 'asc' }],
+        select: {
+          id: true,
+          amount: true,
+          description: true,
+          expenseAccountId: true,
+          expenseAccount: { select: { code: true, name: true } },
+          bill: {
+            select: {
+              id: true,
+              number: true,
+              issueDate: true,
+              vendor: { select: { name: true } },
+            },
+          },
+        },
+      }),
+      this.ledgerTotal(organizationId, AccountType.EXPENSE, from, to, 'debit'),
+    ]);
+
+    return this.engine.expensesByCategory(
+      period,
+      [
+        ...expenses.map((expense) => ({
+          categoryAccountId: expense.categoryAccountId,
+          categoryCode: expense.categoryAccount.code,
+          categoryName: expense.categoryAccount.name,
+          sourceType: 'expense' as const,
+          sourceId: expense.id,
+          sourceNumber: expense.number,
+          date: isoDate(expense.date),
+          amount: expense.amount,
+          party: expense.vendor?.name ?? null,
+          memo: expense.memo,
+        })),
+        ...billLines.map((line) => ({
+          categoryAccountId: line.expenseAccountId,
+          categoryCode: line.expenseAccount.code,
+          categoryName: line.expenseAccount.name,
+          sourceType: 'bill' as const,
+          sourceId: line.bill.id,
+          sourceNumber: line.bill.number,
+          date: isoDate(line.bill.issueDate),
+          amount: line.amount,
+          party: line.bill.vendor.name,
+          memo: line.description,
+        })),
+      ],
+      ledgerExpenses,
+    );
+  }
+
+  private async ledgerTotal(
+    organizationId: string,
+    type: AccountType,
+    from: Date,
+    to: Date,
+    normal: 'debit' | 'credit',
+  ): Promise<Prisma.Decimal> {
+    const sums = await this.prisma.journalLine.aggregate({
+      where: {
+        organizationId,
+        account: { type },
+        entry: { date: { gte: from, lte: to } },
+      },
+      _sum: { debit: true, credit: true },
+    });
+    const debit = sums._sum.debit ?? zero();
+    const credit = sums._sum.credit ?? zero();
+    return normal === 'debit' ? debit.minus(credit) : credit.minus(debit);
   }
 
   private resolveAsOf(query: AsOfQueryDto): string {

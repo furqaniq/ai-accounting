@@ -1128,6 +1128,134 @@ function reportQuery(values: Record<string, string | undefined>): string {
   return query ? `?${query}` : '';
 }
 
+export interface SalesByCustomerSource {
+  type: 'invoice';
+  id: string;
+  number: string;
+  date: string;
+  amount: number;
+  tax: number;
+  total: number;
+  quantity: number;
+}
+
+export interface SalesByCustomerRow {
+  customerId: string;
+  code: string;
+  name: string;
+  amount: number;
+  tax: number;
+  total: number;
+  quantity: number;
+  count: number;
+  sources: SalesByCustomerSource[];
+}
+
+export interface SalesByCustomerReport {
+  report: 'sales-by-customer';
+  from: string;
+  to: string;
+  rows: SalesByCustomerRow[];
+  totals: { amount: number; tax: number; total: number; quantity: number; count: number };
+  ledgerIncome: number;
+  reconciled: boolean;
+}
+
+export interface SalesByItemSource {
+  type: 'invoice';
+  id: string;
+  lineId: string;
+  number: string;
+  date: string;
+  quantity: number;
+  amount: number;
+}
+
+export interface SalesByItemRow {
+  itemId: string;
+  code: string;
+  name: string;
+  amount: number;
+  quantity: number;
+  count: number;
+  sources: SalesByItemSource[];
+}
+
+export interface SalesByItemReport {
+  report: 'sales-by-item';
+  from: string;
+  to: string;
+  rows: SalesByItemRow[];
+  totals: { amount: number; quantity: number; count: number };
+  ledgerIncome: number;
+  reconciled: boolean;
+}
+
+export interface ExpenseCategorySource {
+  type: 'expense' | 'bill';
+  id: string;
+  number: string;
+  date: string;
+  amount: number;
+  party: string | null;
+  memo: string | null;
+}
+
+export interface ExpensesByCategoryRow {
+  accountId: string;
+  code: string;
+  name: string;
+  amount: number;
+  count: number;
+  sources: ExpenseCategorySource[];
+}
+
+export interface ExpensesByCategoryReport {
+  report: 'expenses-by-category';
+  from: string;
+  to: string;
+  rows: ExpensesByCategoryRow[];
+  totals: { amount: number; count: number };
+  ledgerExpenses: number;
+  reconciled: boolean;
+}
+
+export async function fetchSalesByCustomer(
+  organizationId: string,
+  period: { from?: string; to?: string } = {},
+): Promise<SalesByCustomerReport> {
+  const res = await fetch(
+    `${API_URL}/reports/sales-by-customer${reportQuery({ from: period.from, to: period.to })}`,
+    { headers: authHeaders(organizationId) },
+  );
+  if (!res.ok) throw new Error(await failureMessage(res, 'Sales by customer is not available'));
+  return res.json();
+}
+
+export async function fetchSalesByItem(
+  organizationId: string,
+  period: { from?: string; to?: string } = {},
+): Promise<SalesByItemReport> {
+  const res = await fetch(
+    `${API_URL}/reports/sales-by-item${reportQuery({ from: period.from, to: period.to })}`,
+    { headers: authHeaders(organizationId) },
+  );
+  if (!res.ok) throw new Error(await failureMessage(res, 'Sales by item is not available'));
+  return res.json();
+}
+
+export async function fetchExpensesByCategory(
+  organizationId: string,
+  period: { from?: string; to?: string } = {},
+): Promise<ExpensesByCategoryReport> {
+  const res = await fetch(
+    `${API_URL}/reports/expenses-by-category${reportQuery({ from: period.from, to: period.to })}`,
+    { headers: authHeaders(organizationId) },
+  );
+  if (!res.ok) throw new Error(await failureMessage(res, 'Expenses by category is not available'));
+  return res.json();
+}
+
 export async function fetchProfitLoss(
   organizationId: string,
   period: { from?: string; to?: string } = {},

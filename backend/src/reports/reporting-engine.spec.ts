@@ -266,4 +266,150 @@ describe('ReportingEngine', () => {
       expect(report.reconciled).toBe(true);
     });
   });
+
+  describe('operational reports', () => {
+    function invoice(overrides: Partial<Parameters<typeof engine.salesByCustomer>[1][number]>) {
+      return {
+        id: 'inv-1',
+        number: 'INV-1001',
+        issueDate: '2026-10-20',
+        customerId: 'cust-1',
+        customerCode: 'CUST-0001',
+        customerName: 'Northwind Studio',
+        subtotal: d(300),
+        taxTotal: d(0),
+        total: d(300),
+        quantity: d(2),
+        ...overrides,
+      };
+    }
+
+    it('groups sales by customer, keeps tax separate, and reconciles pre-tax sales to ledger income', () => {
+      const report = engine.salesByCustomer(
+        { from: '2026-01-01', to: '2026-12-31' },
+        [
+          invoice({}),
+          invoice({
+            id: 'inv-2',
+            number: 'INV-1002',
+            issueDate: '2026-09-15',
+            customerId: 'cust-2',
+            customerCode: 'CUST-0002',
+            customerName: 'Harbor & Pine',
+            subtotal: d(900),
+            taxTotal: d(74.25),
+            total: d(974.25),
+            quantity: d(1),
+          }),
+          invoice({ id: 'inv-3', number: 'INV-1003', subtotal: d(200), total: d(200), quantity: d(1) }),
+        ],
+        d(1400),
+      );
+
+      expect(report.rows.map((row) => row.code)).toEqual(['CUST-0002', 'CUST-0001']);
+      expect(report.rows[0]).toMatchObject({ amount: 900, tax: 74.25, total: 974.25, count: 1 });
+      expect(report.rows[1]).toMatchObject({ amount: 500, tax: 0, total: 500, quantity: 3, count: 2 });
+      expect(report.totals).toEqual({
+        amount: 1400,
+        tax: 74.25,
+        total: 1474.25,
+        quantity: 4,
+        count: 3,
+      });
+      expect(report.ledgerIncome).toBe(1400);
+      expect(report.reconciled).toBe(true);
+    });
+
+    it('aggregates duplicate item lines while retaining per-line invoice drill-downs', () => {
+      const report = engine.salesByItem(
+        { from: '2026-01-01', to: '2026-12-31' },
+        [
+          {
+            lineId: 'line-1',
+            invoiceId: 'inv-1',
+            number: 'INV-1001',
+            issueDate: '2026-10-20',
+            itemId: 'item-1',
+            itemCode: 'ITEM-0001',
+            itemName: 'Consulting hour',
+            quantity: d(2),
+            amount: d(300),
+          },
+          {
+            lineId: 'line-2',
+            invoiceId: 'inv-1',
+            number: 'INV-1001',
+            issueDate: '2026-10-20',
+            itemId: 'item-1',
+            itemCode: 'ITEM-0001',
+            itemName: 'Consulting hour',
+            quantity: d(1),
+            amount: d(150),
+          },
+        ],
+        d(450),
+      );
+
+      expect(report.rows).toHaveLength(1);
+      expect(report.rows[0]).toMatchObject({ amount: 450, quantity: 3, count: 2 });
+      expect(report.rows[0].sources.map((source) => source.lineId)).toEqual(['line-1', 'line-2']);
+      expect(report.totals).toEqual({ amount: 450, quantity: 3, count: 2 });
+      expect(report.reconciled).toBe(true);
+    });
+
+    it('combines quick expenses and bill lines by expense account without tax', () => {
+      const report = engine.expensesByCategory(
+        { from: '2026-01-01', to: '2026-12-31' },
+        [
+          {
+            categoryAccountId: 'acct-6200',
+            categoryCode: '6200',
+            categoryName: 'Supplies expense',
+            sourceType: 'bill',
+            sourceId: 'bill-1',
+            sourceNumber: 'BILL-1001',
+            date: '2026-10-20',
+            amount: d(600),
+            party: 'Halden Paper',
+            memo: 'Paper stock',
+          },
+          {
+            categoryAccountId: 'acct-6100',
+            categoryCode: '6100',
+            categoryName: 'Utilities expense',
+            sourceType: 'expense',
+            sourceId: 'exp-1',
+            sourceNumber: 'EXP-1001',
+            date: '2026-10-10',
+            amount: d(25),
+            party: null,
+            memo: 'Test',
+          },
+          {
+            categoryAccountId: 'acct-6100',
+            categoryCode: '6100',
+            categoryName: 'Utilities expense',
+            sourceType: 'bill',
+            sourceId: 'bill-2',
+            sourceNumber: 'BILL-1002',
+            date: '2026-09-15',
+            amount: d(475),
+            party: 'Brightline Utilities',
+            memo: 'Electricity',
+          },
+        ],
+        d(1100),
+      );
+
+      expect(report.rows.map((row) => row.code)).toEqual(['6100', '6200']);
+      expect(report.rows[0]).toMatchObject({ amount: 500, count: 2 });
+      expect(report.rows[0].sources.map((source) => source.number)).toEqual([
+        'BILL-1002',
+        'EXP-1001',
+      ]);
+      expect(report.totals).toEqual({ amount: 1100, count: 3 });
+      expect(report.ledgerExpenses).toBe(1100);
+      expect(report.reconciled).toBe(true);
+    });
+  });
 });

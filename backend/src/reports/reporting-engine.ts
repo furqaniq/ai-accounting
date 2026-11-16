@@ -116,6 +116,136 @@ export interface CashFlowReport {
   reconciled: boolean;
 }
 
+export interface SalesCustomerInvoice {
+  id: string;
+  number: string;
+  issueDate: string;
+  customerId: string;
+  customerCode: string;
+  customerName: string;
+  subtotal: Prisma.Decimal;
+  taxTotal: Prisma.Decimal;
+  total: Prisma.Decimal;
+  quantity: Prisma.Decimal;
+}
+
+export interface SalesByCustomerSource {
+  type: 'invoice';
+  id: string;
+  number: string;
+  date: string;
+  amount: number;
+  tax: number;
+  total: number;
+  quantity: number;
+}
+
+export interface SalesByCustomerRow {
+  customerId: string;
+  code: string;
+  name: string;
+  amount: number;
+  tax: number;
+  total: number;
+  quantity: number;
+  count: number;
+  sources: SalesByCustomerSource[];
+}
+
+export interface SalesByCustomerReport {
+  report: 'sales-by-customer';
+  from: string;
+  to: string;
+  rows: SalesByCustomerRow[];
+  totals: { amount: number; tax: number; total: number; quantity: number; count: number };
+  ledgerIncome: number;
+  reconciled: boolean;
+}
+
+export interface SalesItemLine {
+  lineId: string;
+  invoiceId: string;
+  number: string;
+  issueDate: string;
+  itemId: string;
+  itemCode: string;
+  itemName: string;
+  quantity: Prisma.Decimal;
+  amount: Prisma.Decimal;
+}
+
+export interface SalesByItemSource {
+  type: 'invoice';
+  id: string;
+  lineId: string;
+  number: string;
+  date: string;
+  quantity: number;
+  amount: number;
+}
+
+export interface SalesByItemRow {
+  itemId: string;
+  code: string;
+  name: string;
+  amount: number;
+  quantity: number;
+  count: number;
+  sources: SalesByItemSource[];
+}
+
+export interface SalesByItemReport {
+  report: 'sales-by-item';
+  from: string;
+  to: string;
+  rows: SalesByItemRow[];
+  totals: { amount: number; quantity: number; count: number };
+  ledgerIncome: number;
+  reconciled: boolean;
+}
+
+export interface ExpenseCategoryEntry {
+  categoryAccountId: string;
+  categoryCode: string;
+  categoryName: string;
+  sourceType: 'expense' | 'bill';
+  sourceId: string;
+  sourceNumber: string;
+  date: string;
+  amount: Prisma.Decimal;
+  party: string | null;
+  memo: string | null;
+}
+
+export interface ExpenseCategorySource {
+  type: 'expense' | 'bill';
+  id: string;
+  number: string;
+  date: string;
+  amount: number;
+  party: string | null;
+  memo: string | null;
+}
+
+export interface ExpensesByCategoryRow {
+  accountId: string;
+  code: string;
+  name: string;
+  amount: number;
+  count: number;
+  sources: ExpenseCategorySource[];
+}
+
+export interface ExpensesByCategoryReport {
+  report: 'expenses-by-category';
+  from: string;
+  to: string;
+  rows: ExpensesByCategoryRow[];
+  totals: { amount: number; count: number };
+  ledgerExpenses: number;
+  reconciled: boolean;
+}
+
 const CLASSIFICATION_LABELS: Record<CashFlowClassification, string> = {
   operating: 'Operating activities',
   investing: 'Investing activities',
@@ -129,6 +259,21 @@ function zero(): Prisma.Decimal {
 function money(value: Prisma.Decimal): number {
   const rounded = value.toDecimalPlaces(2);
   return rounded.isZero() ? 0 : Number(rounded.toString());
+}
+
+function quantityNumber(value: Prisma.Decimal): number {
+  const rounded = value.toDecimalPlaces(2);
+  return rounded.isZero() ? 0 : Number(rounded.toString());
+}
+
+function bySourceDate(
+  left: { date: string; number: string },
+  right: { date: string; number: string },
+): number {
+  return (
+    left.date.localeCompare(right.date) ||
+    left.number.localeCompare(right.number, 'en', { numeric: true })
+  );
 }
 
 function byCode(left: { code: string | null }, right: { code: string | null }): number {
@@ -368,6 +513,242 @@ export class ReportingEngine {
       endingCash,
       groups,
       reconciled: money(new Prisma.Decimal(beginningCash).plus(new Prisma.Decimal(net))) === endingCash,
+    };
+  }
+
+  salesByCustomer(
+    period: { from: string; to: string },
+    invoices: SalesCustomerInvoice[],
+    ledgerIncome: Prisma.Decimal,
+  ): SalesByCustomerReport {
+    interface Group {
+      customerId: string;
+      code: string;
+      name: string;
+      amount: Prisma.Decimal;
+      tax: Prisma.Decimal;
+      total: Prisma.Decimal;
+      quantity: Prisma.Decimal;
+      sources: SalesByCustomerSource[];
+    }
+
+    const groups = new Map<string, Group>();
+    let totalAmount = zero();
+    let totalTax = zero();
+    let totalTotal = zero();
+    let totalQuantity = zero();
+
+    for (const invoice of invoices) {
+      let group = groups.get(invoice.customerId);
+      if (!group) {
+        group = {
+          customerId: invoice.customerId,
+          code: invoice.customerCode,
+          name: invoice.customerName,
+          amount: zero(),
+          tax: zero(),
+          total: zero(),
+          quantity: zero(),
+          sources: [],
+        };
+        groups.set(invoice.customerId, group);
+      }
+      group.amount = group.amount.plus(invoice.subtotal);
+      group.tax = group.tax.plus(invoice.taxTotal);
+      group.total = group.total.plus(invoice.total);
+      group.quantity = group.quantity.plus(invoice.quantity);
+      group.sources.push({
+        type: 'invoice',
+        id: invoice.id,
+        number: invoice.number,
+        date: invoice.issueDate,
+        amount: money(invoice.subtotal),
+        tax: money(invoice.taxTotal),
+        total: money(invoice.total),
+        quantity: quantityNumber(invoice.quantity),
+      });
+      totalAmount = totalAmount.plus(invoice.subtotal);
+      totalTax = totalTax.plus(invoice.taxTotal);
+      totalTotal = totalTotal.plus(invoice.total);
+      totalQuantity = totalQuantity.plus(invoice.quantity);
+    }
+
+    const rows: SalesByCustomerRow[] = [...groups.values()].map((group) => {
+      group.sources.sort(bySourceDate);
+      return {
+        customerId: group.customerId,
+        code: group.code,
+        name: group.name,
+        amount: money(group.amount),
+        tax: money(group.tax),
+        total: money(group.total),
+        quantity: quantityNumber(group.quantity),
+        count: group.sources.length,
+        sources: group.sources,
+      };
+    });
+    rows.sort((left, right) => right.amount - left.amount || byCode(left, right));
+
+    const amount = money(totalAmount);
+    return {
+      report: 'sales-by-customer',
+      from: period.from,
+      to: period.to,
+      rows,
+      totals: {
+        amount,
+        tax: money(totalTax),
+        total: money(totalTotal),
+        quantity: quantityNumber(totalQuantity),
+        count: rows.reduce((sum, row) => sum + row.count, 0),
+      },
+      ledgerIncome: money(ledgerIncome),
+      reconciled: money(ledgerIncome) === amount,
+    };
+  }
+
+  salesByItem(
+    period: { from: string; to: string },
+    lines: SalesItemLine[],
+    ledgerIncome: Prisma.Decimal,
+  ): SalesByItemReport {
+    interface Group {
+      itemId: string;
+      code: string;
+      name: string;
+      amount: Prisma.Decimal;
+      quantity: Prisma.Decimal;
+      sources: SalesByItemSource[];
+    }
+
+    const groups = new Map<string, Group>();
+    let totalAmount = zero();
+    let totalQuantity = zero();
+
+    for (const line of lines) {
+      let group = groups.get(line.itemId);
+      if (!group) {
+        group = {
+          itemId: line.itemId,
+          code: line.itemCode,
+          name: line.itemName,
+          amount: zero(),
+          quantity: zero(),
+          sources: [],
+        };
+        groups.set(line.itemId, group);
+      }
+      group.amount = group.amount.plus(line.amount);
+      group.quantity = group.quantity.plus(line.quantity);
+      group.sources.push({
+        type: 'invoice',
+        id: line.invoiceId,
+        lineId: line.lineId,
+        number: line.number,
+        date: line.issueDate,
+        quantity: quantityNumber(line.quantity),
+        amount: money(line.amount),
+      });
+      totalAmount = totalAmount.plus(line.amount);
+      totalQuantity = totalQuantity.plus(line.quantity);
+    }
+
+    const rows: SalesByItemRow[] = [...groups.values()].map((group) => {
+      group.sources.sort(bySourceDate);
+      return {
+        itemId: group.itemId,
+        code: group.code,
+        name: group.name,
+        amount: money(group.amount),
+        quantity: quantityNumber(group.quantity),
+        count: group.sources.length,
+        sources: group.sources,
+      };
+    });
+    rows.sort((left, right) => right.amount - left.amount || byCode(left, right));
+
+    const amount = money(totalAmount);
+    return {
+      report: 'sales-by-item',
+      from: period.from,
+      to: period.to,
+      rows,
+      totals: {
+        amount,
+        quantity: quantityNumber(totalQuantity),
+        count: rows.reduce((sum, row) => sum + row.count, 0),
+      },
+      ledgerIncome: money(ledgerIncome),
+      reconciled: money(ledgerIncome) === amount,
+    };
+  }
+
+  expensesByCategory(
+    period: { from: string; to: string },
+    entries: ExpenseCategoryEntry[],
+    ledgerExpenses: Prisma.Decimal,
+  ): ExpensesByCategoryReport {
+    interface Group {
+      accountId: string;
+      code: string;
+      name: string;
+      amount: Prisma.Decimal;
+      sources: ExpenseCategorySource[];
+    }
+
+    const groups = new Map<string, Group>();
+    let totalAmount = zero();
+
+    for (const entry of entries) {
+      let group = groups.get(entry.categoryAccountId);
+      if (!group) {
+        group = {
+          accountId: entry.categoryAccountId,
+          code: entry.categoryCode,
+          name: entry.categoryName,
+          amount: zero(),
+          sources: [],
+        };
+        groups.set(entry.categoryAccountId, group);
+      }
+      group.amount = group.amount.plus(entry.amount);
+      group.sources.push({
+        type: entry.sourceType,
+        id: entry.sourceId,
+        number: entry.sourceNumber,
+        date: entry.date,
+        amount: money(entry.amount),
+        party: entry.party,
+        memo: entry.memo,
+      });
+      totalAmount = totalAmount.plus(entry.amount);
+    }
+
+    const rows: ExpensesByCategoryRow[] = [...groups.values()].map((group) => {
+      group.sources.sort(bySourceDate);
+      return {
+        accountId: group.accountId,
+        code: group.code,
+        name: group.name,
+        amount: money(group.amount),
+        count: group.sources.length,
+        sources: group.sources,
+      };
+    });
+    rows.sort(byCode);
+
+    const amount = money(totalAmount);
+    return {
+      report: 'expenses-by-category',
+      from: period.from,
+      to: period.to,
+      rows,
+      totals: {
+        amount,
+        count: rows.reduce((sum, row) => sum + row.count, 0),
+      },
+      ledgerExpenses: money(ledgerExpenses),
+      reconciled: money(ledgerExpenses) === amount,
     };
   }
 

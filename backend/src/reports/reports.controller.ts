@@ -5,7 +5,10 @@ import { ReportsService } from './reports.service';
 import {
   BalanceSheetReport,
   CashFlowReport,
+  ExpensesByCategoryReport,
   ProfitLossReport,
+  SalesByCustomerReport,
+  SalesByItemReport,
   TrialBalanceReport,
 } from './reporting-engine';
 
@@ -35,5 +38,23 @@ export class ReportsController {
   @RequirePermission('reports:read')
   trialBalance(@Query() query: AsOfQueryDto): Promise<TrialBalanceReport> {
     return this.reports.trialBalance(query);
+  }
+
+  @Get('sales-by-customer')
+  @RequirePermission('reports:read')
+  salesByCustomer(@Query() query: PeriodQueryDto): Promise<SalesByCustomerReport> {
+    return this.reports.salesByCustomer(query);
+  }
+
+  @Get('sales-by-item')
+  @RequirePermission('reports:read')
+  salesByItem(@Query() query: PeriodQueryDto): Promise<SalesByItemReport> {
+    return this.reports.salesByItem(query);
+  }
+
+  @Get('expenses-by-category')
+  @RequirePermission('reports:read')
+  expensesByCategory(@Query() query: PeriodQueryDto): Promise<ExpensesByCategoryReport> {
+    return this.reports.expensesByCategory(query);
   }
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AppSpine } from '@/components/app-spine';
 import { AttachmentPanel } from '@/components/attachment-panel';
@@ -69,6 +69,7 @@ function blankForm(categoryAccountId = ''): ExpenseForm {
 
 export default function ExpensesPage() {
   const router = useRouter();
+  const linkedExpenseId = useRef<string | null>(null);
   const [ready, setReady] = useState(false);
   const [org, setOrg] = useState<ActiveOrganization | null>(null);
   const [vendors, setVendors] = useState<Vendor[]>([]);
@@ -163,6 +164,21 @@ export default function ExpensesPage() {
     }, 250);
     return () => window.clearTimeout(timer);
   }, [load, org]);
+
+  useEffect(() => {
+    linkedExpenseId.current = new URLSearchParams(window.location.search).get('expense');
+  }, []);
+
+  useEffect(() => {
+    if (!expenses || !linkedExpenseId.current) return;
+    const linked = expenses.find((expense) => expense.id === linkedExpenseId.current);
+    linkedExpenseId.current = null;
+    if (!linked) return;
+    setSelected(linked);
+    window.setTimeout(() => {
+      document.getElementById('expense-detail')?.scrollIntoView({ block: 'start' });
+    }, 0);
+  }, [expenses]);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
