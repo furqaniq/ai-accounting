@@ -2032,3 +2032,62 @@ a.mini-row:hover .mini-row__title {
     margin-left: 0;
   }
 }
+
+/* Projects and time (issue 027). */
+.side-drawer#project-form,
+.side-drawer#time-entry-form,
+.side-drawer#rollup-form {
+  width: min(560px, 96vw);
+}
+
+.project-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11.5px;
+  color: var(--ink-soft);
+}
+
+.project-filter input[type='checkbox'] {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+}
+
+.project-table .invoice-link {
+  text-align: left;
+  white-space: nowrap;
+}
+
+.project-section {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--rule);
+}
+
+.project-section .line-table {
+  margin-top: 8px;
+}
+
+.project-time-table .table-subline {
+  font-size: 10.5px;
+}
+
+.empty-state {
+  margin-top: 24px;
+}
+
+.drawer-form__check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+
+.drawer-form__check input[type='checkbox'] {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+}

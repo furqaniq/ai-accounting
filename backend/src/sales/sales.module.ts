@@ -36,6 +36,6 @@ import { InvoicesService } from './invoices.service';
     EstimatesService,
     PaymentsService,
   ],
-  exports: [ArAgingService, PaymentsService],
+  exports: [ArAgingService, PaymentsService, InvoicesService],
 })
 export class SalesModule {}

@@ -12,6 +12,7 @@ import {
   InvoiceStatus,
   Item,
   OrgSettings,
+  Project,
   clearSession,
   createInvoice,
   downloadInvoicePdf,
@@ -20,6 +21,7 @@ import {
   fetchInvoice,
   fetchInvoices,
   fetchItems,
+  fetchProjects,
   fetchSettings,
   getAccessToken,
   getActiveOrgId,
@@ -39,6 +41,7 @@ interface DraftLine {
 
 interface InvoiceForm {
   customerId: string;
+  projectId: string;
   issueDate: string;
   dueDate: string;
   taxRate: string;
@@ -114,6 +117,7 @@ export default function InvoicesPage() {
   const [settings, setSettings] = useState<OrgSettings | null>(null);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [items, setItems] = useState<Item[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [invoices, setInvoices] = useState<Invoice[] | null>(null);
   const [filter, setFilter] = useState<Filter>('ALL');
   const [search, setSearch] = useState('');
@@ -122,6 +126,7 @@ export default function InvoicesPage() {
   const [editing, setEditing] = useState<Invoice | null>(null);
   const [form, setForm] = useState<InvoiceForm>(() => ({
     customerId: '',
+    projectId: '',
     issueDate: today(),
     dueDate: addDays(today(), 30),
     taxRate: '0',
@@ -159,18 +164,21 @@ export default function InvoicesPage() {
         session.memberships.find((m) => m.organizationId === stored) ?? session.memberships[0];
       if (!initial) throw new Error('no organization');
       const activeOrg = await fetchActiveOrganization(initial.organizationId);
-      const [orgSettings, customerRows, itemRows, invoiceRows] = await Promise.all([
-        fetchSettings(activeOrg.organizationId),
-        fetchCustomers(activeOrg.organizationId),
-        fetchItems(activeOrg.organizationId),
-        fetchInvoices(activeOrg.organizationId),
-      ]);
+      const [orgSettings, customerRows, itemRows, projectRows, invoiceRows] =
+        await Promise.all([
+          fetchSettings(activeOrg.organizationId),
+          fetchCustomers(activeOrg.organizationId),
+          fetchItems(activeOrg.organizationId),
+          fetchProjects(activeOrg.organizationId),
+          fetchInvoices(activeOrg.organizationId),
+        ]);
       if (cancelled) return;
       setActiveOrgId(activeOrg.organizationId);
       setOrg(activeOrg);
       setSettings(orgSettings);
       setCustomers(customerRows);
       setItems(itemRows);
+      setProjects(projectRows);
       setInvoices(invoiceRows);
       const linkedId = new URLSearchParams(window.location.search).get('invoice');
       const linked = linkedId
@@ -264,6 +272,7 @@ export default function InvoicesPage() {
     setEditing(null);
     setForm({
       customerId: firstCustomer?.id ?? '',
+      projectId: '',
       issueDate,
       dueDate: addDays(issueDate, 30),
       taxRate: String(Number(((settings?.defaultTaxRate ?? 0) * 100).toFixed(4))),
@@ -278,6 +287,7 @@ export default function InvoicesPage() {
     setEditing(invoice);
     setForm({
       customerId: invoice.customerId,
+      projectId: invoice.projectId ?? '',
       issueDate: invoice.issueDate,
       dueDate: invoice.dueDate,
       taxRate: String(Number((invoice.taxRate * 100).toFixed(4))),
@@ -343,6 +353,7 @@ export default function InvoicesPage() {
     try {
       const payload: InvoiceInput = {
         customerId: form.customerId,
+        projectId: form.projectId,
         issueDate: form.issueDate,
         dueDate: form.dueDate,
         taxRate: Number(form.taxRate) / 100,
@@ -578,6 +589,14 @@ export default function InvoicesPage() {
                     {selected.status === 'OVERDUE' ? (
                       <> {selected.daysOverdue} days overdue.</>
                     ) : null}
+                    {selected.project ? (
+                      <>
+                        {' '}·{' '}
+                        <a className="invoice-link" href={`/projects?project=${selected.project.id}`}>
+                          {selected.project.code} · {selected.project.name}
+                        </a>
+                      </>
+                    ) : null}
                   </p>
                 </div>
                 <div className="invoice-detail__actions">
@@ -684,6 +703,46 @@ export default function InvoicesPage() {
                   ))}
                 </tbody>
               </table>
+
+              {selected.lines.some((line) => line.timeEntry) ? (
+                <div className="invoice-time">
+                  <div className="timeline__title">Time rolled up</div>
+                  <table className="line-table">
+                    <caption className="sr-only">Time entries billed on this invoice</caption>
+                    <thead>
+                      <tr>
+                        <th scope="col">Date</th>
+                        <th scope="col">Member</th>
+                        <th scope="col" className="num">
+                          Hours
+                        </th>
+                        <th scope="col" className="num">
+                          Rate
+                        </th>
+                        <th scope="col" className="num">
+                          Amount
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selected.lines
+                        .filter((line) => line.timeEntry)
+                        .map((line) => (
+                          <tr key={line.timeEntry!.id}>
+                            <td>{displayDate(line.timeEntry!.date)}</td>
+                            <td>{line.timeEntry!.user.name}</td>
+                            <td className="num">{line.timeEntry!.hours}</td>
+                            <td className="num">{money(line.timeEntry!.rate)}</td>
+                            <td className="num">{money(line.timeEntry!.amount)}</td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                  <p className="report-note">
+                    Billed from time entries; each line links back to its project time.
+                  </p>
+                </div>
+              ) : null}
 
               <div className="invoice-total">
                 <div className="invoice-total__box">
@@ -794,6 +853,23 @@ export default function InvoicesPage() {
               <option key={customer.id} value={customer.id}>
                 {customer.name}
                 {customer.active ? '' : ' (inactive)'}
+              </option>
+            ))}
+          </select>
+
+          <label className="drawer-form__label" htmlFor="invoice-project">
+            Project
+          </label>
+          <select
+            id="invoice-project"
+            value={form.projectId}
+            onChange={(event) => setField('projectId', event.target.value)}
+          >
+            <option value="">No project</option>
+            {projects.map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.code} · {project.name}
+                {project.active ? '' : ' (inactive)'}
               </option>
             ))}
           </select>

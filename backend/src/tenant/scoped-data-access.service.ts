@@ -27,7 +27,9 @@ type ScopedModel =
   | 'bankImportBatch'
   | 'bankTransaction'
   | 'categorizationRule'
-  | 'reconciliationSession';
+  | 'reconciliationSession'
+  | 'project'
+  | 'timeEntry';
 
 interface FindArgs {
   where?: Record<string, unknown>;

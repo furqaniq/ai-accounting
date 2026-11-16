@@ -10,12 +10,14 @@ import {
   ActiveOrganization,
   Expense,
   ExpenseInput,
+  Project,
   Vendor,
   clearSession,
   createExpense,
   fetchAccounts,
   fetchActiveOrganization,
   fetchExpenses,
+  fetchProjects,
   fetchVendors,
   getAccessToken,
   getActiveOrgId,
@@ -26,6 +28,7 @@ import {
 interface ExpenseForm {
   date: string;
   vendorId: string;
+  projectId: string;
   categoryAccountId: string;
   amount: string;
   memo: string;
@@ -60,6 +63,7 @@ function blankForm(categoryAccountId = ''): ExpenseForm {
   return {
     date: today(),
     vendorId: '',
+    projectId: '',
     categoryAccountId,
     amount: '',
     memo: '',
@@ -73,6 +77,7 @@ export default function ExpensesPage() {
   const [ready, setReady] = useState(false);
   const [org, setOrg] = useState<ActiveOrganization | null>(null);
   const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [expenseAccounts, setExpenseAccounts] = useState<Account[]>([]);
   const [expenses, setExpenses] = useState<Expense[] | null>(null);
   const [search, setSearch] = useState('');
@@ -114,14 +119,16 @@ export default function ExpensesPage() {
         session.memberships.find((m) => m.organizationId === stored) ?? session.memberships[0];
       if (!initial) throw new Error('no organization');
       const activeOrg = await fetchActiveOrganization(initial.organizationId);
-      const [vendorRows, accountRows] = await Promise.all([
+      const [vendorRows, accountRows, projectRows] = await Promise.all([
         fetchVendors(activeOrg.organizationId),
         fetchAccounts(activeOrg.organizationId),
+        fetchProjects(activeOrg.organizationId),
       ]);
       if (cancelled) return;
       setActiveOrgId(activeOrg.organizationId);
       setOrg(activeOrg);
       setVendors(vendorRows);
+      setProjects(projectRows);
       setExpenseAccounts(
         accountRows.filter((account) => account.type === 'EXPENSE' && account.active),
       );
@@ -210,6 +217,7 @@ export default function ExpensesPage() {
     setForm({
       date: expense.date,
       vendorId: expense.vendorId ?? '',
+      projectId: expense.projectId ?? '',
       categoryAccountId: expense.categoryAccountId,
       amount: String(expense.amount),
       memo: expense.memo ?? '',
@@ -254,6 +262,7 @@ export default function ExpensesPage() {
       const payload: ExpenseInput = {
         date: form.date,
         vendorId: form.vendorId || (editing ? '' : undefined),
+        projectId: form.projectId,
         categoryAccountId: form.categoryAccountId,
         amount,
         memo: form.memo.trim() || undefined,
@@ -493,6 +502,14 @@ export default function ExpensesPage() {
                     {displayDate(selected.date)} · {selected.categoryAccount.code} ·{' '}
                     {selected.categoryAccount.name}
                     {selected.version > 1 ? ` · corrected ${selected.version - 1}×` : ''}
+                    {selected.project ? (
+                      <>
+                        {' '}·{' '}
+                        <a className="invoice-link" href={`/projects?project=${selected.project.id}`}>
+                          {selected.project.code} · {selected.project.name}
+                        </a>
+                      </>
+                    ) : null}
                   </p>
                 </div>
                 <div className="invoice-detail__actions">
@@ -632,6 +649,23 @@ export default function ExpensesPage() {
               <option key={vendor.id} value={vendor.id}>
                 {vendor.name}
                 {vendor.active ? '' : ' (inactive)'}
+              </option>
+            ))}
+          </select>
+
+          <label className="drawer-form__label" htmlFor="expense-project">
+            Project
+          </label>
+          <select
+            id="expense-project"
+            value={form.projectId}
+            onChange={(event) => setField('projectId', event.target.value)}
+          >
+            <option value="">No project</option>
+            {projects.map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.code} · {project.name}
+                {project.active ? '' : ' (inactive)'}
               </option>
             ))}
           </select>

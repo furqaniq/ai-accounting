@@ -20,6 +20,10 @@ export class CreateExpenseDto {
   @IsString()
   vendorId?: string;
 
+  @IsOptional()
+  @IsString()
+  projectId?: string;
+
   @IsString()
   categoryAccountId!: string;
 
@@ -48,6 +52,10 @@ export class UpdateExpenseDto {
   @IsOptional()
   @IsString()
   vendorId?: string;
+
+  @IsOptional()
+  @IsString()
+  projectId?: string;
 
   @IsOptional()
   @IsString()
@@ -84,6 +92,10 @@ export class ListExpensesDto {
   @IsOptional()
   @IsString()
   vendorId?: string;
+
+  @IsOptional()
+  @IsString()
+  projectId?: string;
 
   @IsOptional()
   @IsString()

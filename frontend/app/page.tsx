@@ -565,6 +565,13 @@ export default function OverviewPage() {
               </svg>
               Items
             </a>
+            <a className="nav__item" href="/projects" onClick={() => setSpineOpen(false)}>
+              <svg className="icon nav__icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 6h7l2 2h7v11H4z" />
+                <path d="M4 11h16M9 15h6" />
+              </svg>
+              Projects
+            </a>
             <a className="nav__item" href="/estimates">
               <svg className="icon nav__icon" viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M6 3h9l4 4v14H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z" />

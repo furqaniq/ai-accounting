@@ -9,6 +9,7 @@ import { BankingModule } from './banking/banking.module';
 import { HealthModule } from './health/health.module';
 import { LedgerModule } from './ledger/ledger.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { ProjectsModule } from './projects/projects.module';
 import { PurchasesModule } from './purchases/purchases.module';
 import { ReportsModule } from './reports/reports.module';
 import { SalesModule } from './sales/sales.module';
@@ -25,6 +26,7 @@ import { TenantModule } from './tenant/tenant.module';
     LedgerModule,
     SalesModule,
     PurchasesModule,
+    ProjectsModule,
     ReportsModule,
     AttachmentsModule,
     BankingModule,

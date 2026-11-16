@@ -24,11 +24,15 @@ type ItemWithAccount = Prisma.ItemGetPayload<{
 
 const INVOICE_INCLUDE = {
   customer: true,
+  project: { select: { id: true, code: true, name: true } },
   lines: {
     orderBy: { position: 'asc' },
     include: {
       item: { select: { id: true, code: true, name: true } },
       incomeAccount: { select: { id: true, code: true, name: true } },
+      timeEntry: {
+        include: { user: { select: { id: true, name: true, email: true } } },
+      },
     },
   },
 } as const;
@@ -36,6 +40,17 @@ const INVOICE_INCLUDE = {
 type InvoiceRow = Prisma.InvoiceGetPayload<{ include: typeof INVOICE_INCLUDE }>;
 
 export type InvoiceDisplayStatus = 'DRAFT' | 'SENT' | 'PARTIAL' | 'PAID' | 'OVERDUE';
+
+export interface InvoiceTimeEntryView {
+  id: string;
+  date: string;
+  hours: number;
+  rate: number;
+  amount: number;
+  billable: boolean;
+  notes: string | null;
+  user: { id: string; name: string; email: string };
+}
 
 export interface InvoiceLineView {
   id: string;
@@ -48,6 +63,7 @@ export interface InvoiceLineView {
   taxable: boolean;
   incomeAccountId: string;
   incomeAccount: { id: string; code: string; name: string };
+  timeEntry: InvoiceTimeEntryView | null;
 }
 
 export interface InvoiceView {
@@ -69,6 +85,8 @@ export interface InvoiceView {
     postalCode: string | null;
     country: string | null;
   };
+  projectId: string | null;
+  project: { id: string; code: string; name: string } | null;
   issueDate: string;
   dueDate: string;
   sentAt: string | null;
@@ -150,6 +168,7 @@ export class InvoicesService {
   async list(filters: ListInvoicesDto): Promise<InvoiceView[]> {
     const where: Record<string, unknown> = {};
     if (filters.customerId) where.customerId = filters.customerId;
+    if (filters.projectId) where.projectId = filters.projectId;
     const search = filters.search?.trim();
     if (search) {
       where.OR = [
@@ -181,6 +200,7 @@ export class InvoicesService {
     const customer = await this.resolveCustomer(input.customerId);
     const computed = await this.resolveLines(input.lines);
     const taxRate = await this.resolveTaxRate(input.taxRate);
+    const projectId = await this.resolveProjectId(input.projectId);
     const issueDate = toDate(input.issueDate ?? todayIso(), 'issueDate');
     const dueDate = toDate(input.dueDate, 'dueDate');
     this.assertDates(issueDate, dueDate);
@@ -191,6 +211,7 @@ export class InvoicesService {
         const invoice = await this.scoped.create<InvoiceRow>('invoice', {
           number: await this.nextNumber(),
           customerId: customer.id,
+          projectId,
           status: InvoiceStatus.DRAFT,
           issueDate,
           dueDate,
@@ -215,6 +236,7 @@ export class InvoicesService {
           number: invoice.number,
           customerId: customer.id,
           customer: customer.name,
+          projectId,
           total: toNumber(totals.total),
         });
         return this.find(invoice.id);
@@ -259,6 +281,16 @@ export class InvoicesService {
       : current.issueDate;
     const dueDate = input.dueDate ? toDate(input.dueDate, 'dueDate') : current.dueDate;
     this.assertDates(issueDate, dueDate);
+    const projectId =
+      input.projectId !== undefined
+        ? await this.resolveProjectId(input.projectId)
+        : current.projectId;
+    const linesChanged = input.lines !== undefined;
+    if (linesChanged && current.lines.some((line) => line.timeEntry)) {
+      throw new BadRequestException(
+        'Invoice lines come from time entries; edit the time entries instead',
+      );
+    }
     const totals = computeTotals(computed, taxRate);
     const notes =
       input.notes !== undefined ? input.notes.trim() || null : current.notes;
@@ -268,6 +300,7 @@ export class InvoicesService {
         where: { id, organizationId, status: InvoiceStatus.DRAFT },
         data: {
           customerId,
+          projectId,
           issueDate,
           dueDate,
           taxRate,
@@ -278,27 +311,30 @@ export class InvoicesService {
       if (changed.count === 0) {
         throw new BadRequestException('Only draft invoices can be edited');
       }
-      await tx.invoiceLine.deleteMany({ where: { organizationId, invoiceId: id } });
-      await tx.invoiceLine.createMany({
-        data: computed.map((line, index) => ({
-          organizationId,
-          invoiceId: id,
-          position: index,
-          itemId: line.itemId,
-          description: line.description,
-          quantity: line.quantity,
-          unitPrice: line.unitPrice,
-          amount: line.amount,
-          taxable: line.taxable,
-          incomeAccountId: line.incomeAccountId,
-        })),
-      });
+      if (linesChanged) {
+        await tx.invoiceLine.deleteMany({ where: { organizationId, invoiceId: id } });
+        await tx.invoiceLine.createMany({
+          data: computed.map((line, index) => ({
+            organizationId,
+            invoiceId: id,
+            position: index,
+            itemId: line.itemId,
+            description: line.description,
+            quantity: line.quantity,
+            unitPrice: line.unitPrice,
+            amount: line.amount,
+            taxable: line.taxable,
+            incomeAccountId: line.incomeAccountId,
+          })),
+        });
+      }
     });
 
     await this.audit.record('invoice.update', 'Invoice', id, {
       number: current.number,
       customerId,
       customer: customer.name,
+      projectId,
       total: toNumber(totals.total),
       lines: computed.length,
     });
@@ -408,6 +444,7 @@ export class InvoicesService {
     organizationId: string,
     input: {
       customerId: string;
+      projectId?: string | null;
       issueDate: Date;
       dueDate: Date;
       taxRate: Prisma.Decimal;
@@ -421,6 +458,7 @@ export class InvoicesService {
         organizationId,
         number: await this.nextNumber(),
         customerId: input.customerId,
+        projectId: input.projectId ?? null,
         status: InvoiceStatus.DRAFT,
         issueDate: input.issueDate,
         dueDate: input.dueDate,
@@ -497,6 +535,17 @@ export class InvoicesService {
     });
   }
 
+  private async resolveProjectId(input: string | undefined): Promise<string | null> {
+    if (!input) return null;
+    const project = await this.scoped.findById<{ id: string; active: boolean }>('project', input, {
+      select: { id: true, active: true },
+    });
+    if (!project) {
+      throw new BadRequestException('Project must belong to this organization');
+    }
+    return project.id;
+  }
+
   private async resolveTaxRate(input: number | undefined): Promise<Prisma.Decimal> {
     if (input !== undefined) {
       return new Prisma.Decimal(input);
@@ -538,6 +587,8 @@ export class InvoicesService {
       number: row.number,
       status,
       customerId: row.customerId,
+      projectId: row.projectId,
+      project: row.project,
       customer: {
         id: row.customer.id,
         code: row.customer.code,
@@ -575,6 +626,18 @@ export class InvoicesService {
         taxable: line.taxable,
         incomeAccountId: line.incomeAccountId,
         incomeAccount: line.incomeAccount,
+        timeEntry: line.timeEntry
+          ? {
+              id: line.timeEntry.id,
+              date: isoDate(line.timeEntry.date),
+              hours: toNumber(line.timeEntry.hours),
+              rate: toNumber(line.timeEntry.rate),
+              amount: Number(line.timeEntry.hours.mul(line.timeEntry.rate).toFixed(2)),
+              billable: line.timeEntry.billable,
+              notes: line.timeEntry.notes,
+              user: line.timeEntry.user,
+            }
+          : null,
       })),
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),

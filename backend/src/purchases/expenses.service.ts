@@ -24,6 +24,7 @@ import {
 const EXPENSE_INCLUDE = {
   vendor: { select: { id: true, code: true, name: true } },
   categoryAccount: { select: { id: true, code: true, name: true, type: true } },
+  project: { select: { id: true, code: true, name: true } },
 } as const;
 
 type ExpenseRow = Prisma.ExpenseGetPayload<{ include: typeof EXPENSE_INCLUDE }>;
@@ -37,6 +38,7 @@ type CategoryAccount = {
 
 interface PreparedExpense {
   vendor: Vendor | null;
+  projectId: string | null;
   category: CategoryAccount;
   date: Date;
   amount: Prisma.Decimal;
@@ -50,6 +52,8 @@ export interface ExpenseView {
   date: string;
   vendorId: string | null;
   vendor: { id: string; code: string; name: string } | null;
+  projectId: string | null;
+  project: { id: string; code: string; name: string } | null;
   categoryAccountId: string;
   categoryAccount: { id: string; code: string; name: string; type: string };
   amount: number;
@@ -85,6 +89,7 @@ export class ExpensesService {
     if (filters.to) date.lte = toDate(filters.to, 'to');
     if (Object.keys(date).length > 0) where.date = date;
     if (filters.vendorId) where.vendorId = filters.vendorId;
+    if (filters.projectId) where.projectId = filters.projectId;
     if (filters.categoryAccountId) {
       where.categoryAccountId = filters.categoryAccountId;
     }
@@ -129,6 +134,7 @@ export class ExpensesService {
           date: isoDate(created.date),
           amount: toNumber(created.amount),
           vendor: prepared.vendor?.name ?? null,
+          projectId: prepared.projectId,
           category: `${prepared.category.code} ${prepared.category.name}`,
           receiptNote: created.receiptNote,
         });
@@ -155,9 +161,11 @@ export class ExpensesService {
 
   private async prepareCreate(input: CreateExpenseDto): Promise<PreparedExpense> {
     const vendor = input.vendorId ? await this.resolveVendor(input.vendorId) : null;
+    const projectId = await this.resolveProjectId(input.projectId);
     const category = await this.resolveCategory(input.categoryAccountId);
     return {
       vendor,
+      projectId,
       category,
       date: toDate(input.date ?? todayIso(), 'date'),
       amount: new Prisma.Decimal(input.amount),
@@ -179,6 +187,7 @@ export class ExpensesService {
         number,
         date: prepared.date,
         vendorId: prepared.vendor?.id ?? null,
+        projectId: prepared.projectId,
         categoryAccountId: prepared.category.id,
         amount: prepared.amount,
         memo: prepared.memo,
@@ -226,6 +235,11 @@ export class ExpensesService {
         const vendor = vendorId ? await this.resolveVendor(vendorId) : null;
         vendorName = vendor?.name ?? null;
       }
+
+      const projectId =
+        input.projectId === undefined
+          ? current.projectId
+          : await this.resolveProjectId(input.projectId);
 
       const category =
         input.categoryAccountId && input.categoryAccountId !== current.categoryAccountId
@@ -275,6 +289,7 @@ export class ExpensesService {
         where: { id: current.id },
         data: {
           vendorId,
+          projectId,
           categoryAccountId: category.id,
           date,
           amount,
@@ -305,6 +320,7 @@ export class ExpensesService {
       date: view.date,
       amount: view.amount,
       vendor: view.vendor?.name ?? null,
+      projectId: view.projectId,
       category: `${view.categoryAccount.code} ${view.categoryAccount.name}`,
       corrected: outcome.financialChanged,
     });
@@ -348,6 +364,17 @@ export class ExpensesService {
       throw new NotFoundException('Expense not found');
     }
     return row;
+  }
+
+  private async resolveProjectId(input: string | undefined): Promise<string | null> {
+    if (!input) return null;
+    const project = await this.scoped.findById<{ id: string; active: boolean }>('project', input, {
+      select: { id: true, active: true },
+    });
+    if (!project) {
+      throw new BadRequestException('Project must belong to this organization');
+    }
+    return project.id;
   }
 
   private async resolveVendor(vendorId: string): Promise<Vendor> {
@@ -411,6 +438,8 @@ export class ExpensesService {
       date: isoDate(row.date),
       vendorId: row.vendorId,
       vendor: row.vendor,
+      projectId: row.projectId,
+      project: row.project,
       categoryAccountId: row.categoryAccountId,
       categoryAccount: row.categoryAccount,
       amount: toNumber(row.amount),

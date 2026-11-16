@@ -51,6 +51,8 @@ model Organization {
   bankTransactions       BankTransaction[]
   categorizationRules    CategorizationRule[]
   reconciliationSessions ReconciliationSession[]
+  projects               Project[]
+  timeEntries            TimeEntry[]
 }
 
 model Account {
@@ -147,6 +149,7 @@ model Customer {
   invoices       Invoice[]
   estimates      Estimate[]
   payments       Payment[]
+  projects       Project[]
 
   @@unique([organizationId, code])
   @@index([organizationId, name])
@@ -283,11 +286,14 @@ model Expense {
   organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   vendor            Vendor?      @relation(fields: [vendorId], references: [id])
   categoryAccount   Account      @relation(fields: [categoryAccountId], references: [id])
+  projectId         String?
+  project           Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
   @@unique([organizationId, number])
   @@index([organizationId, date])
   @@index([organizationId, vendorId])
   @@index([organizationId, categoryAccountId])
+  @@index([organizationId, projectId])
 }
 
 enum AttachmentEntityType {
@@ -464,6 +470,7 @@ model Item {
   incomeAccount   Account        @relation(fields: [incomeAccountId], references: [id])
   invoiceLines    InvoiceLine[]
   estimateLines   EstimateLine[]
+  billingProjects Project[]      @relation("ProjectBillingItem")
 
   @@unique([organizationId, code])
   @@index([organizationId, name])
@@ -496,6 +503,8 @@ model Invoice {
   updatedAt           DateTime             @updatedAt
   organization        Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   customer            Customer             @relation(fields: [customerId], references: [id])
+  projectId           String?
+  project             Project?             @relation(fields: [projectId], references: [id], onDelete: SetNull)
   lines               InvoiceLine[]
   sourceEstimate      Estimate?
   paymentApplications PaymentApplication[]
@@ -503,23 +512,25 @@ model Invoice {
   @@unique([organizationId, number])
   @@index([organizationId, status, dueDate])
   @@index([organizationId, customerId])
+  @@index([organizationId, projectId])
 }
 
 model InvoiceLine {
-  id              String  @id @default(cuid())
+  id              String     @id @default(cuid())
   organizationId  String
   invoiceId       String
   position        Int
   itemId          String
   description     String
-  quantity        Decimal @db.Decimal(14, 2)
-  unitPrice       Decimal @db.Decimal(14, 2)
-  amount          Decimal @db.Decimal(14, 2)
-  taxable         Boolean @default(true)
+  quantity        Decimal    @db.Decimal(14, 2)
+  unitPrice       Decimal    @db.Decimal(14, 2)
+  amount          Decimal    @db.Decimal(14, 2)
+  taxable         Boolean    @default(true)
   incomeAccountId String
-  invoice         Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  item            Item    @relation(fields: [itemId], references: [id])
-  incomeAccount   Account @relation(fields: [incomeAccountId], references: [id])
+  invoice         Invoice    @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  item            Item       @relation(fields: [itemId], references: [id])
+  incomeAccount   Account    @relation(fields: [incomeAccountId], references: [id])
+  timeEntry       TimeEntry?
 
   @@index([organizationId, invoiceId])
   @@index([organizationId, itemId])
@@ -628,6 +639,53 @@ model PaymentApplication {
   @@index([organizationId, invoiceId])
 }
 
+model Project {
+  id             String       @id @default(cuid())
+  organizationId String
+  code           String
+  name           String
+  description    String?
+  customerId     String?
+  billingItemId  String?
+  defaultRate    Decimal?     @db.Decimal(14, 2)
+  active         Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer       Customer?    @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  billingItem    Item?        @relation("ProjectBillingItem", fields: [billingItemId], references: [id], onDelete: SetNull)
+  invoices       Invoice[]
+  expenses       Expense[]
+  timeEntries    TimeEntry[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId, name])
+  @@index([organizationId, customerId])
+}
+
+model TimeEntry {
+  id             String       @id @default(cuid())
+  organizationId String
+  projectId      String?
+  userId         String
+  date           DateTime     @db.Date
+  hours          Decimal      @db.Decimal(14, 2)
+  rate           Decimal      @db.Decimal(14, 2)
+  billable       Boolean      @default(true)
+  notes          String?
+  invoiceLineId  String?      @unique
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project        Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  user           User         @relation(fields: [userId], references: [id])
+  invoiceLine    InvoiceLine? @relation(fields: [invoiceLineId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, projectId, date])
+  @@index([organizationId, userId, date])
+  @@index([organizationId, invoiceLineId])
+}
+
 model User {
   id            String          @id @default(cuid())
   email         String          @unique
@@ -637,6 +695,7 @@ model User {
   memberships   OrgMembership[]
   refreshTokens RefreshToken[]
   auditLog      AuditLogEntry[]
+  timeEntries   TimeEntry[]
 }
 
 model OrgMembership {

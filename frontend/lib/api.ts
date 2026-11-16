@@ -649,6 +649,249 @@ export async function updateItem(
   return res.json();
 }
 
+export interface ProjectProfitability {
+  revenue: number;
+  expenses: number;
+  profit: number;
+  margin: number | null;
+  totalHours: number;
+  billableHours: number;
+  invoicedHours: number;
+  unbilledHours: number;
+  nonBillableHours: number;
+  billableValue: number;
+  invoicedValue: number;
+  unbilledValue: number;
+  nonBillableValue: number;
+  invoiceCount: number;
+  expenseCount: number;
+  timeEntryCount: number;
+}
+
+export interface Project {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  customerId: string | null;
+  customer: { id: string; code: string; name: string } | null;
+  billingItemId: string | null;
+  billingItem: { id: string; code: string; name: string } | null;
+  defaultRate: number | null;
+  active: boolean;
+  profitability: ProjectProfitability;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProjectInput {
+  name: string;
+  description?: string;
+  customerId?: string;
+  billingItemId?: string;
+  defaultRate?: number | null;
+  active?: boolean;
+}
+
+export interface ProjectInvoiceSource {
+  id: string;
+  number: string;
+  status: InvoiceStatus;
+  issueDate: string;
+  dueDate: string;
+  subtotal: number;
+  total: number;
+}
+
+export interface ProjectExpenseSource {
+  id: string;
+  number: string;
+  date: string;
+  amount: number;
+  categoryAccount: { id: string; code: string; name: string };
+}
+
+export interface TimeEntryInvoiceLink {
+  id: string;
+  number: string;
+  status: InvoiceStatus;
+  lineId: string;
+}
+
+export interface TimeEntry {
+  id: string;
+  date: string;
+  projectId: string | null;
+  project: { id: string; code: string; name: string } | null;
+  userId: string;
+  user: { id: string; name: string; email: string };
+  hours: number;
+  rate: number;
+  amount: number;
+  billable: boolean;
+  notes: string | null;
+  invoice: TimeEntryInvoiceLink | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProjectDetail {
+  project: Project;
+  invoices: ProjectInvoiceSource[];
+  expenses: ProjectExpenseSource[];
+  timeEntries: TimeEntry[];
+}
+
+export interface TimeEntryInput {
+  date?: string;
+  hours: number;
+  rate?: number;
+  billable?: boolean;
+  projectId?: string;
+  notes?: string;
+}
+
+export interface RollupTimeInput {
+  entryIds: string[];
+  customerId?: string;
+  billingItemId?: string;
+  issueDate?: string;
+  dueDate?: string;
+  taxRate?: number;
+  notes?: string;
+}
+
+export async function fetchProjects(
+  organizationId: string,
+  filters: { search?: string; active?: boolean; customerId?: string } = {},
+): Promise<Project[]> {
+  const params = new URLSearchParams();
+  if (filters.search) params.set('search', filters.search);
+  if (filters.active !== undefined) params.set('active', String(filters.active));
+  if (filters.customerId) params.set('customerId', filters.customerId);
+  const query = params.toString();
+  const res = await fetch(`${API_URL}/projects${query ? `?${query}` : ''}`, {
+    headers: authHeaders(organizationId),
+  });
+  if (!res.ok) throw new Error('Projects are not available');
+  const body = (await res.json()) as { projects: Project[] };
+  return body.projects;
+}
+
+export async function fetchProject(
+  organizationId: string,
+  projectId: string,
+): Promise<ProjectDetail> {
+  const res = await fetch(`${API_URL}/projects/${projectId}`, {
+    headers: authHeaders(organizationId),
+  });
+  if (!res.ok) throw new Error('That project is not available');
+  return res.json();
+}
+
+export async function createProject(
+  organizationId: string,
+  input: ProjectInput,
+): Promise<Project> {
+  const res = await fetch(`${API_URL}/projects`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders(organizationId) },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not add that project'));
+  return res.json();
+}
+
+export async function updateProject(
+  organizationId: string,
+  projectId: string,
+  input: Partial<ProjectInput>,
+): Promise<Project> {
+  const res = await fetch(`${API_URL}/projects/${projectId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...authHeaders(organizationId) },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not save that project'));
+  return res.json();
+}
+
+export async function fetchTimeEntries(
+  organizationId: string,
+  filters: {
+    projectId?: string;
+    from?: string;
+    to?: string;
+    billable?: boolean;
+    invoiced?: boolean;
+  } = {},
+): Promise<TimeEntry[]> {
+  const params = new URLSearchParams();
+  if (filters.projectId) params.set('projectId', filters.projectId);
+  if (filters.from) params.set('from', filters.from);
+  if (filters.to) params.set('to', filters.to);
+  if (filters.billable !== undefined) params.set('billable', String(filters.billable));
+  if (filters.invoiced !== undefined) params.set('invoiced', String(filters.invoiced));
+  const query = params.toString();
+  const res = await fetch(`${API_URL}/time-entries${query ? `?${query}` : ''}`, {
+    headers: authHeaders(organizationId),
+  });
+  if (!res.ok) throw new Error('Time entries are not available');
+  const body = (await res.json()) as { timeEntries: TimeEntry[] };
+  return body.timeEntries;
+}
+
+export async function createTimeEntry(
+  organizationId: string,
+  input: TimeEntryInput,
+): Promise<TimeEntry> {
+  const res = await fetch(`${API_URL}/time-entries`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders(organizationId) },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not save that time entry'));
+  return res.json();
+}
+
+export async function updateTimeEntry(
+  organizationId: string,
+  timeEntryId: string,
+  input: Partial<TimeEntryInput>,
+): Promise<TimeEntry> {
+  const res = await fetch(`${API_URL}/time-entries/${timeEntryId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...authHeaders(organizationId) },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not save that time entry'));
+  return res.json();
+}
+
+export async function deleteTimeEntry(
+  organizationId: string,
+  timeEntryId: string,
+): Promise<void> {
+  const res = await fetch(`${API_URL}/time-entries/${timeEntryId}`, {
+    method: 'DELETE',
+    headers: authHeaders(organizationId),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not remove that time entry'));
+}
+
+export async function rollupTimeEntries(
+  organizationId: string,
+  input: RollupTimeInput,
+): Promise<{ invoice: Invoice; linkedEntryIds: string[] }> {
+  const res = await fetch(`${API_URL}/time-entries/rollup`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders(organizationId) },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not bill that time'));
+  return res.json();
+}
+
 export type InvoiceStatus = 'DRAFT' | 'SENT' | 'PARTIAL' | 'PAID' | 'OVERDUE';
 
 export interface InvoiceCustomer {
@@ -677,6 +920,16 @@ export interface InvoiceLine {
   taxable: boolean;
   incomeAccountId: string;
   incomeAccount: { id: string; code: string; name: string };
+  timeEntry: {
+    id: string;
+    date: string;
+    hours: number;
+    rate: number;
+    amount: number;
+    billable: boolean;
+    notes: string | null;
+    user: { id: string; name: string; email: string };
+  } | null;
 }
 
 export interface Invoice {
@@ -685,6 +938,8 @@ export interface Invoice {
   status: InvoiceStatus;
   customerId: string;
   customer: InvoiceCustomer;
+  projectId: string | null;
+  project: { id: string; code: string; name: string } | null;
   issueDate: string;
   dueDate: string;
   sentAt: string | null;
@@ -711,6 +966,7 @@ export interface InvoiceLineInput {
 
 export interface InvoiceInput {
   customerId: string;
+  projectId?: string;
   issueDate?: string;
   dueDate: string;
   lines: InvoiceLineInput[];
@@ -806,6 +1062,8 @@ export interface Estimate {
   status: EstimateStatus;
   customerId: string;
   customer: InvoiceCustomer;
+  projectId: string | null;
+  project: { id: string; code: string; name: string } | null;
   issueDate: string;
   expiryDate: string | null;
   taxRate: number;
@@ -1698,6 +1956,8 @@ export interface Expense {
   date: string;
   vendorId: string | null;
   vendor: { id: string; code: string; name: string } | null;
+  projectId: string | null;
+  project: { id: string; code: string; name: string } | null;
   categoryAccountId: string;
   categoryAccount: {
     id: string;
@@ -1716,6 +1976,7 @@ export interface Expense {
 export interface ExpenseInput {
   date?: string;
   vendorId?: string;
+  projectId?: string;
   categoryAccountId: string;
   amount: number;
   memo?: string;
@@ -1726,6 +1987,7 @@ export interface ExpenseFilters {
   from?: string;
   to?: string;
   vendorId?: string;
+  projectId?: string;
   categoryAccountId?: string;
   search?: string;
 }
@@ -1738,6 +2000,7 @@ export async function fetchExpenses(
   if (filters.from) params.set('from', filters.from);
   if (filters.to) params.set('to', filters.to);
   if (filters.vendorId) params.set('vendorId', filters.vendorId);
+  if (filters.projectId) params.set('projectId', filters.projectId);
   if (filters.categoryAccountId) params.set('categoryAccountId', filters.categoryAccountId);
   if (filters.search) params.set('search', filters.search);
   const query = params.toString();

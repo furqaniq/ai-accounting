@@ -9,6 +9,7 @@ export type SpineSection =
   | 'ledger'
   | 'customers'
   | 'items'
+  | 'projects'
   | 'estimates'
   | 'invoices'
   | 'payments'
@@ -83,6 +84,17 @@ const NAV: NavItem[] = [
       <>
         <path d="M4 7.5 12 3l8 4.5v9L12 21l-8-4.5z" />
         <path d="M4 7.5 12 12l8-4.5M12 12v9" />
+      </>
+    ),
+  },
+  {
+    href: '/projects',
+    label: 'Projects',
+    section: 'projects',
+    icon: (
+      <>
+        <path d="M4 6h7l2 2h7v11H4z" />
+        <path d="M4 11h16M9 15h6" />
       </>
     ),
   },

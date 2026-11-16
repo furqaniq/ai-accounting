@@ -63,6 +63,10 @@ export class CreateInvoiceDto {
 
   @IsOptional()
   @IsString()
+  projectId?: string;
+
+  @IsOptional()
+  @IsString()
   @Length(1, 1000)
   notes?: string;
 }
@@ -97,6 +101,10 @@ export class UpdateInvoiceDto {
 
   @IsOptional()
   @IsString()
+  projectId?: string;
+
+  @IsOptional()
+  @IsString()
   @Length(0, 1000)
   notes?: string;
 }
@@ -109,6 +117,10 @@ export class ListInvoicesDto {
   @IsOptional()
   @IsString()
   customerId?: string;
+
+  @IsOptional()
+  @IsString()
+  projectId?: string;
 
   @IsOptional()
   @IsString()
