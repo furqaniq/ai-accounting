@@ -2889,3 +2889,82 @@ export async function updateAgentPolicy(
   if (!res.ok) throw new Error(await failureMessage(res, 'Could not save that policy'));
   return res.json();
 }
+
+export type AgentAutomationMode = 'CRON' | 'EVENT';
+
+export interface AgentAutomation {
+  id: string;
+  name: string;
+  mode: AgentAutomationMode;
+  cron: string;
+  timezone: string;
+  prompt: string;
+  model: string | null;
+  enabled: boolean;
+  scheduleLabel: string;
+  nextRunAt: string | null;
+  createdBy: { id: string; name: string; email: string } | null;
+  lastRunAt: string | null;
+  lastStatus: AgentJobStatus | null;
+  lastJobId: string | null;
+  lastLogReference: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AgentAutomationInput {
+  name: string;
+  prompt: string;
+  cron: string;
+  timezone?: string;
+  enabled?: boolean;
+}
+
+export async function fetchAgentAutomations(
+  organizationId: string,
+): Promise<AgentAutomation[]> {
+  const res = await fetch(`${API_URL}/agent/automations`, {
+    headers: authHeaders(organizationId),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Automations are not available'));
+  const body = (await res.json()) as { automations: AgentAutomation[] };
+  return body.automations;
+}
+
+export async function createAgentAutomation(
+  organizationId: string,
+  input: AgentAutomationInput,
+): Promise<AgentAutomation> {
+  const res = await fetch(`${API_URL}/agent/automations`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders(organizationId) },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not create that automation'));
+  return res.json();
+}
+
+export async function updateAgentAutomation(
+  organizationId: string,
+  id: string,
+  input: Partial<AgentAutomationInput>,
+): Promise<AgentAutomation> {
+  const res = await fetch(`${API_URL}/agent/automations/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...authHeaders(organizationId) },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not update that automation'));
+  return res.json();
+}
+
+export async function deleteAgentAutomation(
+  organizationId: string,
+  id: string,
+): Promise<void> {
+  const res = await fetch(`${API_URL}/agent/automations/${id}`, {
+    method: 'DELETE',
+    headers: authHeaders(organizationId),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not delete that automation'));
+}

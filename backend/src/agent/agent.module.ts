@@ -3,6 +3,10 @@ import { PurchasesModule } from '../purchases/purchases.module';
 import { ReportsModule } from '../reports/reports.module';
 import { SalesModule } from '../sales/sales.module';
 import { TenantModule } from '../tenant/tenant.module';
+import { AgentAutomationRunner } from './agent-automation-runner.service';
+import { AgentAutomationScheduler } from './agent-automation-scheduler.service';
+import { AgentAutomationService } from './agent-automation.service';
+import { AgentAutomationWorker } from './agent-automation-worker.service';
 import { AgentController } from './agent.controller';
 import { AgentJobsService } from './agent-jobs.service';
 import { AgentLogService } from './agent-log.service';
@@ -27,6 +31,10 @@ import { ToolRegistry } from './tool-registry';
     AgentOrchestrator,
     AgentRunnerService,
     AgentQueueService,
+    AgentAutomationScheduler,
+    AgentAutomationRunner,
+    AgentAutomationService,
+    AgentAutomationWorker,
   ],
 })
 export class AgentModule {}

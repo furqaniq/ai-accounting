@@ -5,6 +5,7 @@ import { ApAgingService } from '../purchases/ap-aging.service';
 import { ArAgingService } from '../sales/ar-aging.service';
 import { InvoicesService } from '../sales/invoices.service';
 import { ScopedDataAccess } from '../tenant/scoped-data-access.service';
+import { AgentAutomationService } from './agent-automation.service';
 import { ToolRegistry } from './tool-registry';
 
 interface FakeCustomer {
@@ -28,6 +29,7 @@ interface RegistryOverrides {
 function registry(overrides: RegistryOverrides = {}): {
   tools: ToolRegistry;
   createInvoice: jest.Mock;
+  createAutomation: jest.Mock;
 } {
   const dashboard = {
     report: jest.fn(async () => ({
@@ -52,6 +54,14 @@ function registry(overrides: RegistryOverrides = {}): {
     ...dto,
   }));
   const invoices = { create: createInvoice } as unknown as InvoicesService;
+  const createAutomation = jest.fn(async (dto: Record<string, unknown>) => ({
+    id: 'automation-1',
+    scheduleLabel: 'Every Monday at 9:00 AM',
+    ...dto,
+  }));
+  const automations = {
+    create: createAutomation,
+  } as unknown as AgentAutomationService;
 
   const customers =
     overrides.customers ?? [
@@ -92,8 +102,9 @@ function registry(overrides: RegistryOverrides = {}): {
   } as unknown as ScopedDataAccess;
 
   return {
-    tools: new ToolRegistry(dashboard, reports, ar, ap, invoices, scoped),
+    tools: new ToolRegistry(dashboard, reports, ar, ap, invoices, scoped, automations),
     createInvoice,
+    createAutomation,
   };
 }
 
@@ -127,12 +138,20 @@ describe('ToolRegistry', () => {
       policy: 'approve',
       permission: 'invoices:manage',
     });
+    expect(staffTools.map((tool) => tool.name)).toContain('automation.create');
+    expect(staffTools.find((tool) => tool.name === 'automation.create')).toMatchObject({
+      readOnly: false,
+      sensitive: true,
+      policy: 'approve',
+      permission: 'agent:manage',
+    });
     expect(registry().tools.listForRole('NOPE')).toEqual([]);
   });
 
   it('exposes every registered tool for policy configuration', () => {
     const all = registry().tools.listAll();
     expect(all.map((tool) => tool.name).sort()).toEqual([
+      'automation.create',
       'insight.query',
       'invoice.create',
       'report.generate',
@@ -273,6 +292,56 @@ describe('ToolRegistry', () => {
     });
     expect(result.tool).toBe('invoice.create');
     expect((result.result as { id: string }).id).toBe('invoice-1');
+  });
+
+  it('validates and executes the governed automation.create tool', async () => {
+    const { tools, createAutomation } = registry();
+
+    await expect(
+      tools.execute('automation.create', 'OWNER', {
+        name: 'Weekly close',
+        prompt: 'Summarize cash',
+        cron: '0 9 * * 1',
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    await expectRejection(
+      tools.prepareArguments('automation.create', 'OWNER', {
+        name: 'Weekly close',
+        prompt: 'Summarize cash',
+      }),
+      /cron/,
+    );
+    await expectRejection(
+      tools.prepareArguments('automation.create', 'OWNER', {
+        name: 'Weekly close',
+        prompt: 'Summarize cash',
+        cron: '0 9 * * 1',
+        organizationId: 'other-org',
+      }),
+      /organization/i,
+    );
+
+    const prepared = await tools.prepareArguments('automation.create', 'OWNER', {
+      name: 'Weekly close',
+      prompt: 'Summarize cash',
+      cron: '0 9 * * 1',
+      timezone: 'America/New_York',
+    });
+    expect(prepared.args).toMatchObject({
+      name: 'Weekly close',
+      prompt: 'Summarize cash',
+      cron: '0 9 * * 1',
+      timezone: 'America/New_York',
+    });
+
+    const executed = await tools.executeApproved('automation.create', 'OWNER', {
+      name: 'Weekly close',
+      prompt: 'Summarize cash',
+      cron: '0 9 * * 1',
+    });
+    expect(createAutomation).toHaveBeenCalledTimes(1);
+    expect(executed.result).toMatchObject({ id: 'automation-1' });
   });
 
   it('rejects missing, inactive, and ambiguous customers and items', async () => {

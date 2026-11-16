@@ -28,6 +28,7 @@ import { ArAgingService } from '../sales/ar-aging.service';
 import { InvoicesService } from '../sales/invoices.service';
 import { ScopedDataAccess } from '../tenant/scoped-data-access.service';
 import { hasPermission, Permission } from '../tenant/permissions';
+import { AgentAutomationService } from './agent-automation.service';
 import { AgentToolDeclaration } from './provider.types';
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -118,6 +119,28 @@ class InvoiceCreateLineArgs {
   @IsString()
   @Length(1, 200)
   description?: string;
+}
+
+class AutomationCreateArgs {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(120)
+  name!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(2000)
+  prompt!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(200)
+  cron!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  timezone?: string;
 }
 
 class InvoiceCreateArgs {
@@ -218,6 +241,7 @@ export class ToolRegistry {
     apAging: ApAgingService,
     private readonly invoices: InvoicesService,
     private readonly scoped: ScopedDataAccess,
+    private readonly automations: AgentAutomationService,
   ) {
     this.tools = [
       {
@@ -308,6 +332,42 @@ export class ToolRegistry {
             default:
               throw new BadRequestException('Unknown report');
           }
+        },
+      },
+      {
+        name: 'automation.create',
+        description:
+          'Propose a recurring agent routine: a name, the prompt to run, a five-field cron schedule, and an optional IANA timezone. Owner or Admin approval is required before the schedule is registered.',
+        permission: 'agent:manage',
+        readOnly: false,
+        sensitive: true,
+        policy: 'approve',
+        dto: AutomationCreateArgs,
+        parameters: {
+          type: 'object',
+          properties: {
+            name: { type: 'string', description: 'Short automation name.' },
+            prompt: { type: 'string', description: 'What Clerk should do on each run.' },
+            cron: {
+              type: 'string',
+              description: 'Five-field cron, e.g. "0 9 * * 1" for Mondays at 9:00.',
+            },
+            timezone: {
+              type: 'string',
+              description: 'IANA timezone, e.g. America/New_York. Defaults to UTC.',
+            },
+          },
+          required: ['name', 'prompt', 'cron'],
+          additionalProperties: false,
+        },
+        handler: async (args) => {
+          const input = args as unknown as AutomationCreateArgs;
+          return this.automations.create({
+            name: input.name,
+            prompt: input.prompt,
+            cron: input.cron,
+            ...(input.timezone ? { timezone: input.timezone } : {}),
+          });
         },
       },
       {

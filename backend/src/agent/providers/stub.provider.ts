@@ -39,6 +39,71 @@ function invoiceIntent(prompt: string): boolean {
   return /\binvoice\b/i.test(prompt) && /\b(create|make|draft|prepare|issue)\b/i.test(prompt);
 }
 
+const WEEKDAY_INDEX: Record<string, number> = {
+  sunday: 0,
+  monday: 1,
+  tuesday: 2,
+  wednesday: 3,
+  thursday: 4,
+  friday: 5,
+  saturday: 6,
+};
+
+function automationIntent(prompt: string): boolean {
+  const recurring =
+    /\bautomation\b/i.test(prompt) ||
+    /\b(every|each)\s+(day|weekday|week|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i.test(
+      prompt,
+    );
+  const action = /\b(create|add|set up|setup|schedule|propose|make|run)\b/i.test(prompt);
+  return recurring && action;
+}
+
+function automationCron(prompt: string): string {
+  const lower = prompt.toLowerCase();
+  let hour = 9;
+  let minute = 0;
+  const at = lower.match(/\bat\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b/);
+  if (at) {
+    hour = Number.parseInt(at[1], 10);
+    minute = at[2] ? Number.parseInt(at[2], 10) : 0;
+    if (at[3] === 'pm' && hour < 12) hour += 12;
+    if (at[3] === 'am' && hour === 12) hour = 0;
+  }
+  hour = Math.min(Math.max(hour, 0), 23);
+  minute = Math.min(Math.max(minute, 0), 59);
+
+  const weekday = lower.match(
+    /\b(?:every|each)\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/,
+  );
+  if (weekday) {
+    return `${minute} ${hour} * * ${WEEKDAY_INDEX[weekday[1]]}`;
+  }
+  if (/\b(?:every|each)\s+weekday\b/.test(lower)) {
+    return `${minute} ${hour} * * 1-5`;
+  }
+  if (/\b(?:every|each)\s+week\b/.test(lower)) {
+    return `${minute} ${hour} * * 1`;
+  }
+  return `${minute} ${hour} * * *`;
+}
+
+function automationName(prompt: string): string {
+  const named = prompt.match(/\b(?:called|named)\s+"([^"]{1,80})"/i);
+  if (named) return named[1].trim();
+  return 'Recurring routine';
+}
+
+function automationProposal(prompt: string) {
+  const cron = automationCron(prompt);
+  const name = automationName(prompt);
+  return {
+    name: 'automation.create',
+    args: { name, prompt, cron, timezone: 'UTC' },
+    rationale: `Proposed a recurring routine “${name}” on cron ${cron} (UTC). An Owner or Admin must approve it before the schedule is registered.`,
+  };
+}
+
 function isoDueDate(prompt: string): { dueDate: string; days: number } {
   const match = prompt.match(/due\s+in\s+(\d+)\s+days?/i);
   const days = match ? Math.max(1, Number.parseInt(match[1], 10)) : 30;
@@ -155,6 +220,12 @@ function finalText(toolResults: AgentToolResult[]): string {
   if (!last) return 'I could not find a permitted tool for that request.';
   if (last.error) return `The ${last.name} tool could not complete: ${last.error}`;
   const result = last.result as Record<string, unknown>;
+  if (last.name === 'automation.create') {
+    const name = typeof result.name === 'string' ? result.name : 'automation';
+    const schedule =
+      typeof result.scheduleLabel === 'string' ? ` ${result.scheduleLabel}` : '';
+    return `Scheduled “${name}”${schedule}.`;
+  }
   if (last.name === 'insight.query') return insightSummary(result);
   if (last.name === 'report.generate') {
     return reportSummary(String(result.report ?? 'requested'), result);
@@ -178,6 +249,15 @@ export class StubProvider implements AiProvider {
 
     if (request.toolResults && request.toolResults.length > 0) {
       return { text: finalText(request.toolResults) };
+    }
+
+    if (automationIntent(request.prompt)) {
+      if (hasTool(request.tools, 'automation.create')) {
+        return { toolCalls: [automationProposal(request.prompt)] };
+      }
+      return {
+        text: 'This role cannot create automations. Owner, Admin, Accountant, or Staff access is required.',
+      };
     }
 
     if (invoiceIntent(request.prompt)) {

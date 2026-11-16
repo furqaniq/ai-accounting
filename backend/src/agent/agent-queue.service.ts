@@ -20,7 +20,7 @@ export function retryDelayMs(attemptsMade: number): number {
   return exponential + Math.floor(Math.random() * 250);
 }
 
-function redisConnectionOptions(): {
+export function redisConnectionOptions(): {
   host: string;
   port: number;
   password?: string;

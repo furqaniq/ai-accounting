@@ -1,4 +1,5 @@
 import {
+  IsBoolean,
   IsEnum,
   IsIn,
   IsInt,
@@ -76,4 +77,69 @@ export class RejectAgentProposalDto {
 export class UpdateAgentPolicyDto {
   @IsIn(['auto', 'approve'])
   policy!: 'auto' | 'approve';
+}
+
+export class CreateAgentAutomationDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(120)
+  name!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(2000)
+  prompt!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(200)
+  cron!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  timezone?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  model?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  enabled?: boolean;
+}
+
+export class UpdateAgentAutomationDto {
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(120)
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(2000)
+  prompt?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(200)
+  cron?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  timezone?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  model?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  enabled?: boolean;
 }

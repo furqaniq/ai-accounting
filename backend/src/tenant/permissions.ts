@@ -170,6 +170,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     'ledger:read',
     'reports:read',
     'agent:read',
+    'agent:manage',
     'customers:read',
     'customers:manage',
     'vendors:read',

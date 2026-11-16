@@ -6,6 +6,7 @@ import { AppSpine } from '@/components/app-spine';
 import {
   API_URL,
   ActiveOrganization,
+  AgentAutomation,
   AgentJob,
   AgentJobStatus,
   AgentLogEntry,
@@ -16,8 +17,11 @@ import {
   AgentTrigger,
   approveAgentProposal,
   clearSession,
+  createAgentAutomation,
+  deleteAgentAutomation,
   fetchActiveOrganization,
   fetchAgentApprovals,
+  fetchAgentAutomations,
   fetchAgentJob,
   fetchAgentLogs,
   fetchAgentPolicies,
@@ -26,10 +30,91 @@ import {
   rejectAgentProposal,
   setActiveOrgId,
   submitAgentPrompt,
+  updateAgentAutomation,
   updateAgentPolicy,
 } from '@/lib/api';
 
-type AgentTab = 'ask' | 'approvals' | 'policies' | 'activity';
+type AgentTab = 'ask' | 'automations' | 'approvals' | 'policies' | 'activity';
+
+interface AutomationFormState {
+  name: string;
+  prompt: string;
+  cron: string;
+  timezone: string;
+  preset: string;
+}
+
+const CRON_PRESETS = [
+  { value: 'daily-9', label: 'Every day at 9:00', cron: '0 9 * * *' },
+  { value: 'weekdays-9', label: 'Every weekday at 9:00', cron: '0 9 * * 1-5' },
+  { value: 'monday-9', label: 'Every Monday at 9:00', cron: '0 9 * * 1' },
+  { value: 'friday-17', label: 'Every Friday at 5:00 PM', cron: '0 17 * * 5' },
+  { value: 'monthly-1', label: 'Monthly on the 1st at 9:00', cron: '0 9 1 * *' },
+  { value: 'custom', label: 'Custom cron', cron: '' },
+];
+
+const COMMON_TIMEZONES = [
+  'UTC',
+  'America/New_York',
+  'America/Chicago',
+  'America/Denver',
+  'America/Los_Angeles',
+  'Europe/London',
+  'Europe/Berlin',
+  'Asia/Karachi',
+  'Asia/Tokyo',
+  'Australia/Sydney',
+];
+
+const EMPTY_FORM: AutomationFormState = {
+  name: '',
+  prompt: '',
+  cron: '0 9 * * 1',
+  timezone: 'UTC',
+  preset: 'monday-9',
+};
+
+const WEEKDAYS = [
+  'Sunday',
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+];
+
+function readableSchedule(cron: string): string {
+  const fields = cron.trim().split(/\s+/);
+  if (fields.length !== 5) return cron || 'Enter a five-field cron';
+  const [minute, hour, dayOfMonth, month, dayOfWeek] = fields;
+  const numeric = (value: string) => /^\d+$/.test(value);
+  if (!numeric(minute) || !numeric(hour)) return cron;
+  const hourNumber = Number.parseInt(hour, 10);
+  const suffix = hourNumber < 12 ? 'AM' : 'PM';
+  const clock = `${hourNumber % 12 === 0 ? 12 : hourNumber % 12}:${String(
+    Number.parseInt(minute, 10),
+  ).padStart(2, '0')} ${suffix}`;
+  if (month === '*' && dayOfMonth === '*') {
+    if (dayOfWeek === '*') return `Every day at ${clock}`;
+    if (dayOfWeek === '1-5') return `Every weekday at ${clock}`;
+    if (numeric(dayOfWeek)) {
+      return `Every ${WEEKDAYS[Number.parseInt(dayOfWeek, 10) % 7]} at ${clock}`;
+    }
+  }
+  if (month === '*' && dayOfWeek === '*' && numeric(dayOfMonth)) {
+    return `Monthly on the ${dayOfMonth} at ${clock}`;
+  }
+  return cron;
+}
+
+function presetFor(cron: string): string {
+  return CRON_PRESETS.find((preset) => preset.cron === cron)?.value ?? 'custom';
+}
+
+function emptyForm(): AutomationFormState {
+  return { ...EMPTY_FORM };
+}
 type ProposalFilter = 'PENDING' | 'ALL' | AgentProposalStatus;
 
 interface Turn {
@@ -153,9 +238,24 @@ export default function AgentPage() {
   const [policiesError, setPoliciesError] = useState<string | null>(null);
   const [policySaving, setPolicySaving] = useState<string | null>(null);
   const [policyNotice, setPolicyNotice] = useState<string | null>(null);
+  const [automations, setAutomations] = useState<AgentAutomation[]>([]);
+  const [automationsLoading, setAutomationsLoading] = useState(false);
+  const [automationsError, setAutomationsError] = useState<string | null>(null);
+  const [automationNotice, setAutomationNotice] = useState<string | null>(null);
+  const [automationSaving, setAutomationSaving] = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [automationForm, setAutomationForm] = useState<AutomationFormState>(emptyForm);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const transcriptRef = useRef<HTMLDivElement | null>(null);
 
   const canApprove = org?.role === 'OWNER' || org?.role === 'ADMIN';
+  const canManageAutomations =
+    org?.role === 'OWNER' ||
+    org?.role === 'ADMIN' ||
+    org?.role === 'ACCOUNTANT' ||
+    org?.role === 'STAFF';
   const suggestions = useMemo(
     () => [
       "What's my cash position?",
@@ -328,6 +428,30 @@ export default function AgentPage() {
     };
   }, [org, tab, refreshToken]);
 
+  useEffect(() => {
+    if (!org || tab !== 'automations') return;
+    let cancelled = false;
+    setAutomationsLoading(true);
+    fetchAgentAutomations(org.organizationId)
+      .then((rows) => {
+        if (cancelled) return;
+        setAutomations(rows);
+        setAutomationsError(null);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setAutomationsError(
+          err instanceof Error ? err.message : 'Automations are not available',
+        );
+      })
+      .finally(() => {
+        if (!cancelled) setAutomationsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [org, tab, refreshToken]);
+
   async function savePolicy(row: AgentPolicyView) {
     if (!org || policySaving) return;
     const draft = policyDrafts[row.toolName] ?? row.policy;
@@ -348,6 +472,106 @@ export default function AgentPage() {
       setPoliciesError(err instanceof Error ? err.message : 'Could not save that policy');
     } finally {
       setPolicySaving(null);
+    }
+  }
+
+  function openNewAutomation() {
+    setAutomationForm(emptyForm());
+    setEditingId(null);
+    setFormOpen(true);
+    setConfirmDeleteId(null);
+    setAutomationNotice(null);
+    setAutomationsError(null);
+  }
+
+  function editAutomation(row: AgentAutomation) {
+    setAutomationForm({
+      name: row.name,
+      prompt: row.prompt,
+      cron: row.cron,
+      timezone: row.timezone,
+      preset: presetFor(row.cron),
+    });
+    setEditingId(row.id);
+    setFormOpen(true);
+    setConfirmDeleteId(null);
+    setAutomationNotice(null);
+    setAutomationsError(null);
+  }
+
+  async function saveAutomation() {
+    if (!org || automationSaving) return;
+    setAutomationSaving(true);
+    setAutomationsError(null);
+    setAutomationNotice(null);
+    const payload = {
+      name: automationForm.name.trim(),
+      prompt: automationForm.prompt.trim(),
+      cron: automationForm.cron.trim(),
+      timezone: automationForm.timezone.trim() || 'UTC',
+    };
+    try {
+      if (editingId) {
+        const updated = await updateAgentAutomation(org.organizationId, editingId, payload);
+        setAutomationNotice(`Saved “${updated.name}”. ${updated.scheduleLabel}.`);
+      } else {
+        const created = await createAgentAutomation(org.organizationId, payload);
+        setAutomationNotice(`Created “${created.name}”. ${created.scheduleLabel}.`);
+      }
+      setFormOpen(false);
+      setEditingId(null);
+      setAutomationForm(emptyForm());
+      setRefreshToken((current) => current + 1);
+    } catch (err) {
+      setAutomationsError(
+        err instanceof Error ? err.message : 'Could not save that automation',
+      );
+    } finally {
+      setAutomationSaving(false);
+    }
+  }
+
+  async function toggleAutomation(row: AgentAutomation) {
+    if (!org || togglingId) return;
+    setTogglingId(row.id);
+    setAutomationsError(null);
+    setAutomationNotice(null);
+    try {
+      const updated = await updateAgentAutomation(org.organizationId, row.id, {
+        enabled: !row.enabled,
+      });
+      setAutomations((current) =>
+        current.map((entry) => (entry.id === updated.id ? updated : entry)),
+      );
+      setAutomationNotice(
+        updated.enabled
+          ? `Resumed “${updated.name}”.`
+          : `Paused “${updated.name}”. No runs will start until resumed.`,
+      );
+      setRefreshToken((current) => current + 1);
+    } catch (err) {
+      setAutomationsError(
+        err instanceof Error ? err.message : 'Could not change that automation',
+      );
+    } finally {
+      setTogglingId(null);
+    }
+  }
+
+  async function removeAutomation(row: AgentAutomation) {
+    if (!org) return;
+    setAutomationsError(null);
+    setAutomationNotice(null);
+    try {
+      await deleteAgentAutomation(org.organizationId, row.id);
+      setAutomations((current) => current.filter((entry) => entry.id !== row.id));
+      setConfirmDeleteId(null);
+      setAutomationNotice(`Deleted “${row.name}”. Its schedule was removed.`);
+      setRefreshToken((current) => current + 1);
+    } catch (err) {
+      setAutomationsError(
+        err instanceof Error ? err.message : 'Could not delete that automation',
+      );
     }
   }
 
@@ -455,6 +679,17 @@ export default function AgentPage() {
             onClick={() => setTab('ask')}
           >
             Ask
+          </button>
+          <button
+            className="tab"
+            type="button"
+            role="tab"
+            aria-selected={tab === 'automations'}
+            id="agent-tab-automations"
+            aria-controls="agent-panel-automations"
+            onClick={() => setTab('automations')}
+          >
+            Automations
           </button>
           <button
             className="tab"
@@ -607,6 +842,321 @@ export default function AgentPage() {
                 </p>
               ) : null}
             </form>
+          </div>
+        </section>
+
+        <section
+          className="agent-panel"
+          id="agent-panel-automations"
+          role="tabpanel"
+          aria-labelledby="agent-tab-automations"
+          hidden={tab !== 'automations'}
+        >
+          <div className="section__head">
+            <h2 className="section__title">Automations</h2>
+            <span className="section__meta">
+              Scheduled routines run as Clerk with their creator’s permissions. Every run is
+              logged.
+            </span>
+          </div>
+
+          {automationNotice ? (
+            <p className="approval__notice" role="status" aria-live="polite">
+              {automationNotice}
+            </p>
+          ) : null}
+          {automationsError ? (
+            <p className="members__error" role="alert">
+              {automationsError}
+            </p>
+          ) : null}
+
+          <div className="automation-toolbar">
+            <p className="section__meta">
+              {canManageAutomations
+                ? 'Runs happen on the schedule below. Edits replace the existing schedule.'
+                : 'Read-only — an Owner, Admin, Accountant, or Staff member can change schedules.'}
+            </p>
+            {canManageAutomations ? (
+              <button
+                className="btn btn--primary btn--sm"
+                type="button"
+                onClick={openNewAutomation}
+              >
+                New automation
+              </button>
+            ) : null}
+          </div>
+
+          {formOpen && canManageAutomations ? (
+            <form
+              className="automation-form"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void saveAutomation();
+              }}
+            >
+              <div className="automation-form__grid">
+                <div className="field">
+                  <label htmlFor="automation-name">Name</label>
+                  <input
+                    id="automation-name"
+                    value={automationForm.name}
+                    maxLength={120}
+                    placeholder="Weekly cash review"
+                    onChange={(event) =>
+                      setAutomationForm((current) => ({ ...current, name: event.target.value }))
+                    }
+                  />
+                </div>
+                <div className="field">
+                  <label htmlFor="automation-preset">Schedule preset</label>
+                  <select
+                    id="automation-preset"
+                    value={automationForm.preset}
+                    onChange={(event) => {
+                      const preset = CRON_PRESETS.find(
+                        (entry) => entry.value === event.target.value,
+                      );
+                      setAutomationForm((current) => ({
+                        ...current,
+                        preset: event.target.value,
+                        cron: preset && preset.value !== 'custom' ? preset.cron : current.cron,
+                      }));
+                    }}
+                  >
+                    {CRON_PRESETS.map((preset) => (
+                      <option key={preset.value} value={preset.value}>
+                        {preset.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="field">
+                  <label htmlFor="automation-cron">Cron (five fields)</label>
+                  <input
+                    id="automation-cron"
+                    value={automationForm.cron}
+                    maxLength={200}
+                    placeholder="0 9 * * 1"
+                    onChange={(event) =>
+                      setAutomationForm((current) => ({
+                        ...current,
+                        cron: event.target.value,
+                        preset: presetFor(event.target.value),
+                      }))
+                    }
+                  />
+                </div>
+                <div className="field">
+                  <label htmlFor="automation-timezone">Timezone</label>
+                  <input
+                    id="automation-timezone"
+                    value={automationForm.timezone}
+                    maxLength={100}
+                    list="automation-timezones"
+                    placeholder="UTC"
+                    onChange={(event) =>
+                      setAutomationForm((current) => ({
+                        ...current,
+                        timezone: event.target.value,
+                      }))
+                    }
+                  />
+                  <datalist id="automation-timezones">
+                    {COMMON_TIMEZONES.map((zone) => (
+                      <option key={zone} value={zone} />
+                    ))}
+                  </datalist>
+                </div>
+                <div className="field automation-form__prompt">
+                  <label htmlFor="automation-prompt">Prompt</label>
+                  <textarea
+                    id="automation-prompt"
+                    rows={3}
+                    maxLength={2000}
+                    placeholder="Review cash and flag anything unusual."
+                    value={automationForm.prompt}
+                    onChange={(event) =>
+                      setAutomationForm((current) => ({
+                        ...current,
+                        prompt: event.target.value,
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+              <p className="automation-form__preview" aria-live="polite">
+                Runs {readableSchedule(automationForm.cron)} ·{' '}
+                {automationForm.timezone.trim() || 'UTC'}
+              </p>
+              <div className="automation-form__actions">
+                <button
+                  className="btn btn--primary btn--sm"
+                  type="submit"
+                  disabled={
+                    automationSaving ||
+                    !automationForm.name.trim() ||
+                    !automationForm.prompt.trim() ||
+                    !automationForm.cron.trim()
+                  }
+                >
+                  {automationSaving
+                    ? 'Saving…'
+                    : editingId
+                      ? 'Save automation'
+                      : 'Create automation'}
+                </button>
+                <button
+                  className="btn btn--outline btn--sm"
+                  type="button"
+                  onClick={() => {
+                    setFormOpen(false);
+                    setEditingId(null);
+                    setAutomationForm(emptyForm());
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          ) : null}
+
+          <div className="table-scroll">
+            <table className="data-table automation-table">
+              <caption className="sr-only">Scheduled automations</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Name</th>
+                  <th scope="col">Schedule</th>
+                  <th scope="col">Prompt</th>
+                  <th scope="col">Enabled</th>
+                  <th scope="col">Last run</th>
+                  <th scope="col">
+                    <span className="sr-only">Actions</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {automations.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="empty-state">
+                      {automationsLoading
+                        ? 'Reading automations…'
+                        : 'No automations yet. A scheduled routine runs Clerk on a cron schedule and logs every run.'}
+                    </td>
+                  </tr>
+                ) : (
+                  automations.map((row) => (
+                    <tr key={row.id}>
+                      <td>
+                        <div className="policy-action">
+                          <span className="policy-action__name">{row.name}</span>
+                          <span className="policy-action__tool">
+                            {row.createdBy ? `by ${row.createdBy.name}` : 'Clerk'}
+                          </span>
+                        </div>
+                      </td>
+                      <td>
+                        <div>{row.scheduleLabel}</div>
+                        <span className="muted">
+                          {row.timezone}
+                          {row.enabled && row.nextRunAt
+                            ? ` · next ${timeLabel(row.nextRunAt)}`
+                            : row.enabled
+                              ? ''
+                              : ' · paused'}
+                        </span>
+                      </td>
+                      <td className="automation-prompt">{row.prompt}</td>
+                      <td>
+                        <label className="automation-toggle">
+                          <input
+                            type="checkbox"
+                            role="switch"
+                            aria-label={`Enable ${row.name}`}
+                            checked={row.enabled}
+                            disabled={!canManageAutomations || togglingId === row.id}
+                            onChange={() => void toggleAutomation(row)}
+                          />
+                          <span>{row.enabled ? 'Enabled' : 'Paused'}</span>
+                        </label>
+                      </td>
+                      <td>
+                        {row.lastRunAt ? (
+                          <div className="automation-last">
+                            <span
+                              className={`status ${
+                                row.lastStatus ? statusClass(row.lastStatus) : 'status--draft'
+                              }`}
+                            >
+                              <span className="dot" />
+                              {row.lastStatus ? STATUS_LABEL[row.lastStatus] : 'Queued'}
+                            </span>
+                            <span className="muted">{timeLabel(row.lastRunAt)}</span>
+                            {row.lastLogReference ? (
+                              <button
+                                className="link agent-log-ref"
+                                type="button"
+                                onClick={() => {
+                                  setLogFilter('CRON');
+                                  setTab('activity');
+                                }}
+                              >
+                                {row.lastLogReference}
+                              </button>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <span className="muted">Not yet run</span>
+                        )}
+                      </td>
+                      <td>
+                        {canManageAutomations ? (
+                          confirmDeleteId === row.id ? (
+                            <div className="row-actions">
+                              <button
+                                className="btn btn--danger btn--sm"
+                                type="button"
+                                onClick={() => void removeAutomation(row)}
+                              >
+                                Delete schedule
+                              </button>
+                              <button
+                                className="btn btn--outline btn--sm"
+                                type="button"
+                                onClick={() => setConfirmDeleteId(null)}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="row-actions">
+                              <button
+                                className="btn btn--outline btn--sm"
+                                type="button"
+                                onClick={() => editAutomation(row)}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                className="btn btn--ghost btn--sm"
+                                type="button"
+                                onClick={() => setConfirmDeleteId(row.id)}
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          )
+                        ) : (
+                          <span className="muted">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
         </section>
 

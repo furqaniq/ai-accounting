@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { AgentJob, AgentJobStatus, AgentTrigger } from '@prisma/client';
 import { ScopedDataAccess } from '../tenant/scoped-data-access.service';
 import { TenantContextService } from '../tenant/tenant-context.service';
@@ -9,11 +14,14 @@ export interface CreateAgentJobInput {
   prompt: string;
   modelAlias?: string;
   trigger?: AgentTrigger;
+  automationId?: string;
 }
 
 export interface AgentJobView {
   jobId: string;
   status: AgentJobStatus;
+  trigger: AgentTrigger;
+  automationId: string | null;
   attempts: number;
   maxAttempts: number;
   model: string;
@@ -39,6 +47,8 @@ export function toAgentJobView(job: AgentJob): AgentJobView {
   return {
     jobId: job.id,
     status: job.status,
+    trigger: job.trigger,
+    automationId: job.automationId,
     attempts: job.attempts,
     maxAttempts: job.maxAttempts,
     model: job.model,
@@ -54,6 +64,8 @@ export function toAgentJobView(job: AgentJob): AgentJobView {
 
 @Injectable()
 export class AgentJobsService {
+  private readonly logger = new Logger(AgentJobsService.name);
+
   constructor(
     private readonly tenant: TenantContextService,
     private readonly scoped: ScopedDataAccess,
@@ -74,6 +86,7 @@ export class AgentJobsService {
       userId,
       role,
       trigger,
+      automationId: input.automationId,
       prompt: input.prompt,
       model: resolved.alias,
       status: AgentJobStatus.QUEUED,
@@ -113,6 +126,7 @@ export class AgentJobsService {
       error: null,
       response: null,
     });
+    await this.syncAutomation(id, AgentJobStatus.RUNNING, job.logReference);
     return updated ?? null;
   }
 
@@ -122,6 +136,7 @@ export class AgentJobsService {
       error,
       logReference,
     });
+    await this.syncAutomation(id, AgentJobStatus.RETRYING, logReference);
   }
 
   async markFailed(id: string, error: string, logReference: string): Promise<void> {
@@ -130,6 +145,7 @@ export class AgentJobsService {
       error,
       logReference,
     });
+    await this.syncAutomation(id, AgentJobStatus.FAILED, logReference);
   }
 
   async markCompleted(
@@ -145,5 +161,30 @@ export class AgentJobsService {
       toolNames,
       logReference,
     });
+    await this.syncAutomation(id, AgentJobStatus.COMPLETED, logReference);
+  }
+
+  /** Mirrors a scheduled job's status onto its automation for the UI. */
+  private async syncAutomation(
+    jobId: string,
+    status: AgentJobStatus,
+    logReference: string | null,
+  ): Promise<void> {
+    try {
+      const job = await this.scoped.findById<AgentJob>('agentJob', jobId);
+      if (!job?.automationId) return;
+      await this.scoped.updateById('agentAutomation', job.automationId, {
+        lastRunAt: new Date(),
+        lastStatus: status,
+        lastJobId: jobId,
+        ...(logReference ? { lastLogReference: logReference } : {}),
+      });
+    } catch (error) {
+      this.logger.error(
+        `Could not update automation status for job ${jobId}: ${
+          error instanceof Error ? error.message : 'unknown error'
+        }`,
+      );
+    }
   }
 }

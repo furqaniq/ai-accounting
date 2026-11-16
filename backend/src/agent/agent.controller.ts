@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   NotFoundException,
@@ -11,6 +12,8 @@ import {
 } from '@nestjs/common';
 import { AgentJob } from '@prisma/client';
 import { RequirePermission } from '../tenant/require-permission.decorator';
+import { AgentAutomationRunner } from './agent-automation-runner.service';
+import { AgentAutomationService } from './agent-automation.service';
 import { AgentJobsService, toAgentJobView } from './agent-jobs.service';
 import { AgentLogService } from './agent-log.service';
 import { AgentPolicyService } from './agent-policy.service';
@@ -19,8 +22,10 @@ import { ApprovalService } from './approval.service';
 import {
   AgentApprovalQueryDto,
   AgentLogQueryDto,
+  CreateAgentAutomationDto,
   CreateAgentPromptDto,
   RejectAgentProposalDto,
+  UpdateAgentAutomationDto,
   UpdateAgentPolicyDto,
 } from './agent.dto';
 
@@ -32,6 +37,8 @@ export class AgentController {
     private readonly queue: AgentQueueService,
     private readonly approvals: ApprovalService,
     private readonly policies: AgentPolicyService,
+    private readonly automations: AgentAutomationService,
+    private readonly automationRunner: AgentAutomationRunner,
   ) {}
 
   @Post('prompts')
@@ -113,6 +120,61 @@ export class AgentController {
     @Body() dto: UpdateAgentPolicyDto,
   ): Promise<unknown> {
     return this.policies.update(toolName, dto.policy);
+  }
+
+  @Get('automations')
+  @RequirePermission('agent:read')
+  async listAutomations(): Promise<{ automations: unknown[] }> {
+    return { automations: await this.automations.list() };
+  }
+
+  @Get('automations/:id')
+  @RequirePermission('agent:read')
+  automation(@Param('id') id: string): Promise<unknown> {
+    return this.automations.find(id);
+  }
+
+  @Post('automations')
+  @RequirePermission('agent:manage')
+  createAutomation(
+    @Body() dto: CreateAgentAutomationDto,
+  ): Promise<unknown> {
+    return this.automations.create(dto);
+  }
+
+  @Patch('automations/:id')
+  @RequirePermission('agent:manage')
+  updateAutomation(
+    @Param('id') id: string,
+    @Body() dto: UpdateAgentAutomationDto,
+  ): Promise<unknown> {
+    return this.automations.update(id, dto);
+  }
+
+  @Delete('automations/:id')
+  @RequirePermission('agent:manage')
+  async deleteAutomation(
+    @Param('id') id: string,
+  ): Promise<{ deleted: boolean }> {
+    await this.automations.remove(id);
+    return { deleted: true };
+  }
+
+  @Post('test/automations/:id/run')
+  @HttpCode(200)
+  @RequirePermission('agent:manage')
+  async runAutomationNow(
+    @Param('id') id: string,
+  ): Promise<{
+    jobId: string | null;
+    status: string | null;
+    logReference: string | null;
+  }> {
+    if (process.env.AGENT_TEST_HOOKS !== '1') {
+      throw new NotFoundException();
+    }
+    const automation = await this.automations.getRunnable(id);
+    return this.automationRunner.runScheduled(automation.id, automation.organizationId);
   }
 
   @Get('logs')

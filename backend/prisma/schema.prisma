@@ -57,6 +57,7 @@ model Organization {
   agentActionLogs        AgentActionLog[]
   agentProposals         AgentProposal[]
   agentToolPolicies      AgentToolPolicy[]
+  agentAutomations       AgentAutomation[]
 }
 
 model Account {
@@ -705,6 +706,7 @@ model User {
   requestedAgentProposals  AgentProposal[]   @relation("AgentProposalRequester")
   decidedAgentProposals    AgentProposal[]   @relation("AgentProposalDecider")
   updatedAgentToolPolicies AgentToolPolicy[] @relation("AgentToolPolicyUpdater")
+  createdAgentAutomations  AgentAutomation[] @relation("AgentAutomationCreator")
 }
 
 model OrgMembership {
@@ -769,12 +771,44 @@ enum AgentProposalStatus {
   FAILED
 }
 
+enum AgentAutomationMode {
+  CRON
+  EVENT
+}
+
+model AgentAutomation {
+  id               String              @id @default(cuid())
+  organizationId   String
+  name             String
+  mode             AgentAutomationMode @default(CRON)
+  cron             String
+  timezone         String              @default("UTC")
+  prompt           String
+  model            String?
+  enabled          Boolean             @default(true)
+  createdByUserId  String
+  lastRunAt        DateTime?
+  lastStatus       AgentJobStatus?
+  lastJobId        String?
+  lastLogReference String?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  organization     Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy        User                @relation("AgentAutomationCreator", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  jobs             AgentJob[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId, enabled])
+  @@index([organizationId, createdAt])
+}
+
 model AgentJob {
   id             String          @id @default(cuid())
   organizationId String
   userId         String
   role           Role
   trigger        AgentTrigger    @default(PROMPT)
+  automationId   String?
   prompt         String
   model          String
   status         AgentJobStatus  @default(QUEUED)
@@ -788,10 +822,12 @@ model AgentJob {
   updatedAt      DateTime        @updatedAt
   organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  automation     AgentAutomation? @relation(fields: [automationId], references: [id], onDelete: SetNull)
   proposals      AgentProposal[]
 
   @@index([organizationId, createdAt])
   @@index([organizationId, status])
+  @@index([organizationId, automationId])
 }
 
 model AgentProposal {
