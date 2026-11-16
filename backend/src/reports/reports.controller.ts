@@ -1,6 +1,8 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Param, Query, Res, StreamableFile } from '@nestjs/common';
+import type { Response } from 'express';
 import { RequirePermission } from '../tenant/require-permission.decorator';
-import { AsOfQueryDto, PeriodQueryDto } from './reports.dto';
+import { AsOfQueryDto, ExportQueryDto, PeriodQueryDto } from './reports.dto';
+import { ReportExportService } from './report-export.service';
 import { ReportsService } from './reports.service';
 import {
   BalanceSheetReport,
@@ -14,7 +16,26 @@ import {
 
 @Controller('reports')
 export class ReportsController {
-  constructor(private readonly reports: ReportsService) {}
+  constructor(
+    private readonly reports: ReportsService,
+    private readonly exportService: ReportExportService,
+  ) {}
+
+  @Get(':report/export')
+  @RequirePermission('reports:read')
+  async exportReport(
+    @Param('report') report: string,
+    @Query() query: ExportQueryDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<StreamableFile> {
+    const file = await this.exportService.export(report, query);
+    res.set({
+      'Content-Type': file.contentType,
+      'Content-Disposition': `attachment; filename="${file.filename}"`,
+      'Content-Length': String(file.buffer.length),
+    });
+    return new StreamableFile(file.buffer);
+  }
 
   @Get('profit-loss')
   @RequirePermission('reports:read')

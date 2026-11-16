@@ -16,6 +16,7 @@ import {
   StatementGroup,
   TrialBalanceReport,
   clearSession,
+  downloadReportExport,
   fetchActiveOrganization,
   fetchBalanceSheet,
   fetchCashFlow,
@@ -28,6 +29,7 @@ import {
   getActiveOrgId,
   setActiveOrgId,
 } from '@/lib/api';
+import type { ReportExportFormat } from '@/lib/api';
 
 type StatementTab = 'profit-loss' | 'balance-sheet' | 'cash-flow' | 'trial-balance';
 type AnalysisTab = 'sales-by-customer' | 'sales-by-item' | 'expenses-by-category';
@@ -106,6 +108,8 @@ export default function ReportsPage() {
   const [openRows, setOpenRows] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState<ReportExportFormat | null>(null);
 
   useEffect(() => {
     const token = getAccessToken();
@@ -200,6 +204,28 @@ export default function ReportsPage() {
     setOpenRows((current) =>
       current.includes(key) ? current.filter((row) => row !== key) : [...current, key],
     );
+  }
+
+  async function exportReport(format: ReportExportFormat) {
+    if (!org) return;
+    setExporting(format);
+    setExportError(null);
+    try {
+      const filters = periodTab ? { from, to } : { asOf };
+      const { blob, filename } = await downloadReportExport(org.organizationId, tab, filters, format);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : 'Could not export that report');
+    } finally {
+      setExporting(null);
+    }
   }
 
   function drillLink(accountId: string | null): string | null {
@@ -781,6 +807,22 @@ export default function ReportsPage() {
             </p>
           </div>
           <div className="page-head__actions">
+            <button
+              type="button"
+              className="btn btn--ghost btn--sm"
+              onClick={() => exportReport('csv')}
+              disabled={exporting !== null}
+            >
+              {exporting === 'csv' ? 'Exporting…' : 'Export CSV'}
+            </button>
+            <button
+              type="button"
+              className="btn btn--ghost btn--sm"
+              onClick={() => exportReport('pdf')}
+              disabled={exporting !== null}
+            >
+              {exporting === 'pdf' ? 'Exporting…' : 'Export PDF'}
+            </button>
             <a className="btn btn--ghost btn--sm" href="/reports/ar-aging">AR aging</a>
             <a className="btn btn--ghost btn--sm" href="/reports/ap-aging">AP aging</a>
           </div>
@@ -873,6 +915,12 @@ export default function ReportsPage() {
           {error ? (
             <p className="members__error" role="alert">
               {error}
+            </p>
+          ) : null}
+
+          {exportError ? (
+            <p className="members__error" role="alert">
+              {exportError}
             </p>
           ) : null}
 

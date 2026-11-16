@@ -1304,6 +1304,42 @@ export async function fetchTrialBalance(
   return res.json();
 }
 
+export type ReportExportSlug =
+  | 'profit-loss'
+  | 'balance-sheet'
+  | 'cash-flow'
+  | 'trial-balance'
+  | 'sales-by-customer'
+  | 'sales-by-item'
+  | 'expenses-by-category';
+
+export type ReportExportFormat = 'csv' | 'pdf';
+
+export interface ReportExportFilters {
+  from?: string;
+  to?: string;
+  asOf?: string;
+}
+
+export async function downloadReportExport(
+  organizationId: string,
+  report: ReportExportSlug,
+  filters: ReportExportFilters,
+  format: ReportExportFormat,
+): Promise<{ blob: Blob; filename: string }> {
+  const params = new URLSearchParams({ format });
+  if (filters.from) params.set('from', filters.from);
+  if (filters.to) params.set('to', filters.to);
+  if (filters.asOf) params.set('asOf', filters.asOf);
+  const res = await fetch(`${API_URL}/reports/${report}/export?${params.toString()}`, {
+    headers: authHeaders(organizationId),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not export that report'));
+  const disposition = res.headers.get('content-disposition') ?? '';
+  const filename = /filename="([^"]+)"/.exec(disposition)?.[1] ?? `${report}.${format}`;
+  return { blob: await res.blob(), filename };
+}
+
 export type BillStatus = 'DRAFT' | 'OPEN' | 'PARTIAL' | 'PAID' | 'OVERDUE';
 
 export interface BillLine {
