@@ -44,8 +44,6 @@ function cleanup(): void {
   }
 }
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
 async function signIn(page: Page, email = 'owner@acme.test'): Promise<void> {
   await page.goto('/login');
   await page.getByLabel('Email').fill(email);
@@ -182,24 +180,29 @@ test('selects a command by click and uses the chosen model for prompts only', as
   await expect(transcript).toContainText('Model Flash Lite', { timeout: 20_000 });
 
   let jobModel: string | null = null;
-  for (let attempt = 0; attempt < 40; attempt += 1) {
-    const logsRes = await page.request.get(`${API}/agent/logs?limit=50`, { headers });
-    expect(logsRes.ok()).toBeTruthy();
-    const logs = (await logsRes.json()) as {
-      logs: Array<{ jobId: string | null; prompt: string | null }>;
-    };
-    const entry = logs.logs.find((row) => row.prompt === PROMPT && row.jobId);
-    if (entry?.jobId) {
-      const jobRes = await page.request.get(`${API}/agent/jobs/${entry.jobId}`, {
-        headers,
-      });
-      expect(jobRes.ok()).toBeTruthy();
-      const job = (await jobRes.json()) as { status: string; model: string };
-      jobModel = job.model;
-      if (job.status === 'COMPLETED' || job.status === 'FAILED') break;
-    }
-    await sleep(500);
-  }
+  await expect
+    .poll(
+      async () => {
+        const logsRes = await page.request.get(`${API}/agent/logs?limit=50`, { headers });
+        expect(logsRes.ok()).toBeTruthy();
+        const logs = (await logsRes.json()) as {
+          logs: Array<{ jobId: string | null; prompt: string | null }>;
+        };
+        const entry = logs.logs.find((row) => row.prompt === PROMPT && row.jobId);
+        if (!entry?.jobId) return 'PENDING';
+        const jobRes = await page.request.get(`${API}/agent/jobs/${entry.jobId}`, {
+          headers,
+        });
+        expect(jobRes.ok()).toBeTruthy();
+        const job = (await jobRes.json()) as { status: string; model: string };
+        if (job.status === 'COMPLETED' || job.status === 'FAILED') {
+          jobModel = job.model;
+        }
+        return job.status;
+      },
+      { timeout: 20_000, message: 'prompt job should reach a terminal status' },
+    )
+    .toMatch(/^(COMPLETED|FAILED)$/);
   expect(jobModel).toBe('flash-lite');
 
   const list = await page.request.get(`${API}/agent/automations`, { headers });

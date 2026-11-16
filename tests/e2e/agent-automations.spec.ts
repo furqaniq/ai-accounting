@@ -44,8 +44,6 @@ function cleanup(): void {
   }
 }
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
 async function signIn(page: import('@playwright/test').Page): Promise<void> {
   await page.goto('/login');
   await page.getByLabel('Email').fill('owner@acme.test');
@@ -141,13 +139,17 @@ test('creates, edits, pauses, runs, and deletes a scheduled automation', async (
   expect(jobId).toBeTruthy();
 
   let status = '';
-  for (let attempt = 0; attempt < 40; attempt += 1) {
-    const job = await page.request.get(`${API}/agent/jobs/${jobId}`, { headers });
-    expect(job.ok()).toBeTruthy();
-    status = ((await job.json()) as { status: string }).status;
-    if (status === 'COMPLETED' || status === 'FAILED') break;
-    await sleep(500);
-  }
+  await expect
+    .poll(
+      async () => {
+        const job = await page.request.get(`${API}/agent/jobs/${jobId}`, { headers });
+        expect(job.ok()).toBeTruthy();
+        status = ((await job.json()) as { status: string }).status;
+        return status;
+      },
+      { timeout: 20_000, message: 'cron job should reach a terminal status' },
+    )
+    .toMatch(/^(COMPLETED|FAILED)$/);
   expect(status).toBe('COMPLETED');
 
   await page.reload();
