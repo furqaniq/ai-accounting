@@ -1,6 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import {
   agentModelAliases,
+  agentModelCatalog,
   defaultAgentAlias,
   resolveAgentModel,
 } from './model-catalog';
@@ -31,6 +32,23 @@ describe('agent model aliases', () => {
 
   afterEach(() => {
     process.env = { ...original };
+  });
+
+  it('builds a labelled catalog with one default alias', () => {
+    delete process.env.AGENT_DEFAULT_MODEL;
+    const catalog = agentModelCatalog();
+    expect(catalog.map((entry) => entry.alias)).toEqual([
+      'flash',
+      'flash-lite',
+      'pro',
+    ]);
+    expect(catalog.filter((entry) => entry.default).map((entry) => entry.alias)).toEqual([
+      'flash',
+    ]);
+    expect(catalog.every((entry) => entry.label.length > 0 && entry.modelId.length > 0)).toBe(
+      true,
+    );
+    expect(catalog.find((entry) => entry.alias === 'flash-lite')?.label).toBe('Flash Lite');
   });
 
   it('resolves the configured default alias', () => {

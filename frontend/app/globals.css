@@ -2495,6 +2495,33 @@ table {
   color: var(--ink-soft);
 }
 
+.model-selector {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  margin-top: 10px;
+  background: var(--surface);
+  border: 1px solid var(--rule-strong);
+  border-radius: 3px;
+}
+
+.model-selector__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.model-selector__title {
+  font-family: var(--font-display);
+  font-size: 19px;
+  font-weight: 500;
+}
+
+.composer__notice {
+  margin: 6px 0 0;
+}
+
 .model-options {
   display: grid;
   gap: 8px;

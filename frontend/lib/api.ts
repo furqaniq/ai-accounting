@@ -2719,6 +2719,28 @@ export interface AgentProposal {
   decidedBy?: { id: string; name: string; email: string } | null;
 }
 
+export interface AgentModelOption {
+  alias: string;
+  label: string;
+  modelId: string;
+  default: boolean;
+}
+
+export interface AgentModelCatalog {
+  models: AgentModelOption[];
+  defaultAlias: string;
+}
+
+export async function fetchAgentModels(
+  organizationId: string,
+): Promise<AgentModelCatalog> {
+  const res = await fetch(`${API_URL}/agent/models`, {
+    headers: authHeaders(organizationId),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Agent models are not available'));
+  return res.json();
+}
+
 export interface AgentJob {
   jobId: string;
   status: AgentJobStatus;

@@ -164,6 +164,44 @@ describe('Agent prompt foundation', () => {
     expect(detail.body.logReference).toBe(toolLog!.logReference);
   });
 
+  it('lists the server model allowlist for any member', async () => {
+    const res = await request(app.getHttpServer())
+      .get('/api/v1/agent/models')
+      .set(withOrg(ownerToken, acmeId))
+      .expect(200);
+
+    const models = res.body.models as Array<{
+      alias: string;
+      label: string;
+      modelId: string;
+      default: boolean;
+    }>;
+    expect(models.map((entry) => entry.alias)).toEqual(['flash', 'flash-lite', 'pro']);
+    expect(models.filter((entry) => entry.default).map((entry) => entry.alias)).toEqual([
+      'flash',
+    ]);
+    expect(models.find((entry) => entry.alias === 'flash-lite')?.label).toBe('Flash Lite');
+    expect(models.every((entry) => entry.modelId.length > 0)).toBe(true);
+
+    const viewerRes = await request(app.getHttpServer())
+      .get('/api/v1/agent/models')
+      .set(withOrg(viewerToken, acmeId))
+      .expect(200);
+    expect((viewerRes.body.models as unknown[]).length).toBe(3);
+  });
+
+  it('uses the selected allowlisted alias for the prompt job', async () => {
+    const submission = await submit('What is my cash position?', { model: 'flash-lite' });
+    const job = await waitForJob(
+      submission.jobId,
+      acmeId,
+      ownerToken,
+      (row) => row.status === 'COMPLETED',
+    );
+
+    expect(job.model).toBe('flash-lite');
+  });
+
   it('rejects an unknown model alias before creating a job', async () => {
     const res = await request(app.getHttpServer())
       .post('/api/v1/agent/prompts')

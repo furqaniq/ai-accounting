@@ -21,6 +21,7 @@ import { AgentLogService } from './agent-log.service';
 import { AgentPolicyService } from './agent-policy.service';
 import { AgentQueueService } from './agent-queue.service';
 import { eventEntityType } from './domain-event.config';
+import { agentModelCatalog } from './model-catalog';
 import { ApprovalService } from './approval.service';
 import {
   AgentApprovalQueryDto,
@@ -65,6 +66,19 @@ export class AgentController {
       userId: job.userId,
     });
     return { jobId: job.id, status: job.status, logReference };
+  }
+
+  @Get('models')
+  @RequirePermission('agent:read')
+  async models(): Promise<{
+    models: ReturnType<typeof agentModelCatalog>;
+    defaultAlias: string;
+  }> {
+    const models = agentModelCatalog();
+    return {
+      models,
+      defaultAlias: models.find((entry) => entry.default)?.alias ?? 'flash',
+    };
   }
 
   @Get('jobs/:id')

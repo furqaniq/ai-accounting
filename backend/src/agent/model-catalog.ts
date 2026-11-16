@@ -5,6 +5,17 @@ export interface ResolvedAgentModel {
   modelId: string;
 }
 
+export interface AgentModelOption extends ResolvedAgentModel {
+  label: string;
+  default: boolean;
+}
+
+const MODEL_LABELS: Record<string, string> = {
+  flash: 'Flash',
+  'flash-lite': 'Flash Lite',
+  pro: 'Pro',
+};
+
 export function agentModelAliases(): Record<string, string> {
   return {
     flash: process.env.AGENT_MODEL_FLASH ?? 'gemini-2.5-flash',
@@ -16,6 +27,17 @@ export function agentModelAliases(): Record<string, string> {
 export function defaultAgentAlias(): string {
   const requested = (process.env.AGENT_DEFAULT_MODEL ?? 'flash').trim();
   return agentModelAliases()[requested] ? requested : 'flash';
+}
+
+export function agentModelCatalog(): AgentModelOption[] {
+  const aliases = agentModelAliases();
+  const fallback = defaultAgentAlias();
+  return Object.entries(aliases).map(([alias, modelId]) => ({
+    alias,
+    label: MODEL_LABELS[alias] ?? alias,
+    modelId,
+    default: alias === fallback,
+  }));
 }
 
 export function resolveAgentModel(alias?: string): ResolvedAgentModel {

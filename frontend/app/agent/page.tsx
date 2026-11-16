@@ -11,6 +11,7 @@ import {
   AgentJob,
   AgentJobStatus,
   AgentLogEntry,
+  AgentModelOption,
   AgentPolicyMode,
   AgentPolicyView,
   AgentProposal,
@@ -25,6 +26,7 @@ import {
   fetchAgentAutomations,
   fetchAgentJob,
   fetchAgentLogs,
+  fetchAgentModels,
   fetchAgentPolicies,
   getAccessToken,
   getActiveOrgId,
@@ -36,6 +38,51 @@ import {
 } from '@/lib/api';
 
 type AgentTab = 'ask' | 'automations' | 'approvals' | 'policies' | 'activity';
+
+type SlashCommandName = 'model' | 'cron' | 'event';
+
+interface SlashCommand {
+  name: SlashCommandName;
+  label: string;
+  description: string;
+}
+
+const SLASH_COMMANDS: SlashCommand[] = [
+  {
+    name: 'model',
+    label: 'Choose a model',
+    description: 'Pick the allowlisted model for your next prompts in this session.',
+  },
+  {
+    name: 'cron',
+    label: 'Schedule a routine',
+    description: 'Open the new-automation form preset to a schedule.',
+  },
+  {
+    name: 'event',
+    label: 'Automate on an event',
+    description: 'Open the new-automation form preset to an event trigger.',
+  },
+];
+
+const MODEL_LABELS: Record<string, string> = {
+  flash: 'Flash',
+  'flash-lite': 'Flash Lite',
+  pro: 'Pro',
+};
+
+function modelLabel(alias: string | null | undefined, models: AgentModelOption[]): string | null {
+  if (!alias) return null;
+  return (
+    models.find((entry) => entry.alias === alias)?.label ??
+    MODEL_LABELS[alias] ??
+    alias
+  );
+}
+
+function slashOptionId(command: SlashCommand): string {
+  return `agent-slash-option-${command.name}`;
+}
 
 interface AutomationFormState {
   name: string;
@@ -270,6 +317,15 @@ export default function AgentPage() {
   const [tab, setTab] = useState<AgentTab>('ask');
   const [turns, setTurns] = useState<Turn[]>([]);
   const [prompt, setPrompt] = useState('');
+  const [models, setModels] = useState<AgentModelOption[]>([]);
+  const [modelsLoading, setModelsLoading] = useState(false);
+  const [modelsError, setModelsError] = useState<string | null>(null);
+  const [selectedModel, setSelectedModel] = useState<string | null>(null);
+  const [modelSelectorOpen, setModelSelectorOpen] = useState(false);
+  const [slashActive, setSlashActive] = useState(0);
+  const [slashDismissed, setSlashDismissed] = useState(false);
+  const [composerNotice, setComposerNotice] = useState<string | null>(null);
+  const [focusAutomationName, setFocusAutomationName] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [job, setJob] = useState<AgentJob | null>(null);
@@ -305,6 +361,7 @@ export default function AgentPage() {
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const transcriptRef = useRef<HTMLDivElement | null>(null);
+  const promptRef = useRef<HTMLTextAreaElement | null>(null);
 
   const canApprove = org?.role === 'OWNER' || org?.role === 'ADMIN';
   const canManageAutomations =
@@ -320,6 +377,20 @@ export default function AgentPage() {
     ],
     [],
   );
+
+  const slashQuery =
+    prompt.startsWith('/') && !/\s/.test(prompt) ? prompt.slice(1).toLowerCase() : null;
+  const slashMatches = useMemo(
+    () =>
+      slashQuery === null
+        ? []
+        : SLASH_COMMANDS.filter((command) => command.name.startsWith(slashQuery)),
+    [slashQuery],
+  );
+  const slashMenuOpen = slashQuery !== null && !slashDismissed && !modelSelectorOpen;
+  const defaultModelAlias = models.find((entry) => entry.default)?.alias ?? null;
+  const activeModelAlias = selectedModel ?? defaultModelAlias;
+  const activeModelLabel = modelLabel(activeModelAlias, models);
 
   useEffect(() => {
     const token = getAccessToken();
@@ -485,6 +556,39 @@ export default function AgentPage() {
   }, [org, tab, refreshToken]);
 
   useEffect(() => {
+    setSlashActive(0);
+  }, [slashQuery]);
+
+  useEffect(() => {
+    if (!org) return;
+    let cancelled = false;
+    setModelsLoading(true);
+    fetchAgentModels(org.organizationId)
+      .then((catalog) => {
+        if (cancelled) return;
+        setModels(catalog.models);
+        setSelectedModel((current) => current ?? catalog.defaultAlias);
+        setModelsError(null);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setModelsError(err instanceof Error ? err.message : 'Agent models are not available');
+      })
+      .finally(() => {
+        if (!cancelled) setModelsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [org]);
+
+  useEffect(() => {
+    if (!focusAutomationName || !formOpen || tab !== 'automations') return;
+    document.getElementById('automation-name')?.focus();
+    setFocusAutomationName(false);
+  }, [focusAutomationName, formOpen, tab]);
+
+  useEffect(() => {
     if (!org || tab !== 'automations') return;
     let cancelled = false;
     setAutomationsLoading(true);
@@ -531,13 +635,65 @@ export default function AgentPage() {
     }
   }
 
-  function openNewAutomation() {
-    setAutomationForm(emptyForm());
+  function openNewAutomation(mode: 'CRON' | 'EVENT' = 'CRON') {
+    setAutomationForm({ ...emptyForm(), mode });
     setEditingId(null);
     setFormOpen(true);
     setConfirmDeleteId(null);
     setAutomationNotice(null);
     setAutomationsError(null);
+  }
+
+  function clearComposer() {
+    setPrompt('');
+    setSlashDismissed(true);
+    setComposerNotice(null);
+    setError(null);
+  }
+
+  function chooseSlashCommand(command: SlashCommand) {
+    clearComposer();
+    if (command.name === 'model') {
+      setModelSelectorOpen(true);
+      setComposerNotice(null);
+      return;
+    }
+    if (!canManageAutomations) {
+      setModelSelectorOpen(false);
+      setComposerNotice(
+        'Only an Owner, Admin, Accountant, or Staff member can create automations.',
+      );
+      promptRef.current?.focus();
+      return;
+    }
+    setModelSelectorOpen(false);
+    setTab('automations');
+    openNewAutomation(command.name === 'event' ? 'EVENT' : 'CRON');
+    setFocusAutomationName(true);
+  }
+
+  function chooseModel(alias: string) {
+    const label = modelLabel(alias, models) ?? alias;
+    setSelectedModel(alias);
+    setModelSelectorOpen(false);
+    setPrompt('');
+    setSlashDismissed(true);
+    setComposerNotice(
+      `Model set to ${label}. New prompts use it; saved automations keep their own model.`,
+    );
+    promptRef.current?.focus();
+  }
+
+  function closeModelSelector() {
+    setModelSelectorOpen(false);
+    promptRef.current?.focus();
+  }
+
+  function rejectUnknownCommand() {
+    setComposerNotice('Unknown command. Try /model, /cron, or /event.');
+    setPrompt('');
+    setSlashDismissed(true);
+    promptRef.current?.focus();
   }
 
   function editAutomation(row: AgentAutomation) {
@@ -663,13 +819,28 @@ export default function AgentPage() {
   async function send() {
     const text = prompt.trim();
     if (!text || !org || submitting || activeJobId) return;
+    if (text.startsWith('/')) {
+      const name = text.replace(/^\//, '').trim().split(/\s+/)[0]?.toLowerCase();
+      const command = SLASH_COMMANDS.find((entry) => entry.name === name);
+      if (command) {
+        chooseSlashCommand(command);
+      } else {
+        rejectUnknownCommand();
+      }
+      return;
+    }
     setSubmitting(true);
     setError(null);
+    setComposerNotice(null);
     const id = `${Date.now()}`;
     setTurns((current) => [...current, { id, role: 'user', text }]);
     setPrompt('');
     try {
-      const submission = await submitAgentPrompt(org.organizationId, text);
+      const submission = await submitAgentPrompt(
+        org.organizationId,
+        text,
+        selectedModel ?? undefined,
+      );
       setTurns((current) => [
         ...current,
         {
@@ -888,11 +1059,64 @@ export default function AgentPage() {
                 </label>
                 <textarea
                   id="agent-prompt"
+                  ref={promptRef}
                   rows={1}
                   value={prompt}
                   placeholder="Ask a question or describe an action"
-                  onChange={(event) => setPrompt(event.target.value)}
+                  aria-controls={slashMenuOpen ? 'agent-slash-menu' : undefined}
+                  aria-expanded={slashMenuOpen}
+                  aria-activedescendant={
+                    slashMenuOpen && slashMatches.length > 0
+                      ? slashOptionId(
+                          slashMatches[Math.min(slashActive, slashMatches.length - 1)],
+                        )
+                      : undefined
+                  }
+                  onChange={(event) => {
+                    setPrompt(event.target.value);
+                    setSlashDismissed(false);
+                    setComposerNotice(null);
+                  }}
                   onKeyDown={(event) => {
+                    if (modelSelectorOpen && event.key === 'Escape') {
+                      event.preventDefault();
+                      closeModelSelector();
+                      return;
+                    }
+                    if (slashMenuOpen) {
+                      if (event.key === 'ArrowDown') {
+                        event.preventDefault();
+                        if (slashMatches.length > 0) {
+                          setSlashActive((current) => (current + 1) % slashMatches.length);
+                        }
+                        return;
+                      }
+                      if (event.key === 'ArrowUp') {
+                        event.preventDefault();
+                        if (slashMatches.length > 0) {
+                          setSlashActive((current) =>
+                            (current - 1 + slashMatches.length) % slashMatches.length,
+                          );
+                        }
+                        return;
+                      }
+                      if (event.key === 'Escape') {
+                        event.preventDefault();
+                        setSlashDismissed(true);
+                        return;
+                      }
+                      if (event.key === 'Enter' && !event.shiftKey) {
+                        event.preventDefault();
+                        if (slashMatches.length > 0) {
+                          chooseSlashCommand(
+                            slashMatches[Math.min(slashActive, slashMatches.length - 1)],
+                          );
+                        } else {
+                          rejectUnknownCommand();
+                        }
+                        return;
+                      }
+                    }
                     if (event.key === 'Enter' && !event.shiftKey) {
                       event.preventDefault();
                       void send();
@@ -906,7 +1130,107 @@ export default function AgentPage() {
                 >
                   {submitting ? 'Sending…' : 'Send'}
                 </button>
+                {slashMenuOpen ? (
+                  <div
+                    className="slash-menu"
+                    id="agent-slash-menu"
+                    role="listbox"
+                    aria-label="Slash commands"
+                  >
+                    {slashMatches.length === 0 ? (
+                      <p className="slash-menu__empty" role="status">
+                        No commands match.
+                      </p>
+                    ) : (
+                      slashMatches.map((command, index) => (
+                        <div
+                          key={command.name}
+                          id={slashOptionId(command)}
+                          className={`slash-menu__item${
+                            index === slashActive ? ' is-active' : ''
+                          }`}
+                          role="option"
+                          aria-selected={index === slashActive}
+                          onMouseDown={(event) => event.preventDefault()}
+                          onMouseEnter={() => setSlashActive(index)}
+                          onClick={() => chooseSlashCommand(command)}
+                        >
+                          <span className="slash-menu__cmd">/{command.name}</span>
+                          <span className="slash-menu__copy">
+                            <span className="slash-menu__label">{command.label}</span>
+                            <span className="slash-menu__desc">{command.description}</span>
+                          </span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                ) : null}
               </div>
+              {modelSelectorOpen ? (
+                <div
+                  className="model-selector"
+                  role="dialog"
+                  aria-label="Choose a model"
+                  onKeyDown={(event) => {
+                    if (event.key === 'Escape') {
+                      event.preventDefault();
+                      closeModelSelector();
+                    }
+                  }}
+                >
+                  <div className="model-selector__head">
+                    <div>
+                      <p className="model-selector__title">Choose a model</p>
+                      <p className="dialog__note">
+                        Applies to new prompts in this session only. Saved automations keep
+                        their own model.
+                      </p>
+                    </div>
+                    <button
+                      className="btn btn--ghost btn--sm"
+                      type="button"
+                      onClick={closeModelSelector}
+                    >
+                      Close
+                    </button>
+                  </div>
+                  {modelsError ? (
+                    <p className="members__error" role="alert">
+                      {modelsError}
+                    </p>
+                  ) : null}
+                  {modelsLoading && models.length === 0 ? (
+                    <p className="muted">Reading models…</p>
+                  ) : (
+                    <div
+                      className="model-options"
+                      role="radiogroup"
+                      aria-label="Allowlisted models"
+                    >
+                      {models.map((model) => (
+                        <label className="model-option" key={model.alias}>
+                          <input
+                            type="radio"
+                            name="agent-model"
+                            value={model.alias}
+                            checked={activeModelAlias === model.alias}
+                            onChange={() => chooseModel(model.alias)}
+                          />
+                          <span className="model-option__copy">
+                            <span className="model-option__title">
+                              {model.label}
+                              {model.default ? ' · Default' : ''}
+                            </span>
+                            <span className="model-option__meta">
+                              {model.alias} · {model.modelId}
+                            </span>
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : null}
               <div className="suggestions">
                 {suggestions.map((suggestion) => (
                   <button
@@ -918,9 +1242,15 @@ export default function AgentPage() {
                   </button>
                 ))}
                 <span className="suggestions__meta">
+                  {activeModelLabel ? `Model: ${activeModelLabel} · ` : ''}
                   Reads run now · writes follow policy
                 </span>
               </div>
+              {composerNotice ? (
+                <p className="approval__notice composer__notice" role="status">
+                  {composerNotice}
+                </p>
+              ) : null}
               {error ? (
                 <p className="members__error" role="alert">
                   {error}
@@ -966,7 +1296,7 @@ export default function AgentPage() {
               <button
                 className="btn btn--primary btn--sm"
                 type="button"
-                onClick={openNewAutomation}
+                onClick={() => openNewAutomation()}
               >
                 New automation
               </button>
@@ -1819,6 +2149,7 @@ function AgentJobReply({
             {job.logReference ?? fallbackRef}
           </button>
           {job.toolNames.length > 0 ? ` · ${job.toolNames.join(', ')}` : ''}
+          {` · Model ${MODEL_LABELS[job.model] ?? job.model}`}
         </p>
         {job.proposals && job.proposals.length > 0 ? (
           <p className="agent-log-line">
