@@ -55,6 +55,7 @@ model Organization {
   timeEntries            TimeEntry[]
   agentJobs              AgentJob[]
   agentActionLogs        AgentActionLog[]
+  agentProposals         AgentProposal[]
 }
 
 model Account {
@@ -700,6 +701,8 @@ model User {
   timeEntries     TimeEntry[]
   agentJobs       AgentJob[]
   agentActionLogs AgentActionLog[]
+  requestedAgentProposals AgentProposal[] @relation("AgentProposalRequester")
+  decidedAgentProposals   AgentProposal[] @relation("AgentProposalDecider")
 }
 
 model OrgMembership {
@@ -756,6 +759,14 @@ enum AgentJobStatus {
   FAILED
 }
 
+enum AgentProposalStatus {
+  PENDING
+  EXECUTING
+  EXECUTED
+  REJECTED
+  FAILED
+}
+
 model AgentJob {
   id             String         @id @default(cuid())
   organizationId String
@@ -775,13 +786,41 @@ model AgentJob {
   updatedAt      DateTime       @updatedAt
   organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  proposals      AgentProposal[]
 
   @@index([organizationId, createdAt])
   @@index([organizationId, status])
 }
 
+model AgentProposal {
+  id                String              @id @default(cuid())
+  organizationId    String
+  jobId             String?
+  requestedByUserId String
+  toolName          String
+  args              Json
+  rationale         String?
+  status            AgentProposalStatus @default(PENDING)
+  decidedByUserId   String?
+  decidedAt         DateTime?
+  executedAt        DateTime?
+  decisionNote      String?
+  result            Json?
+  error             String?
+  logReference      String?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  organization      Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  job               AgentJob?           @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  requestedBy       User                @relation("AgentProposalRequester", fields: [requestedByUserId], references: [id], onDelete: Cascade)
+  decidedBy         User?               @relation("AgentProposalDecider", fields: [decidedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status, createdAt])
+  @@index([organizationId, jobId])
+}
+
 model AgentActionLog {
-  id             String         @id @default(cuid())
+  id             String               @id @default(cuid())
   organizationId String
   actorUserId    String?
   trigger        AgentTrigger
@@ -793,12 +832,15 @@ model AgentActionLog {
   output         Json?
   error          String?
   jobId          String?
+  proposalId     String?
+  approvalStatus AgentProposalStatus?
   logReference   String
-  createdAt      DateTime       @default(now())
-  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  actor          User?          @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  createdAt      DateTime             @default(now())
+  organization   Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  actor          User?                @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
 
   @@unique([organizationId, logReference])
   @@index([organizationId, createdAt])
   @@index([organizationId, jobId])
+  @@index([organizationId, proposalId])
 }

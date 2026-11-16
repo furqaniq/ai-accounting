@@ -7,6 +7,7 @@ export interface AgentToolDeclaration {
 export interface AgentToolCall {
   name: string;
   args: Record<string, unknown>;
+  rationale?: string;
 }
 
 export interface AgentToolResult {

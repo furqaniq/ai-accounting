@@ -31,7 +31,8 @@ type ScopedModel =
   | 'project'
   | 'timeEntry'
   | 'agentJob'
-  | 'agentActionLog';
+  | 'agentActionLog'
+  | 'agentProposal';
 
 interface FindArgs {
   where?: Record<string, unknown>;

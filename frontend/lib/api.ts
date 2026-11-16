@@ -2670,6 +2670,12 @@ export async function importBankTransactions(
 
 export type AgentTrigger = 'PROMPT' | 'CRON' | 'EVENT';
 export type AgentJobStatus = 'QUEUED' | 'RUNNING' | 'RETRYING' | 'COMPLETED' | 'FAILED';
+export type AgentProposalStatus =
+  | 'PENDING'
+  | 'EXECUTING'
+  | 'EXECUTED'
+  | 'REJECTED'
+  | 'FAILED';
 
 export interface AgentLogEntry {
   id: string;
@@ -2684,9 +2690,33 @@ export interface AgentLogEntry {
   output: unknown;
   error: string | null;
   jobId: string | null;
+  proposalId: string | null;
+  approvalStatus: AgentProposalStatus | null;
   logReference: string;
   createdAt: string;
   actor?: { id: string; name: string; email: string } | null;
+}
+
+export interface AgentProposal {
+  id: string;
+  organizationId: string;
+  jobId: string | null;
+  requestedByUserId: string;
+  toolName: string;
+  args: unknown;
+  rationale: string | null;
+  status: AgentProposalStatus;
+  decidedByUserId: string | null;
+  decidedAt: string | null;
+  executedAt: string | null;
+  decisionNote: string | null;
+  result: unknown;
+  error: string | null;
+  logReference: string | null;
+  createdAt: string;
+  updatedAt: string;
+  requestedBy?: { id: string; name: string; email: string } | null;
+  decidedBy?: { id: string; name: string; email: string } | null;
 }
 
 export interface AgentJob {
@@ -2703,6 +2733,7 @@ export interface AgentJob {
   createdAt: string;
   updatedAt: string;
   logs: AgentLogEntry[];
+  proposals?: AgentProposal[];
 }
 
 export interface AgentPromptSubmission {
@@ -2761,5 +2792,59 @@ export async function fetchAgentLog(
     headers: authHeaders(organizationId),
   });
   if (!res.ok) throw new Error(await failureMessage(res, 'Agent log entry not available'));
+  return res.json();
+}
+
+export async function fetchAgentApprovals(
+  organizationId: string,
+  filters: { status?: AgentProposalStatus; jobId?: string; limit?: number } = {},
+): Promise<AgentProposal[]> {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(filters)) {
+    if (value !== undefined && value !== '') params.set(key, String(value));
+  }
+  const query = params.toString();
+  const res = await fetch(`${API_URL}/agent/approvals${query ? `?${query}` : ''}`, {
+    headers: authHeaders(organizationId),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Agent approvals are not available'));
+  const body = (await res.json()) as { approvals: AgentProposal[] };
+  return body.approvals;
+}
+
+export async function fetchAgentApproval(
+  organizationId: string,
+  proposalId: string,
+): Promise<AgentProposal> {
+  const res = await fetch(`${API_URL}/agent/approvals/${proposalId}`, {
+    headers: authHeaders(organizationId),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Agent proposal not available'));
+  return res.json();
+}
+
+export async function approveAgentProposal(
+  organizationId: string,
+  proposalId: string,
+): Promise<AgentProposal> {
+  const res = await fetch(`${API_URL}/agent/approvals/${proposalId}/approve`, {
+    method: 'POST',
+    headers: authHeaders(organizationId),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not approve that proposal'));
+  return res.json();
+}
+
+export async function rejectAgentProposal(
+  organizationId: string,
+  proposalId: string,
+  reason?: string,
+): Promise<AgentProposal> {
+  const res = await fetch(`${API_URL}/agent/approvals/${proposalId}/reject`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders(organizationId) },
+    body: JSON.stringify(reason ? { reason } : {}),
+  });
+  if (!res.ok) throw new Error(await failureMessage(res, 'Could not reject that proposal'));
   return res.json();
 }

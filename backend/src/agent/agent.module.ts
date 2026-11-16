@@ -9,6 +9,7 @@ import { AgentLogService } from './agent-log.service';
 import { AgentQueueService } from './agent-queue.service';
 import { AgentRunnerService } from './agent-runner.service';
 import { AiProviderService } from './ai-provider.service';
+import { ApprovalService } from './approval.service';
 import { AgentOrchestrator } from './orchestrator.service';
 import { ToolRegistry } from './tool-registry';
 
@@ -20,6 +21,7 @@ import { ToolRegistry } from './tool-registry';
     AgentJobsService,
     AiProviderService,
     ToolRegistry,
+    ApprovalService,
     AgentOrchestrator,
     AgentRunnerService,
     AgentQueueService,

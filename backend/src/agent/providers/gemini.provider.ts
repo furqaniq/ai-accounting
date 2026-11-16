@@ -112,6 +112,7 @@ export class GeminiProvider implements AiProvider {
       .map((part) => ({
         name: part.functionCall!.name,
         args: part.functionCall!.args ?? {},
+        ...(text ? { rationale: text } : {}),
       }));
 
     return {

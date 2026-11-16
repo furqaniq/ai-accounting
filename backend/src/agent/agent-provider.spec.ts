@@ -123,6 +123,43 @@ describe('provider rate-limit handling', () => {
     expect(final.text).toContain('$1,234.50');
   });
 
+  it('proposes a seeded draft invoice with a rationale for create-invoice prompts', async () => {
+    const turn = await new StubProvider().callWithTools({
+      prompt:
+        'Create a draft invoice for Northwind Studio for 1 Consulting hour at $150, due in 30 days.',
+      model: 'flash',
+      tools: [
+        ...declarations,
+        {
+          name: 'invoice.create',
+          description: 'draft invoice',
+          parameters: { type: 'object', properties: {} },
+        },
+      ],
+      attempt: 1,
+    });
+
+    const call = turn.toolCalls?.[0];
+    expect(call?.name).toBe('invoice.create');
+    expect(call?.args).toMatchObject({
+      customerName: 'Northwind Studio',
+      lines: [{ itemName: 'Consulting hour', quantity: 1, unitPrice: 150 }],
+    });
+    expect((call?.args.dueDate as string)).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(call?.rationale).toContain('Owner or Admin');
+  });
+
+  it('does not propose a write when the role has no invoice tool', async () => {
+    const turn = await new StubProvider().callWithTools({
+      prompt: 'Create a draft invoice for Northwind Studio.',
+      model: 'flash',
+      tools: declarations,
+      attempt: 1,
+    });
+    expect(turn.toolCalls).toBeUndefined();
+    expect(turn.text).toContain('Owner or Admin approval');
+  });
+
   it('maps route-free report prompts to the report tool', async () => {
     const turn = await new StubProvider().callWithTools({
       prompt: 'Show me the profit and loss report',

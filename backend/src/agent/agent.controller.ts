@@ -13,7 +13,13 @@ import { RequirePermission } from '../tenant/require-permission.decorator';
 import { AgentJobsService, toAgentJobView } from './agent-jobs.service';
 import { AgentLogService } from './agent-log.service';
 import { AgentQueueService } from './agent-queue.service';
-import { AgentLogQueryDto, CreateAgentPromptDto } from './agent.dto';
+import { ApprovalService } from './approval.service';
+import {
+  AgentApprovalQueryDto,
+  AgentLogQueryDto,
+  CreateAgentPromptDto,
+  RejectAgentProposalDto,
+} from './agent.dto';
 
 @Controller('agent')
 export class AgentController {
@@ -21,6 +27,7 @@ export class AgentController {
     private readonly jobs: AgentJobsService,
     private readonly logs: AgentLogService,
     private readonly queue: AgentQueueService,
+    private readonly approvals: ApprovalService,
   ) {}
 
   @Post('prompts')
@@ -48,7 +55,45 @@ export class AgentController {
   async job(@Param('id') id: string): Promise<Record<string, unknown>> {
     const job = await this.jobs.find(id);
     const logs = await this.logs.list({ jobId: job.id, limit: 200 });
-    return { ...toAgentJobView(job), logs };
+    const proposals = await this.approvals.listForJob(job.id);
+    return { ...toAgentJobView(job), logs, proposals };
+  }
+
+  @Get('approvals')
+  @RequirePermission('agent:read')
+  async listApprovals(
+    @Query() query: AgentApprovalQueryDto,
+  ): Promise<{ approvals: unknown[] }> {
+    return {
+      approvals: await this.approvals.list({
+        status: query.status,
+        jobId: query.jobId,
+        limit: query.limit,
+      }),
+    };
+  }
+
+  @Get('approvals/:id')
+  @RequirePermission('agent:read')
+  approval(@Param('id') id: string): Promise<unknown> {
+    return this.approvals.find(id);
+  }
+
+  @Post('approvals/:id/approve')
+  @HttpCode(200)
+  @RequirePermission('agent:approve')
+  approve(@Param('id') id: string): Promise<unknown> {
+    return this.approvals.approve(id);
+  }
+
+  @Post('approvals/:id/reject')
+  @HttpCode(200)
+  @RequirePermission('agent:approve')
+  reject(
+    @Param('id') id: string,
+    @Body() dto: RejectAgentProposalDto,
+  ): Promise<unknown> {
+    return this.approvals.reject(id, dto?.reason);
   }
 
   @Get('logs')

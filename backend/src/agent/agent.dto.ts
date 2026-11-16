@@ -9,7 +9,11 @@ import {
   Min,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { AgentJobStatus, AgentTrigger } from '@prisma/client';
+import {
+  AgentJobStatus,
+  AgentProposalStatus,
+  AgentTrigger,
+} from '@prisma/client';
 
 export class CreateAgentPromptDto {
   @IsString()
@@ -42,4 +46,28 @@ export class AgentLogQueryDto {
   @Min(1)
   @Max(200)
   limit?: number;
+}
+
+export class AgentApprovalQueryDto {
+  @IsOptional()
+  @IsEnum(AgentProposalStatus)
+  status?: AgentProposalStatus;
+
+  @IsOptional()
+  @IsString()
+  jobId?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(200)
+  limit?: number;
+}
+
+export class RejectAgentProposalDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  reason?: string;
 }

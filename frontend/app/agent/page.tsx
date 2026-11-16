@@ -9,18 +9,24 @@ import {
   AgentJob,
   AgentJobStatus,
   AgentLogEntry,
+  AgentProposal,
+  AgentProposalStatus,
   AgentTrigger,
+  approveAgentProposal,
   clearSession,
   fetchActiveOrganization,
+  fetchAgentApprovals,
   fetchAgentJob,
   fetchAgentLogs,
   getAccessToken,
   getActiveOrgId,
+  rejectAgentProposal,
   setActiveOrgId,
   submitAgentPrompt,
 } from '@/lib/api';
 
-type AgentTab = 'ask' | 'activity';
+type AgentTab = 'ask' | 'approvals' | 'activity';
+type ProposalFilter = 'PENDING' | 'ALL' | AgentProposalStatus;
 
 interface Turn {
   id: string;
@@ -43,6 +49,43 @@ const TRIGGER_LABEL: Record<AgentTrigger, string> = {
   CRON: 'Schedule',
   EVENT: 'Event',
 };
+
+const PROPOSAL_STATUS_LABEL: Record<AgentProposalStatus, string> = {
+  PENDING: 'Pending',
+  EXECUTING: 'Executing',
+  EXECUTED: 'Executed',
+  REJECTED: 'Rejected',
+  FAILED: 'Failed',
+};
+
+function proposalStatusClass(status: AgentProposalStatus): string {
+  if (status === 'EXECUTED') return 'status--paid';
+  if (status === 'FAILED') return 'status--overdue';
+  if (status === 'REJECTED') return 'status--draft';
+  return 'status--amber';
+}
+
+function toolLabel(toolName: string): string {
+  if (toolName === 'invoice.create') return 'Create draft invoice';
+  return toolName;
+}
+
+function proposalConsequence(toolName: string): string {
+  if (toolName === 'invoice.create') {
+    return 'Approving creates one draft invoice under your permissions. Nothing posts to the ledger until the invoice is sent. Rejecting leaves the books unchanged.';
+  }
+  return 'Approving executes this action exactly once under your permissions. Rejecting leaves the books unchanged.';
+}
+
+function proposalInvoice(proposal: AgentProposal): { id: string; number?: string } | null {
+  if (proposal.toolName !== 'invoice.create' || !proposal.result) return null;
+  const result = proposal.result as { id?: unknown; number?: unknown };
+  if (typeof result.id !== 'string') return null;
+  return {
+    id: result.id,
+    number: typeof result.number === 'string' ? result.number : undefined,
+  };
+}
 
 function statusClass(status: AgentJobStatus): string {
   if (status === 'COMPLETED') return 'status--paid';
@@ -84,10 +127,23 @@ export default function AgentPage() {
   const [logsError, setLogsError] = useState<string | null>(null);
   const [selectedLog, setSelectedLog] = useState<AgentLogEntry | null>(null);
   const [refreshToken, setRefreshToken] = useState(0);
+  const [proposals, setProposals] = useState<AgentProposal[]>([]);
+  const [proposalsLoading, setProposalsLoading] = useState(false);
+  const [proposalsError, setProposalsError] = useState<string | null>(null);
+  const [proposalFilter, setProposalFilter] = useState<ProposalFilter>('PENDING');
+  const [pendingCount, setPendingCount] = useState(0);
+  const [decidingId, setDecidingId] = useState<string | null>(null);
+  const [approvalNotice, setApprovalNotice] = useState<string | null>(null);
+  const [lastDecision, setLastDecision] = useState<AgentProposal | null>(null);
   const transcriptRef = useRef<HTMLDivElement | null>(null);
 
+  const canApprove = org?.role === 'OWNER' || org?.role === 'ADMIN';
   const suggestions = useMemo(
-    () => ["What's my cash position?", 'Show me the profit and loss report'],
+    () => [
+      "What's my cash position?",
+      'Show me the profit and loss report',
+      'Create a draft invoice for Northwind Studio for 1 Consulting hour at $150, due in 30 days.',
+    ],
     [],
   );
 
@@ -184,6 +240,49 @@ export default function AgentPage() {
     };
   }, [org, tab, logFilter, job?.status, refreshToken]);
 
+  useEffect(() => {
+    if (!org) return;
+    let cancelled = false;
+    fetchAgentApprovals(org.organizationId, { status: 'PENDING', limit: 200 })
+      .then((rows) => {
+        if (!cancelled) setPendingCount(rows.length);
+      })
+      .catch(() => {
+        // The count is advisory; the panel surfaces load errors.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [org, job?.status, refreshToken]);
+
+  useEffect(() => {
+    if (!org || tab !== 'approvals') return;
+    let cancelled = false;
+    setProposalsLoading(true);
+    const filters =
+      proposalFilter === 'ALL'
+        ? { limit: 100 }
+        : { status: proposalFilter, limit: 100 };
+    fetchAgentApprovals(org.organizationId, filters)
+      .then((rows) => {
+        if (cancelled) return;
+        setProposals(rows);
+        setProposalsError(null);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setProposalsError(
+          err instanceof Error ? err.message : 'Agent approvals are not available',
+        );
+      })
+      .finally(() => {
+        if (!cancelled) setProposalsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [org, tab, proposalFilter, refreshToken, job?.status]);
+
   async function send() {
     const text = prompt.trim();
     if (!text || !org || submitting || activeJobId) return;
@@ -218,6 +317,37 @@ export default function AgentPage() {
     setTab('activity');
   }
 
+  function openApprovals() {
+    setTab('approvals');
+  }
+
+  async function decide(proposal: AgentProposal, action: 'approve' | 'reject') {
+    if (!org || decidingId) return;
+    setDecidingId(proposal.id);
+    setApprovalNotice(null);
+    try {
+      const decided =
+        action === 'approve'
+          ? await approveAgentProposal(org.organizationId, proposal.id)
+          : await rejectAgentProposal(org.organizationId, proposal.id);
+      setLastDecision(decided);
+      setApprovalNotice(
+        action === 'approve'
+          ? decided.status === 'EXECUTED'
+            ? 'Approved. Clerk executed the action once.'
+            : 'Approved, but execution failed. No books were changed by a failed action.'
+          : 'Rejected. No books were changed.',
+      );
+      setRefreshToken((current) => current + 1);
+    } catch (err) {
+      setApprovalNotice(
+        err instanceof Error ? err.message : 'Could not record that decision',
+      );
+    } finally {
+      setDecidingId(null);
+    }
+  }
+
   if (!ready) {
     return (
       <main className="app-loading">
@@ -235,8 +365,8 @@ export default function AgentPage() {
           <div>
             <h1>Clerk</h1>
             <p className="page-head__meta">
-              Works in {org?.organizationName}. Acts with your permissions and only read-only tools
-              are available.
+              Works in {org?.organizationName}. Reads run now with your permissions; write actions
+              wait for Owner or Admin approval.
             </p>
           </div>
           <div className="page-head__actions">
@@ -257,6 +387,22 @@ export default function AgentPage() {
             onClick={() => setTab('ask')}
           >
             Ask
+          </button>
+          <button
+            className="tab"
+            type="button"
+            role="tab"
+            aria-selected={tab === 'approvals'}
+            id="agent-tab-approvals"
+            aria-controls="agent-panel-approvals"
+            onClick={openApprovals}
+          >
+            Approvals
+            {pendingCount > 0 ? (
+              <span className="tab__count" aria-label={`${pendingCount} pending`}>
+                {pendingCount}
+              </span>
+            ) : null}
           </button>
           <button
             className="tab"
@@ -289,8 +435,8 @@ export default function AgentPage() {
             >
               {turns.length === 0 ? (
                 <p className="empty-state">
-                  Ask a question about this organization’s books. Clerk can read the dashboard
-                  snapshot and generate any report.
+                  Ask a question about this organization’s books, or ask Clerk to draft an
+                  invoice. Reads run now; write actions wait for Owner or Admin approval.
                 </p>
               ) : null}
               {turns.map((turn) =>
@@ -317,6 +463,7 @@ export default function AgentPage() {
                           job={job && job.jobId === turn.jobId ? job : null}
                           fallbackRef={turn.logReference}
                           onOpenActivity={openActivity}
+                          onOpenApprovals={openApprovals}
                         />
                       ) : (
                         <div>{turn.text}</div>
@@ -342,7 +489,7 @@ export default function AgentPage() {
                   id="agent-prompt"
                   rows={1}
                   value={prompt}
-                  placeholder="Ask the clerk about your books"
+                  placeholder="Ask a question or describe an action"
                   onChange={(event) => setPrompt(event.target.value)}
                   onKeyDown={(event) => {
                     if (event.key === 'Enter' && !event.shiftKey) {
@@ -370,7 +517,7 @@ export default function AgentPage() {
                   </button>
                 ))}
                 <span className="suggestions__meta">
-                  Read-only · Model: Gemini Flash
+                  Reads run now · writes need approval
                 </span>
               </div>
               {error ? (
@@ -379,6 +526,89 @@ export default function AgentPage() {
                 </p>
               ) : null}
             </form>
+          </div>
+        </section>
+
+        <section
+          className="agent-panel"
+          id="agent-panel-approvals"
+          role="tabpanel"
+          aria-labelledby="agent-tab-approvals"
+          hidden={tab !== 'approvals'}
+        >
+          <div className="section__head">
+            <h2 className="section__title">Approvals</h2>
+            <span className="section__meta">
+              Owner and Admin approve write actions. Nothing runs until approved.
+            </span>
+          </div>
+
+          {approvalNotice ? (
+            <p className="approval__notice" role="status" aria-live="polite">
+              {approvalNotice}
+            </p>
+          ) : null}
+          {proposalsError ? (
+            <p className="members__error" role="alert">
+              {proposalsError}
+            </p>
+          ) : null}
+
+          {lastDecision ? (
+            <ProposalCard
+              proposal={lastDecision}
+              canApprove={false}
+              deciding={false}
+              heading="Latest decision"
+              onDecide={decide}
+            />
+          ) : null}
+
+          <div className="activity-toolbar">
+            <label className="section__meta" htmlFor="agent-approval-filter">
+              Status
+            </label>
+            <select
+              className="select"
+              id="agent-approval-filter"
+              value={proposalFilter}
+              onChange={(event) => setProposalFilter(event.target.value as ProposalFilter)}
+            >
+              <option value="PENDING">Pending</option>
+              <option value="ALL">All</option>
+              <option value="EXECUTED">Executed</option>
+              <option value="REJECTED">Rejected</option>
+              <option value="FAILED">Failed</option>
+            </select>
+            <button
+              className="btn btn--outline btn--sm"
+              type="button"
+              onClick={() => setRefreshToken((current) => current + 1)}
+            >
+              Refresh
+            </button>
+          </div>
+
+          <div className="approval-list">
+            {proposals.length === 0 ? (
+              <p className="empty-state">
+                {proposalsLoading
+                  ? 'Reading approvals…'
+                  : proposalFilter === 'PENDING'
+                    ? 'No pending proposals. Write actions Clerk proposes will appear here.'
+                    : 'No proposals match this filter.'}
+              </p>
+            ) : (
+              proposals.map((proposal) => (
+                <ProposalCard
+                  key={proposal.id}
+                  proposal={proposal}
+                  canApprove={canApprove}
+                  deciding={decidingId === proposal.id}
+                  onDecide={decide}
+                />
+              ))
+            )}
           </div>
         </section>
 
@@ -434,13 +664,14 @@ export default function AgentPage() {
                   <th scope="col">Tool</th>
                   <th scope="col">Actor</th>
                   <th scope="col">Status</th>
+                  <th scope="col">Approval</th>
                   <th scope="col">Ref</th>
                 </tr>
               </thead>
               <tbody>
                 {logs.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="empty-state">
+                    <td colSpan={7} className="empty-state">
                       {logsLoading ? 'Reading the log…' : 'No agent activity yet.'}
                     </td>
                   </tr>
@@ -464,6 +695,11 @@ export default function AgentPage() {
                           <span className="dot" />
                           {STATUS_LABEL[entry.status]}
                         </span>
+                      </td>
+                      <td>
+                        {entry.approvalStatus
+                          ? PROPOSAL_STATUS_LABEL[entry.approvalStatus]
+                          : '—'}
                       </td>
                       <td>
                         <button
@@ -491,14 +727,120 @@ export default function AgentPage() {
   );
 }
 
+function ProposalCard({
+  proposal,
+  canApprove,
+  deciding,
+  heading,
+  onDecide,
+}: {
+  proposal: AgentProposal;
+  canApprove: boolean;
+  deciding: boolean;
+  heading?: string;
+  onDecide: (proposal: AgentProposal, action: 'approve' | 'reject') => void;
+}) {
+  const invoice = proposalInvoice(proposal);
+  return (
+    <article className="approval" aria-label={`Proposal ${proposal.toolName}`}>
+      <div className="approval__head">
+        <div>
+          <p className="approval__title">
+            {toolLabel(proposal.toolName)}{' '}
+            <span className="muted">· {proposal.toolName}</span>
+          </p>
+          <p className="approval__meta">
+            Requested by {proposal.requestedBy?.name ?? 'Clerk'} ·{' '}
+            {timeLabel(proposal.createdAt)}
+            {proposal.logReference ? ` · ${proposal.logReference}` : ''}
+          </p>
+        </div>
+        <span className={`status ${proposalStatusClass(proposal.status)}`}>
+          <span className="dot" />
+          {PROPOSAL_STATUS_LABEL[proposal.status]}
+        </span>
+      </div>
+
+      {heading ? <p className="agent-detail__label">{heading}</p> : null}
+      {proposal.rationale ? (
+        <p className="approval__body">{proposal.rationale}</p>
+      ) : null}
+      <p className="approval__body">{proposalConsequence(proposal.toolName)}</p>
+      <pre className="agent-detail__code">
+        {JSON.stringify(proposal.args, null, 2)}
+      </pre>
+
+      {proposal.status === 'PENDING' ? (
+        canApprove ? (
+          <div className="approval__actions">
+            <button
+              className="btn btn--primary btn--sm"
+              type="button"
+              disabled={deciding}
+              onClick={() => onDecide(proposal, 'approve')}
+            >
+              {deciding ? 'Working…' : 'Approve'}
+            </button>
+            <button
+              className="btn btn--outline btn--sm"
+              type="button"
+              disabled={deciding}
+              onClick={() => onDecide(proposal, 'reject')}
+            >
+              Reject
+            </button>
+          </div>
+        ) : (
+          <p className="approval__result">Owner or Admin approval required.</p>
+        )
+      ) : null}
+
+      {proposal.status === 'EXECUTING' ? (
+        <p className="approval__result" aria-live="polite">
+          Executing under the approver’s permissions…
+        </p>
+      ) : null}
+
+      {proposal.status === 'EXECUTED' ? (
+        <p className="approval__result approval__result--approved">
+          <span className="dot" />
+          Approved by {proposal.decidedBy?.name ?? 'an Owner or Admin'}
+          {proposal.executedAt ? ` · executed ${timeLabel(proposal.executedAt)}` : ''}.
+          {invoice ? (
+            <a className="link" href={`/invoices?invoice=${invoice.id}`}>
+              Open {invoice.number ?? 'draft invoice'}
+            </a>
+          ) : null}
+        </p>
+      ) : null}
+
+      {proposal.status === 'REJECTED' ? (
+        <p className="approval__result approval__result--rejected">
+          Rejected by {proposal.decidedBy?.name ?? 'an Owner or Admin'}. No books were
+          changed.
+          {proposal.decisionNote ? ` “${proposal.decisionNote}”` : ''}
+        </p>
+      ) : null}
+
+      {proposal.status === 'FAILED' ? (
+        <p className="approval__result approval__result--rejected" role="alert">
+          Execution failed: {proposal.error ?? 'unknown error'}. No books were changed.
+        </p>
+      ) : null}
+    </article>
+  );
+}
+
 function AgentJobReply({
   job,
   fallbackRef,
   onOpenActivity,
+  onOpenApprovals,
 }: {
   job: AgentJob | null;
   fallbackRef?: string;
   onOpenActivity: () => void;
+  onOpenApprovals: () => void;
 }) {
   if (!job) {
     return <p className="muted">Queued — the agent will start shortly.</p>;
@@ -514,6 +856,19 @@ function AgentJobReply({
           </button>
           {job.toolNames.length > 0 ? ` · ${job.toolNames.join(', ')}` : ''}
         </p>
+        {job.proposals && job.proposals.length > 0 ? (
+          <p className="agent-log-line">
+            Proposal{' '}
+            <button
+              className="link agent-log-ref"
+              type="button"
+              onClick={onOpenApprovals}
+            >
+              {job.proposals[0].logReference ?? 'pending'}
+            </button>{' '}
+            is waiting for Owner or Admin approval.
+          </p>
+        ) : null}
       </div>
     );
   }
@@ -558,6 +913,10 @@ function LogDetail({ entry }: { entry: AgentLogEntry }) {
         <dd>{entry.actor?.name ?? 'Clerk'}</dd>
         <dt>Job</dt>
         <dd>{entry.jobId ?? '—'}</dd>
+        <dt>Approval</dt>
+        <dd>{entry.approvalStatus ?? '—'}</dd>
+        <dt>Proposal</dt>
+        <dd>{entry.proposalId ?? '—'}</dd>
         <dt>When</dt>
         <dd>{timeLabel(entry.createdAt)}</dd>
       </dl>

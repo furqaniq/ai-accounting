@@ -27,6 +27,66 @@ function hasTool(tools: AgentToolDeclaration[], name: string): boolean {
   return tools.some((tool) => tool.name === name);
 }
 
+const SEED_CUSTOMERS = ['Northwind Studio', 'Harbor & Pine', 'Cedar Market'];
+const SEED_ITEMS = ['Consulting hour', 'Design package', 'Support retainer'];
+
+function seededName(prompt: string, options: string[], fallback: string): string {
+  const lower = prompt.toLowerCase();
+  return options.find((option) => lower.includes(option.toLowerCase())) ?? fallback;
+}
+
+function invoiceIntent(prompt: string): boolean {
+  return /\binvoice\b/i.test(prompt) && /\b(create|make|draft|prepare|issue)\b/i.test(prompt);
+}
+
+function isoDueDate(prompt: string): { dueDate: string; days: number } {
+  const match = prompt.match(/due\s+in\s+(\d+)\s+days?/i);
+  const days = match ? Math.max(1, Number.parseInt(match[1], 10)) : 30;
+  const date = new Date(Date.now() + days * 86_400_000);
+  return { dueDate: date.toISOString().slice(0, 10), days };
+}
+
+function invoiceQuantity(prompt: string): number {
+  const match =
+    prompt.match(/\bfor\s+(\d+(?:\.\d+)?)\s+(?:hours?|units?|items?)\b/i) ??
+    prompt.match(/\b(\d+(?:\.\d+)?)\s+(?:hours?|units?)\b/i);
+  return match ? Number.parseFloat(match[1]) : 1;
+}
+
+function invoiceUnitPrice(prompt: string): number | undefined {
+  const match =
+    prompt.match(/\bat\s+\$?\s*([\d,]+(?:\.\d+)?)/i) ??
+    prompt.match(/\$\s*([\d,]+(?:\.\d+)?)/);
+  if (!match) return undefined;
+  const value = Number.parseFloat(match[1].replace(/,/g, ''));
+  return Number.isFinite(value) ? value : undefined;
+}
+
+function invoiceProposal(prompt: string) {
+  const customerName = seededName(prompt, SEED_CUSTOMERS, 'Northwind Studio');
+  const itemName = seededName(prompt, SEED_ITEMS, 'Consulting hour');
+  const quantity = invoiceQuantity(prompt);
+  const unitPrice = invoiceUnitPrice(prompt);
+  const { dueDate, days } = isoDueDate(prompt);
+  return {
+    name: 'invoice.create',
+    args: {
+      customerName,
+      dueDate,
+      lines: [
+        {
+          itemName,
+          quantity,
+          ...(unitPrice !== undefined ? { unitPrice } : {}),
+        },
+      ],
+    },
+    rationale: `Proposed a draft invoice for ${customerName} for ${quantity} × ${itemName}${
+      unitPrice !== undefined ? ` at $${unitPrice.toFixed(2)}` : ''
+    }, due in ${days} days (${dueDate}). Nothing is posted until an Owner or Admin approves.`,
+  };
+}
+
 function number(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
@@ -118,6 +178,15 @@ export class StubProvider implements AiProvider {
 
     if (request.toolResults && request.toolResults.length > 0) {
       return { text: finalText(request.toolResults) };
+    }
+
+    if (invoiceIntent(request.prompt)) {
+      if (hasTool(request.tools, 'invoice.create')) {
+        return { toolCalls: [invoiceProposal(request.prompt)] };
+      }
+      return {
+        text: 'This role cannot propose invoices. Owner or Admin approval is required for write actions.',
+      };
     }
 
     const slug = reportSlug(request.prompt);

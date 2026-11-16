@@ -1,11 +1,34 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { DashboardService } from '../reports/dashboard.service';
 import { ReportsService } from '../reports/reports.service';
 import { ApAgingService } from '../purchases/ap-aging.service';
 import { ArAgingService } from '../sales/ar-aging.service';
+import { InvoicesService } from '../sales/invoices.service';
+import { ScopedDataAccess } from '../tenant/scoped-data-access.service';
 import { ToolRegistry } from './tool-registry';
 
-function registry(): ToolRegistry {
+interface FakeCustomer {
+  id: string;
+  name: string;
+  active: boolean;
+}
+
+interface FakeItem {
+  id: string;
+  code: string;
+  name: string;
+  active: boolean;
+}
+
+interface RegistryOverrides {
+  customers?: FakeCustomer[];
+  items?: FakeItem[];
+}
+
+function registry(overrides: RegistryOverrides = {}): {
+  tools: ToolRegistry;
+  createInvoice: jest.Mock;
+} {
   const dashboard = {
     report: jest.fn(async () => ({
       from: '2026-01-01',
@@ -22,7 +45,56 @@ function registry(): ToolRegistry {
   } as unknown as ReportsService;
   const ar = { report: jest.fn(async () => ({ report: 'ar-aging' })) } as unknown as ArAgingService;
   const ap = { report: jest.fn(async () => ({ report: 'ap-aging' })) } as unknown as ApAgingService;
-  return new ToolRegistry(dashboard, reports, ar, ap);
+  const createInvoice = jest.fn(async (dto: Record<string, unknown>) => ({
+    id: 'invoice-1',
+    number: 'INV-9001',
+    status: 'DRAFT',
+    ...dto,
+  }));
+  const invoices = { create: createInvoice } as unknown as InvoicesService;
+
+  const customers =
+    overrides.customers ?? [
+      { id: 'cust-1', name: 'Northwind Studio', active: true },
+    ];
+  const items =
+    overrides.items ?? [
+      { id: 'item-1', code: 'ITEM-0001', name: 'Consulting hour', active: true },
+    ];
+
+  const matches = (rows: Array<Record<string, unknown>>, where?: Record<string, unknown>) => {
+    const filter = (where ?? {}) as {
+      name?: { equals?: string };
+      code?: { equals?: string };
+    };
+    return rows.filter((row) => {
+      if (filter.name?.equals) {
+        return String(row.name).toLowerCase() === filter.name.equals.toLowerCase();
+      }
+      if (filter.code?.equals) {
+        return String(row.code).toLowerCase() === filter.code.equals.toLowerCase();
+      }
+      return true;
+    });
+  };
+
+  const scoped = {
+    findById: jest.fn(
+      async (model: string, id: string) =>
+        (model === 'customer' ? customers : items).find((row) => row.id === id) ?? null,
+    ),
+    findMany: jest.fn(async (model: string, args?: { where?: Record<string, unknown> }) =>
+      matches(
+        (model === 'customer' ? customers : items) as unknown as Array<Record<string, unknown>>,
+        args?.where,
+      ),
+    ),
+  } as unknown as ScopedDataAccess;
+
+  return {
+    tools: new ToolRegistry(dashboard, reports, ar, ap, invoices, scoped),
+    createInvoice,
+  };
 }
 
 async function expectRejection(promise: Promise<unknown>, pattern: RegExp): Promise<void> {
@@ -30,27 +102,40 @@ async function expectRejection(promise: Promise<unknown>, pattern: RegExp): Prom
   await expect(promise).rejects.toThrow(pattern);
 }
 
-describe('ToolRegistry', () => {
-  it('exposes only read-only, role-permitted tools', () => {
-    const tools = registry().listForRole('VIEWER');
+const invoiceArgs = {
+  customerName: 'Northwind Studio',
+  dueDate: '2026-12-31',
+  lines: [{ itemName: 'Consulting hour', quantity: 1 }],
+};
 
-    expect(tools.map((tool) => tool.name).sort()).toEqual([
+describe('ToolRegistry', () => {
+  it('exposes read-only tools to viewers and the governed write tool to staff', () => {
+    const viewerTools = registry().tools.listForRole('VIEWER');
+    expect(viewerTools.map((tool) => tool.name).sort()).toEqual([
       'insight.query',
       'report.generate',
     ]);
-    expect(tools.every((tool) => tool.readOnly && tool.policy === 'auto')).toBe(true);
-    expect(registry().listForRole('NOPE')).toEqual([]);
+    expect(viewerTools.every((tool) => tool.readOnly && tool.policy === 'auto')).toBe(true);
+
+    const staffTools = registry().tools.listForRole('STAFF');
+    expect(staffTools.map((tool) => tool.name)).toContain('invoice.create');
+    expect(staffTools.find((tool) => tool.name === 'invoice.create')).toMatchObject({
+      readOnly: false,
+      policy: 'approve',
+      permission: 'invoices:manage',
+    });
+    expect(registry().tools.listForRole('NOPE')).toEqual([]);
   });
 
   it('rejects unknown tools', async () => {
     await expectRejection(
-      registry().execute('sql.query', 'OWNER', { sql: 'select 1' }),
+      registry().tools.execute('sql.query', 'OWNER', { sql: 'select 1' }),
       /Unknown tool/,
     );
   });
 
   it('rejects organization and tenant injection', async () => {
-    const tools = registry();
+    const { tools } = registry();
     await expectRejection(
       tools.execute('insight.query', 'OWNER', {
         question: 'cash?',
@@ -65,10 +150,24 @@ describe('ToolRegistry', () => {
       }),
       /organization|tenant/i,
     );
+    await expectRejection(
+      tools.prepareArguments('invoice.create', 'OWNER', {
+        ...invoiceArgs,
+        organizationId: 'other-org',
+      }),
+      /organization/i,
+    );
+    await expectRejection(
+      tools.prepareArguments('invoice.create', 'OWNER', {
+        ...invoiceArgs,
+        lines: [{ itemName: 'Consulting hour', quantity: 1, code: 'x' }],
+      }),
+      /code/i,
+    );
   });
 
-  it('rejects SQL, query, and code arguments', async () => {
-    const tools = registry();
+  it('rejects SQL, query, and code arguments at the top level', async () => {
+    const { tools } = registry();
     for (const key of ['sql', 'query', 'code', 'script']) {
       await expectRejection(
         tools.execute('insight.query', 'OWNER', { question: 'cash?', [key]: 'DROP TABLE x' }),
@@ -78,7 +177,7 @@ describe('ToolRegistry', () => {
   });
 
   it('validates required and unknown fields', async () => {
-    const tools = registry();
+    const { tools } = registry();
     await expectRejection(tools.execute('insight.query', 'OWNER', {}), /question/);
     await expectRejection(
       tools.execute('insight.query', 'OWNER', { question: 'cash?', from: 'not-a-date' }),
@@ -92,10 +191,17 @@ describe('ToolRegistry', () => {
       tools.execute('report.generate', 'OWNER', { report: 'made-up' }),
       /report/,
     );
+    await expectRejection(
+      tools.prepareArguments('invoice.create', 'OWNER', {
+        customerName: 'Northwind Studio',
+        lines: [{ itemName: 'Consulting hour', quantity: 1 }],
+      }),
+      /dueDate/,
+    );
   });
 
   it('executes a registered read-only tool with validated arguments', async () => {
-    const result = await registry().execute('insight.query', 'OWNER', {
+    const result = await registry().tools.execute('insight.query', 'OWNER', {
       question: 'What is my cash?',
       from: '2026-01-01',
       to: '2026-12-31',
@@ -108,7 +214,84 @@ describe('ToolRegistry', () => {
 
   it('blocks a role without the tool permission', async () => {
     await expect(
-      registry().execute('insight.query', 'NOPE', { question: 'cash?' }),
+      registry().tools.execute('insight.query', 'NOPE', { question: 'cash?' }),
     ).rejects.toThrow(/not available/);
+  });
+
+  it('refuses to execute a write tool without the internal approval token', async () => {
+    await expect(
+      registry().tools.execute('invoice.create', 'OWNER', invoiceArgs),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(
+      registry().tools.execute('invoice.create', 'OWNER', invoiceArgs),
+    ).rejects.toThrow(/requires approval/i);
+  });
+
+  it('prepares name-based invoice arguments into tenant ids', async () => {
+    const prepared = await registry().tools.prepareArguments(
+      'invoice.create',
+      'OWNER',
+      invoiceArgs,
+    );
+    expect(prepared.args).toMatchObject({
+      customerId: 'cust-1',
+      customerName: 'Northwind Studio',
+      dueDate: '2026-12-31',
+      lines: [
+        {
+          itemId: 'item-1',
+          itemCode: 'ITEM-0001',
+          itemName: 'Consulting hour',
+          quantity: 1,
+        },
+      ],
+    });
+  });
+
+  it('executes a prepared write tool exactly through the approved path', async () => {
+    const { tools, createInvoice } = registry();
+    const result = await tools.executeApproved('invoice.create', 'OWNER', invoiceArgs);
+
+    expect(createInvoice).toHaveBeenCalledTimes(1);
+    expect(createInvoice.mock.calls[0][0]).toMatchObject({
+      customerId: 'cust-1',
+      dueDate: '2026-12-31',
+      lines: [{ itemId: 'item-1', quantity: 1 }],
+    });
+    expect(result.tool).toBe('invoice.create');
+    expect((result.result as { id: string }).id).toBe('invoice-1');
+  });
+
+  it('rejects missing, inactive, and ambiguous customers and items', async () => {
+    const missing = registry({ customers: [] }).tools;
+    await expectRejection(
+      missing.prepareArguments('invoice.create', 'OWNER', invoiceArgs),
+      /No active customer/,
+    );
+
+    const inactive = registry({
+      customers: [{ id: 'cust-1', name: 'Northwind Studio', active: false }],
+    }).tools;
+    await expectRejection(
+      inactive.prepareArguments('invoice.create', 'OWNER', invoiceArgs),
+      /No active customer|inactive/,
+    );
+
+    const ambiguous = registry({
+      customers: [
+        { id: 'cust-1', name: 'Northwind Studio', active: true },
+        { id: 'cust-2', name: 'Northwind Studio', active: true },
+      ],
+    }).tools;
+    await expectRejection(
+      ambiguous.prepareArguments('invoice.create', 'OWNER', invoiceArgs),
+      /ambiguous/,
+    );
+
+    const noItem = registry({ items: [] }).tools;
+    await expectRejection(
+      noItem.prepareArguments('invoice.create', 'OWNER', invoiceArgs),
+      /No active item/,
+    );
   });
 });

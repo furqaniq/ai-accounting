@@ -1,5 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { AgentJobStatus, AgentTrigger, Prisma } from '@prisma/client';
+import {
+  AgentJobStatus,
+  AgentProposalStatus,
+  AgentTrigger,
+  Prisma,
+} from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ScopedDataAccess } from '../tenant/scoped-data-access.service';
 import { TenantContextService } from '../tenant/tenant-context.service';
@@ -14,6 +19,8 @@ export interface AppendAgentLogInput {
   output?: unknown;
   error?: string;
   jobId?: string;
+  proposalId?: string;
+  approvalStatus?: AgentProposalStatus;
 }
 
 export interface AgentLogFilters {
@@ -64,6 +71,8 @@ export class AgentLogService {
             output: jsonValue(input.output),
             error: input.error,
             jobId: input.jobId,
+            proposalId: input.proposalId,
+            approvalStatus: input.approvalStatus,
             logReference,
           },
           select: { id: true, logReference: true },
