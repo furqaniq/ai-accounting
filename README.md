@@ -7,9 +7,10 @@ validated, permission-checked, tenant-scoped tool registry. The spec of record i
 
 ## Client walkthrough
 
-Open [`User-flows.html`](User-flows.html) directly in a browser (no build step) for the ten
-documented flows, the AI-01–AI-17 test matrix with evidence, and the responsive/label review
-record. It is the single static 036 review package and is **awaiting client/design sign-off**.
+Open [`AI-Accounting-User-Flows.html`](AI-Accounting-User-Flows.html) directly in a browser (no
+build step) for the ten documented flows, copy-ready AI prompts, the AI-01–AI-17 test matrix with
+evidence, and the responsive/label review record. It is the single static 036 review package and
+is **awaiting client/design sign-off**.
 
 ## Quick start (local/demo)
 
