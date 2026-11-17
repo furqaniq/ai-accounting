@@ -482,8 +482,8 @@
         <a href="#labels">Label audit</a>
         <a class="small" href="#signoff">HITL sign-off</a>
         <div class="side-toc__meta">
-          <strong>HITL review pending</strong>
-          <span class="side-toc__status"><span class="dot dot--amber"></span>Awaiting client/design sign-off</span><br />
+          <strong>HITL approved</strong>
+          <span class="side-toc__status" style="color: var(--ledger)"><span class="dot dot--green"></span>Approved by client · 17 Nov 2026</span><br />
           Jest 262 / 42 · Playwright 47 / 29<br />
           <a href="Requirements.md">Requirements.md</a> ·
           <a href="issues/prd.md">PRD</a> ·
@@ -536,10 +536,9 @@
 
           <div class="callout">
             <p>
-              <strong>HITL gate.</strong> This page is the review package, not a sign-off. The
-              production behaviour and evidence below were re-checked on 17 November 2026; the
-              client/design reviewer must still accept the flow document, responsive record, and
-              neutral-label audit in the block at the end of this page.
+              <strong>HITL gate closed.</strong> The client approved this flow document, the
+              responsive record, and the neutral-label audit on 17 November 2026. The production
+              behaviour and evidence below are the accepted review package for issue 036.
             </p>
           </div>
 
@@ -1938,22 +1937,23 @@ npm run test:e2e</pre>
                 <h2 id="signoff-title">HITL sign-off</h2>
                 <p>
                   The reviewer signs the flow document, the responsive review, the neutral-label
-                  audit, and the AI evidence together. This block is intentionally left open.
+                  audit, and the AI evidence together. The client approved this package on
+                  17 November 2026.
                 </p>
               </div>
-              <span class="section__meta">Awaiting review</span>
+              <span class="section__meta">Approved 17 Nov 2026</span>
             </div>
 
             <div class="signoff">
               <div class="signoff__head">
                 <h3>Client &amp; design review</h3>
-                <span class="step-status step-status--pending"><span class="dot"></span>Awaiting client/design sign-off</span>
+                <span class="step-status" style="color: var(--ledger)"><span class="dot dot--green"></span>Approved by client</span>
               </div>
               <div class="signoff__grid">
-                <label class="field">Reviewer<span class="muted">&nbsp;</span></label>
-                <label class="field">Date<span class="muted">&nbsp;</span></label>
-                <label class="field">Decision<span class="muted">&nbsp;</span></label>
-                <label class="field field--wide">Status<span>Awaiting client/design sign-off</span></label>
+                <label class="field">Reviewer<span>Client</span></label>
+                <label class="field">Date<span>17 November 2026</span></label>
+                <label class="field">Decision<span>Approved</span></label>
+                <label class="field field--wide">Status<span>Flow document, responsive record, neutral-label audit, and AI evidence accepted.</span></label>
               </div>
               <ul class="checks">
                 <li>Flow diagrams match the observed product behaviour and the Requirements §8 list.</li>
@@ -1963,9 +1963,8 @@ npm run test:e2e</pre>
                 <li>The AI-01 – AI-17 evidence and re-run test counts are accepted for this deliverable.</li>
               </ul>
               <p style="margin-top: 14px; font-size: 11.5px; color: var(--ink-faint)">
-                Sign-off is not implied by this page, by the green statuses above, or by the test
-                counts. The deliverable remains review pending until the reviewer records a
-                decision.
+                Sign-off was recorded by the client on 17 November 2026. This closes the 036 HITL
+                gate; later deployment work is tracked separately in issue 037.
               </p>
             </div>
           </section>
@@ -1977,7 +1976,7 @@ npm run test:e2e</pre>
         <strong>Daybook</strong> · AI accounting MVP · deliverable 036 · end-to-end user flows, AI test cases, and QA record.
         This file is self-contained: one static HTML document with inline CSS and JavaScript, no build step, no server requirement.
         <br />
-        Prepared 17 November 2026 · HITL client/design sign-off pending · synthetic demo data only.
+        Prepared 17 November 2026 · HITL client/design sign-off approved · synthetic demo data only.
         <span> · </span><a href="Requirements.md">Requirements.md</a>
         <span> · </span><a href="README.md">README.md</a>
         <span> · </span><a href="#top">Back to top</a>
