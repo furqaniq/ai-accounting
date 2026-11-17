@@ -731,7 +731,7 @@ curl -fsSI https://daybook-ai-accounting.vercel.app | head -n 1</pre>
                 <tr><td>Backend health</td><td class="pass">200</td><td><code>{"status":"ok"}</code> from <code>/api/v1/health</code>.</td></tr>
                 <tr><td>Auth + tenancy</td><td class="pass">200</td><td>Owner login returns two memberships; CORS echoes <code>daybook-ai-accounting.vercel.app</code>.</td></tr>
                 <tr><td>Dashboard</td><td class="pass">$5,000.00</td><td>Acme cash across two accounts; receivables $1,274.25; payables $1,124.50.</td></tr>
-                <tr><td>Agent queue</td><td class="pass">COMPLETED</td><td>Prompt queued via Render Key Value; live Gemini 3.1 Flash Lite returned the requested marker.</td></tr>
+                <tr><td>Agent queue</td><td class="pass">COMPLETED</td><td>Prompt queued via Render Key Value; live Gemini 3.1 Flash Lite returned the requested marker and a tool-backed cash answer ($5,000.00).</td></tr>
                 <tr><td>Object storage</td><td class="pass">201 / 200</td><td>Attachment upload, list, presigned GET, download, and delete all succeeded; test object removed.</td></tr>
                 <tr><td>Browser UI</td><td class="pass">No errors</td><td>Chrome loaded login, Overview ($5,000.00), Reports, and Clerk with no console or page errors.</td></tr>
               </tbody>
