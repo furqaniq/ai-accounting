@@ -128,6 +128,92 @@ describe('Gemini tool declarations', () => {
   });
 });
 
+describe('Gemini thought signatures', () => {
+  it('round-trips the signature from a function call into the next request', async () => {
+    const bodies: Array<Record<string, any>> = [];
+    const originalFetch = global.fetch;
+    const replies = [
+      {
+        candidates: [
+          {
+            content: {
+              parts: [
+                {
+                  functionCall: { name: 'insight.query', args: { question: 'cash?' } },
+                  thoughtSignature: 'sig-abc',
+                },
+              ],
+            },
+          },
+        ],
+      },
+      {
+        candidates: [{ content: { parts: [{ text: 'Cash is $1,000.00' }] } }],
+      },
+    ];
+    global.fetch = jest.fn(async (_url: unknown, init?: RequestInit) => {
+      bodies.push(JSON.parse(String(init?.body ?? '{}')));
+      return new Response(JSON.stringify(replies[bodies.length - 1]), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }) as unknown as typeof fetch;
+
+    let turn;
+    try {
+      const provider = new GeminiProvider('test-key');
+      turn = await provider.callWithTools({
+        prompt: 'cash?',
+        model: 'gemini-3.1-flash-lite',
+        attempt: 1,
+        tools: [
+          {
+            name: 'insight.query',
+            description: 'snapshot',
+            parameters: { type: 'object', properties: {} },
+          },
+        ],
+      });
+      expect(turn.toolCalls?.[0].thoughtSignature).toBe('sig-abc');
+
+      const final = await provider.callWithTools({
+        prompt: 'cash?',
+        model: 'gemini-3.1-flash-lite',
+        attempt: 1,
+        tools: [
+          {
+            name: 'insight.query',
+            description: 'snapshot',
+            parameters: { type: 'object', properties: {} },
+          },
+        ],
+        toolResults: [
+          {
+            name: 'insight.query',
+            args: { question: 'cash?' },
+            result: { cash: 1000 },
+            thoughtSignature: turn.toolCalls?.[0].thoughtSignature,
+          },
+        ],
+      });
+      expect(final.text).toBe('Cash is $1,000.00');
+    } finally {
+      global.fetch = originalFetch;
+    }
+
+    expect(bodies).toHaveLength(2);
+    expect(bodies[1].contents[1]).toEqual({
+      role: 'model',
+      parts: [
+        {
+          functionCall: { name: 'insight.query', args: { question: 'cash?' } },
+          thoughtSignature: 'sig-abc',
+        },
+      ],
+    });
+  });
+});
+
 describe('provider rate-limit handling', () => {
   it('classifies Gemini 429 shapes and ignores ordinary errors', () => {
     expect(isRateLimitError({ status: 429 })).toBe(true);

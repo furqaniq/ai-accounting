@@ -8,6 +8,7 @@ export interface AgentToolCall {
   name: string;
   args: Record<string, unknown>;
   rationale?: string;
+  thoughtSignature?: string;
 }
 
 export interface AgentToolResult {
@@ -15,6 +16,7 @@ export interface AgentToolResult {
   args: Record<string, unknown>;
   result: unknown;
   error?: string;
+  thoughtSignature?: string;
 }
 
 export interface ProviderRequest {

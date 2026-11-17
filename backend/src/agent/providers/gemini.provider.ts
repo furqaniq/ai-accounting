@@ -11,6 +11,7 @@ const GEMINI_BASE =
 interface GeminiPart {
   text?: string;
   functionCall?: { name: string; args?: Record<string, unknown> };
+  thoughtSignature?: string;
 }
 
 interface GeminiResponse {
@@ -38,7 +39,12 @@ function buildContents(request: ProviderRequest): unknown[] {
   for (const tool of request.toolResults ?? []) {
     contents.push({
       role: 'model',
-      parts: [{ functionCall: { name: tool.name, args: tool.args } }],
+      parts: [
+        {
+          functionCall: { name: tool.name, args: tool.args },
+          ...(tool.thoughtSignature ? { thoughtSignature: tool.thoughtSignature } : {}),
+        },
+      ],
     });
     contents.push({
       role: 'user',
@@ -128,6 +134,7 @@ export class GeminiProvider implements AiProvider {
         name: part.functionCall!.name,
         args: part.functionCall!.args ?? {},
         ...(text ? { rationale: text } : {}),
+        ...(part.thoughtSignature ? { thoughtSignature: part.thoughtSignature } : {}),
       }));
 
     return {

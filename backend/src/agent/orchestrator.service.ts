@@ -120,6 +120,7 @@ export class AgentOrchestrator {
             name: execution.tool,
             args: execution.args,
             result: execution.result,
+            ...(call.thoughtSignature ? { thoughtSignature: call.thoughtSignature } : {}),
           });
           await this.logs.append({
             trigger: job.trigger,
