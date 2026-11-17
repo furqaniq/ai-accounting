@@ -20,13 +20,13 @@ Daybook walkthrough style as `AI-Accounting-User-Flows.html`.
 
 | Layer | Resource | Runtime / plan | Address |
 | --- | --- | --- | --- |
-| Frontend | `ai-accounting` on Vercel | Next.js 16, Hobby | https://ai-accounting-beta.vercel.app |
+| Frontend | `daybook-ai-accounting` on Vercel | Next.js 16, Hobby | https://daybook-ai-accounting.vercel.app |
 | API | `daybook-api` on Render | NestJS Docker, free | https://daybook-api-9nwb.onrender.com |
 | Database | `ai-accounting` on Neon | Postgres 16, free | `daybook` database, direct TLS |
 | Queue | `daybook-redis` on Render | Key Value, free | internal `redis://red-...:6379` |
 | Files | `daybook-minio` on Render | MinIO image, free | https://daybook-minio.onrender.com |
 
-The frontend is linked to `furqaniq/ai-accounting` with root directory `frontend`. The backend is
+The frontend project is `daybook-ai-accounting`, linked to `furqaniq/ai-accounting` with root directory `frontend`. The old `ai-accounting-beta.vercel.app` domain 308-redirects to the new domain. The backend is
 linked to the same repository with root directory `backend`, branch `main`, and a Docker build.
 It runs `prisma migrate deploy` before `node dist/main.js`.
 
@@ -39,7 +39,7 @@ Secrets live only in Vercel/Render. The repo contains no production values.
 | `NEXT_PUBLIC_API_URL` | Vercel | `https://daybook-api-9nwb.onrender.com/api/v1` |
 | `DATABASE_URL` | Render API | Neon direct TLS URI (not pooled) |
 | `JWT_SECRET` | Render API | Generated 96-character secret |
-| `CORS_ORIGINS` | Render API | `https://ai-accounting-beta.vercel.app` |
+| `CORS_ORIGINS` | Render API | `https://daybook-ai-accounting.vercel.app` |
 | `REDIS_URL` | Render API | Render Key Value internal URL |
 | `AI_PROVIDER` | Render API | `stub` (no Gemini key installed) |
 | `AGENT_QUEUE_DRIVER` | Render API | `bull` |
@@ -82,6 +82,7 @@ presigned URLs.
 | Agent prompt | job `COMPLETED`; cash summary returned |
 | Attachment upload | `201`; list `1`; presigned GET `200`; download `200`; delete `204` |
 | Browser | login → Overview → Reports → Clerk; no console/page errors |
+| Frontend rename | new domain `200`; old domain `308` → new; owner login CORS new origin |
 | Local suite | Jest 262 passed / 42 suites; Playwright 47 passed / 29 specs (from 035) |
 
 ## Known limits
@@ -97,8 +98,8 @@ presigned URLs.
 - `AI_PROVIDER=stub`; the agent is deterministic and makes no Gemini calls.
 - Neon is on the free plan with auto-suspend; backups/PITR retention should be reviewed before
   production use.
-- The frontend deployment was created API-first. Redeploy from the current commit in Vercel when
-  frontend code changes; backend changes auto-deploy from `main` under `backend/**`.
+- Vercel auto-deploys the frontend from `main`; backend changes auto-deploy from `main` under
+  `backend/**`. The old `ai-accounting-beta.vercel.app` domain 308-redirects to the new domain.
 
 ## Deliverable
 

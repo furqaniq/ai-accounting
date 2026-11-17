@@ -471,7 +471,7 @@
             <table>
               <thead><tr><th>Layer</th><th>Service</th><th>Endpoint</th></tr></thead>
               <tbody>
-                <tr><td>App</td><td>Vercel</td><td><code>ai-accounting-beta.vercel.app</code></td></tr>
+                <tr><td>App</td><td>Vercel</td><td><code>daybook-ai-accounting.vercel.app</code></td></tr>
                 <tr><td>API</td><td>Render</td><td><code>daybook-api-9nwb.onrender.com</code></td></tr>
                 <tr><td>Database</td><td>Neon</td><td><code>ai-accounting / daybook</code></td></tr>
                 <tr><td>Queue</td><td>Render KV</td><td><code>daybook-redis</code></td></tr>
@@ -546,7 +546,7 @@
         </div>
 
         <div class="callout callout--live">
-          <p><strong>Runtime note.</strong> Production currently runs commit <code>24193a4</code>. Documentation-only commits after that do not change the running app. Backend auto-deploy is scoped to <code>backend/**</code>; the frontend production deployment is recorded below.</p>
+          <p><strong>Runtime note.</strong> Application runtime code is from commit <code>24193a4</code>; later documentation-only commits rebuild the frontend without app changes. Vercel auto-deploys the frontend from <code>main</code> and the backend auto-deploys <code>backend/**</code> changes. The old <code>ai-accounting-beta.vercel.app</code> domain 308-redirects to <code>daybook-ai-accounting.vercel.app</code>.</p>
         </div>
 
         <section class="section" id="architecture" aria-labelledby="architecture-title">
@@ -570,7 +570,7 @@
             <div class="panel">
               <h3>Request path</h3>
               <p>The browser loads the static Next.js app from Vercel. Client-side API calls go to <code>https://daybook-api-9nwb.onrender.com/api/v1</code> with a Bearer token and <code>X-Organization-Id</code>. Render terminates TLS and forwards to the NestJS container on its injected port. Prisma reads and writes Neon over TLS.</p>
-              <p>CORS is pinned to <code>https://ai-accounting-beta.vercel.app</code>; credentials are not used by the app, but the API enables CORS credentials consistently with the NestJS configuration.</p>
+              <p>CORS is pinned to <code>https://daybook-ai-accounting.vercel.app</code>; credentials are not used by the app, but the API enables CORS credentials consistently with the NestJS configuration.</p>
             </div>
             <div class="panel">
               <h3>Side paths</h3>
@@ -593,7 +593,7 @@
               <caption>Production resources · observed 17 November 2026</caption>
               <thead><tr><th>Layer</th><th>Resource</th><th>Plan / runtime</th><th>Region</th><th>Address / ID</th></tr></thead>
               <tbody>
-                <tr><td>Frontend</td><td class="service">ai-accounting</td><td>Vercel Hobby · Next.js</td><td>iad1 functions</td><td class="url"><code>ai-accounting-beta.vercel.app</code><br /><span class="muted">prj_NYU349qjGLbKBMN8Dp4XwDk9U9XI</span></td></tr>
+                <tr><td>Frontend</td><td class="service">daybook-ai-accounting</td><td>Vercel Hobby · Next.js</td><td>iad1 functions</td><td class="url"><code>daybook-ai-accounting.vercel.app</code><br /><span class="muted">prj_NYU349qjGLbKBMN8Dp4XwDk9U9XI</span></td></tr>
                 <tr><td>API</td><td class="service">daybook-api</td><td>Render free · Docker</td><td>Singapore</td><td class="url"><code>daybook-api-9nwb.onrender.com</code><br /><span class="muted">srv-dbu6legn74is73fjg4sg</span></td></tr>
                 <tr><td>Database</td><td class="service">ai-accounting</td><td>Neon free · Postgres 16</td><td>aws-ap-southeast-1</td><td class="url"><code>daybook</code> database · direct TLS<br /><span class="muted">solitary-dawn-55526067</span></td></tr>
                 <tr><td>Queue</td><td class="service">daybook-redis</td><td>Render Key Value free</td><td>Singapore</td><td class="url"><code>redis://red-dbu6kgon74is73fjd2t0:6379</code><br /><span class="muted">internal URL · no persistence</span></td></tr>
@@ -618,7 +618,7 @@
                 <tr><td><code>NEXT_PUBLIC_API_URL</code></td><td>Vercel</td><td><code>https://daybook-api-9nwb.onrender.com/api/v1</code> · production, preview, development</td></tr>
                 <tr><td><code>DATABASE_URL</code></td><td>Render API</td><td>Neon direct TLS URI (not pooled) · secret</td></tr>
                 <tr><td><code>JWT_SECRET</code></td><td>Render API</td><td>96-character generated secret · secret</td></tr>
-                <tr><td><code>CORS_ORIGINS</code></td><td>Render API</td><td><code>https://ai-accounting-beta.vercel.app</code></td></tr>
+                <tr><td><code>CORS_ORIGINS</code></td><td>Render API</td><td><code>https://daybook-ai-accounting.vercel.app</code></td></tr>
                 <tr><td><code>REDIS_URL</code></td><td>Render API</td><td><code>redis://red-dbu6kgon74is73fjd2t0:6379</code> · internal, unauthenticated by default</td></tr>
                 <tr><td><code>AI_PROVIDER</code></td><td>Render API</td><td><code>stub</code> · deterministic agent; no Gemini key present</td></tr>
                 <tr><td><code>AGENT_QUEUE_DRIVER</code></td><td>Render API</td><td><code>bull</code> · Render Key Value</td></tr>
@@ -649,7 +649,7 @@
             <li><div class="rail__title">Create the Render API</div><div class="rail__body">Docker web service from <code>furqaniq/ai-accounting</code>, branch <code>main</code>, root <code>backend</code>, health check <code>/api/v1/health</code>, free plan. Docker CMD runs <code>prisma migrate deploy</code> before Nest starts.</div></li>
             <li><div class="rail__title">Set secrets and connect services</div><div class="rail__body">Add Neon, Redis, JWT, CORS, MinIO, and agent variables in Render. MinIO initially used the private hostname; DNS failed with <code>ENOTFOUND daybook-minio</code>, so both SDK and presigning use the public HTTPS endpoint.</div></li>
             <li><div class="rail__title">Migrate and seed</div><div class="rail__body">Run Prisma against Neon, then run the deterministic seed with <code>AGENT_QUEUE_DRIVER=inline</code>. All migrations applied and both organizations seeded successfully.</div></li>
-            <li><div class="rail__title">Create the Vercel project and deploy</div><div class="rail__body">Project <code>ai-accounting</code>, root <code>frontend</code>, framework Next.js; add <code>NEXT_PUBLIC_API_URL</code> before building; production deployment READY on the alias.</div></li>
+            <li><div class="rail__title">Create the Vercel project and deploy</div><div class="rail__body">Project <code>daybook-ai-accounting</code>, root <code>frontend</code>, framework Next.js; add <code>NEXT_PUBLIC_API_URL</code> before building; production deployment READY on the alias. The old <code>ai-accounting-beta.vercel.app</code> domain 308-redirects to the new name.</div></li>
           </ol>
         </section>
 
@@ -676,14 +676,14 @@ git add -A && git commit -m "..." && git push
 <span class="cm"># 4. Health checks</span>
 curl -fsS https://daybook-api-9nwb.onrender.com/api/v1/health
 curl -fsS https://daybook-minio.onrender.com/minio/health/live
-curl -fsSI https://ai-accounting-beta.vercel.app | head -n 1</pre>
+curl -fsSI https://daybook-ai-accounting.vercel.app | head -n 1</pre>
           </div>
           <div class="deploy-grid">
             <div class="deploy-card">
               <h3>Normal deploy</h3>
               <ul>
                 <li>Backend: push to <code>main</code>; Render builds <code>backend/</code> on the Dockerfile and runs migrations at start.</li>
-                <li>Frontend: create a production deployment from the current <code>main</code> commit in Vercel, or redeploy the previous production deployment.</li>
+                <li>Frontend: push to <code>main</code>; Vercel builds the <code>frontend</code> root automatically. The old domain redirects permanently to the new one.</li>
                 <li>Docs: static root HTML changes do not require a runtime deploy.</li>
               </ul>
             </div>
@@ -726,9 +726,9 @@ curl -fsSI https://ai-accounting-beta.vercel.app | head -n 1</pre>
             <table class="data-table verification">
               <thead><tr><th>Check</th><th>Result</th><th>Evidence</th></tr></thead>
               <tbody>
-                <tr><td>Frontend alias</td><td class="pass">200</td><td>Vercel production alias serves the Daybook login page.</td></tr>
+                <tr><td>Frontend alias</td><td class="pass">200</td><td><code>daybook-ai-accounting.vercel.app</code> serves the Daybook login page; the old beta domain 308-redirects.</td></tr>
                 <tr><td>Backend health</td><td class="pass">200</td><td><code>{"status":"ok"}</code> from <code>/api/v1/health</code>.</td></tr>
-                <tr><td>Auth + tenancy</td><td class="pass">200</td><td>Owner login returns two memberships; CORS echoes the Vercel origin.</td></tr>
+                <tr><td>Auth + tenancy</td><td class="pass">200</td><td>Owner login returns two memberships; CORS echoes <code>daybook-ai-accounting.vercel.app</code>.</td></tr>
                 <tr><td>Dashboard</td><td class="pass">$5,000.00</td><td>Acme cash across two accounts; receivables $1,274.25; payables $1,124.50.</td></tr>
                 <tr><td>Agent queue</td><td class="pass">COMPLETED</td><td>Prompt queued via Render Key Value; deterministic stub returned the cash summary.</td></tr>
                 <tr><td>Object storage</td><td class="pass">201 / 200</td><td>Attachment upload, list, presigned GET, download, and delete all succeeded; test object removed.</td></tr>
@@ -783,7 +783,7 @@ curl -fsSI https://ai-accounting-beta.vercel.app | head -n 1</pre>
                 <tr><td>Queue</td><td>Render Key Value free; no persistence; jobs may be lost on restart.</td><td>Use a paid Key Value plan with persistence for automation reliability.</td></tr>
                 <tr><td>Compute</td><td>Render free services sleep after idle; first request is cold.</td><td>Use paid always-on instances for cron/event SLAs and low latency.</td></tr>
                 <tr><td>Database</td><td>Neon free with auto-suspend; single direct endpoint.</td><td>Add pooled runtime access if connection volume grows; review backup/PITR plan.</td></tr>
-                <tr><td>Frontend</td><td>Default <code>ai-accounting-beta.vercel.app</code> domain; tokens in localStorage.</td><td>Add a custom domain, security headers, and a session-hardening review.</td></tr>
+                <tr><td>Frontend</td><td><code>daybook-ai-accounting.vercel.app</code>; the old beta domain 308-redirects here; tokens in localStorage.</td><td>Add a custom domain, security headers, and a session-hardening review.</td></tr>
                 <tr><td>Scale</td><td>One API instance; in-process BullMQ workers.</td><td>Separate worker instances before scaling API replicas.</td></tr>
               </tbody>
             </table>
@@ -824,7 +824,7 @@ curl -fsSI https://ai-accounting-beta.vercel.app | head -n 1</pre>
               <span class="step-status" style="color: var(--ledger)"><span class="dot dot--green"></span>Deployed and smoke-tested</span>
             </div>
             <div class="signoff__grid">
-              <label class="field">Frontend<span><code>ai-accounting-beta.vercel.app</code></span></label>
+              <label class="field">Frontend<span><code>daybook-ai-accounting.vercel.app</code></span></label>
               <label class="field">Backend<span><code>daybook-api-9nwb.onrender.com</code></span></label>
               <label class="field">Database<span>Neon <code>ai-accounting</code> · <code>daybook</code></span></label>
               <label class="field">Queue<span>Render Key Value <code>daybook-redis</code></span></label>

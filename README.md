@@ -20,7 +20,7 @@ The demo is live on the client-requested split:
 
 | Layer | Service | Address |
 | --- | --- | --- |
-| Frontend | Vercel | <https://ai-accounting-beta.vercel.app> |
+| Frontend | Vercel | <https://daybook-ai-accounting.vercel.app> |
 | Backend | Render | <https://daybook-api-9nwb.onrender.com> |
 | Database | Neon Postgres | project `ai-accounting`, database `daybook` |
 | Queue | Render Key Value | `daybook-redis` |
@@ -29,7 +29,8 @@ The demo is live on the client-requested split:
 Open [`AI-Accounting-Deployment.html`](AI-Accounting-Deployment.html) for the full service
 inventory, environment contract (no secrets), deploy runbook, verification log, and known limits.
 The deployment is a free-tier demo: Render services can sleep, Key Value has no persistence, and
-MinIO has no persistent disk, so attachments are lost on restart/redeploy. The seeded demo
+MinIO has no persistent disk, so attachments are lost on restart/redeploy. The previous
+`ai-accounting-beta.vercel.app` domain now 308-redirects to the new frontend domain. The seeded demo
 credentials above are published and must be rotated before real data. The agent is running on the
 deterministic stub; set `GEMINI_API_KEY` and `AI_PROVIDER=auto` to enable Gemini.
 
