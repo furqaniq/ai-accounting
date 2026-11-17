@@ -18,6 +18,21 @@ interface GeminiResponse {
   error?: { status?: string; message?: string; code?: number };
 }
 
+/**
+ * Gemini's function-declaration schema is an OpenAPI subset and rejects
+ * JSON Schema keywords such as additionalProperties. Strip them recursively
+ * while keeping the shape the model needs to call the tool.
+ */
+function geminiSchema(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(geminiSchema);
+  if (!value || typeof value !== 'object') return value;
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .filter(([key]) => key !== 'additionalProperties')
+      .map(([key, child]) => [key, geminiSchema(child)]),
+  );
+}
+
 function buildContents(request: ProviderRequest): unknown[] {
   const contents: unknown[] = [{ role: 'user', parts: [{ text: request.prompt }] }];
   for (const tool of request.toolResults ?? []) {
@@ -67,7 +82,7 @@ export class GeminiProvider implements AiProvider {
           functionDeclarations: request.tools.map((tool) => ({
             name: tool.name,
             description: tool.description,
-            parameters: tool.parameters,
+            parameters: geminiSchema(tool.parameters),
           })),
         },
       ];

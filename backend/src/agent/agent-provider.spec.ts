@@ -12,6 +12,7 @@ import {
 } from './provider.types';
 import { StubProvider } from './providers/stub.provider';
 import { AiProviderService } from './ai-provider.service';
+import { GeminiProvider } from './providers/gemini.provider';
 import { retryDelayMs } from './agent-queue.service';
 
 const declarations = [
@@ -73,6 +74,57 @@ describe('agent model aliases', () => {
     expect(defaultAgentAlias()).toBe('flash-lite');
     expect(resolveAgentModel().alias).toBe('flash-lite');
     expect(() => resolveAgentModel('unlimited')).toThrow(BadRequestException);
+  });
+});
+
+describe('Gemini tool declarations', () => {
+  it('strips JSON Schema keywords Gemini rejects', async () => {
+    const bodies: Array<Record<string, any>> = [];
+    const originalFetch = global.fetch;
+    global.fetch = jest.fn(async (_url: unknown, init?: RequestInit) => {
+      bodies.push(JSON.parse(String(init?.body ?? '{}')));
+      return new Response(
+        JSON.stringify({ candidates: [{ content: { parts: [{ text: 'ok' }] } }] }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      );
+    }) as unknown as typeof fetch;
+
+    try {
+      const provider = new GeminiProvider('test-key');
+      await provider.callWithTools({
+        prompt: 'cash?',
+        model: 'gemini-2.5-flash',
+        attempt: 1,
+        tools: [
+          {
+            name: 'insight.query',
+            description: 'snapshot',
+            parameters: {
+              type: 'object',
+              properties: {
+                question: { type: 'string' },
+                window: {
+                  type: 'object',
+                  properties: { from: { type: 'string' } },
+                  additionalProperties: false,
+                },
+              },
+              required: ['question'],
+              additionalProperties: false,
+            },
+          },
+        ],
+      });
+    } finally {
+      global.fetch = originalFetch;
+    }
+
+    expect(bodies).toHaveLength(1);
+    const parameters = bodies[0].tools[0].functionDeclarations[0].parameters;
+    expect(parameters.additionalProperties).toBeUndefined();
+    expect(parameters.properties.window.additionalProperties).toBeUndefined();
+    expect(JSON.stringify(bodies[0])).not.toContain('additionalProperties');
+    expect(parameters.required).toEqual(['question']);
   });
 });
 
