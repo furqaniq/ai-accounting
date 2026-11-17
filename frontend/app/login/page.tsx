@@ -66,7 +66,11 @@ export default function LoginPage() {
     <main className="login">
       <section className="login-ledger">
         <div className="login-brand" aria-hidden="true">
-          <img className="login-logo" src="/icon.svg" width={38} height={38} alt="" />
+          <svg className="login-logo brand__mark" viewBox="0 0 32 32" aria-hidden="true">
+            <rect className="mark-paper" x="4.5" y="3" width="23" height="26" rx="1" />
+            <path className="mark-rule" d="M9 9h14M9 14h14M9 19h9" />
+            <path className="mark-margin" d="M12 3v26" />
+          </svg>
           <span>
             <span className="brand__name">Daybook</span>
             <span className="brand__sub">AI accounting</span>

@@ -37,18 +37,17 @@
 
 .login-brand {
   display: flex;
-  align-items: flex-start;
-  gap: 12px;
+  align-items: center;
+  gap: 10px;
   height: 64px;
   flex: none;
   animation: login-rise 0.5s ease both;
 }
 
 .login-logo {
-  width: 32px;
-  height: 32px;
+  width: 30px;
+  height: 30px;
   flex: none;
-  border-radius: 6px;
 }
 
 .login-brand .brand__name {
