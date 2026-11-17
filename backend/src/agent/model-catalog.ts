@@ -18,9 +18,9 @@ const MODEL_LABELS: Record<string, string> = {
 
 export function agentModelAliases(): Record<string, string> {
   return {
-    flash: process.env.AGENT_MODEL_FLASH ?? 'gemini-2.5-flash',
-    'flash-lite': process.env.AGENT_MODEL_FLASH_LITE ?? 'gemini-2.5-flash-lite',
-    pro: process.env.AGENT_MODEL_PRO ?? 'gemini-2.5-pro',
+    flash: process.env.AGENT_MODEL_FLASH ?? 'gemini-3.1-flash-lite',
+    'flash-lite': process.env.AGENT_MODEL_FLASH_LITE ?? 'gemini-3.1-flash-lite',
+    pro: process.env.AGENT_MODEL_PRO ?? 'gemini-3.1-pro-preview',
   };
 }
 
