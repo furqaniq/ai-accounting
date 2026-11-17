@@ -1,0 +1,884 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AI Accounting · Production deployment | Daybook</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23123a2c'/%3E%3Cpath d='M12 3v26' stroke='%23e8a99f' stroke-width='2'/%3E%3C/svg%3E" />
+    <meta name="description" content="Daybook production deployment record for Vercel, Render, Neon Postgres, Render Key Value, and MinIO." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@400;500;600;700&family=Petrona:wght@400;500;600&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        --paper: #edf1e8;
+        --surface: #f8faf4;
+        --surface-2: #e3eade;
+        --surface-3: #d6e0d2;
+        --ink: #16251d;
+        --ink-soft: #526257;
+        --ink-faint: #7b8a80;
+        --rule: #c9d2c6;
+        --rule-strong: #a7b6a5;
+        --ledger: #1f5a43;
+        --ledger-deep: #123a2c;
+        --ledger-mid: #2c6b52;
+        --red-ink: #b23a2f;
+        --red-wash: #f3e5e1;
+        --amber-ink: #8a5a1f;
+        --amber-wash: #f4ebd9;
+        --green-wash: #dfe9df;
+        --focus: #a63a2e;
+        --font-ui: "Familjen Grotesk", ui-sans-serif, system-ui, sans-serif;
+        --font-display: "Petrona", ui-serif, Georgia, serif;
+      }
+      *, *::before, *::after { box-sizing: border-box; }
+      html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; scroll-padding-top: 24px; }
+      body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--font-ui); font-size: 15px; line-height: 1.55; -webkit-font-smoothing: antialiased; }
+      h1, h2, h3, h4, p, dl, dd, dt, figure, ol, ul { margin: 0; }
+      ol, ul { padding: 0; list-style: none; }
+      a { color: inherit; text-decoration: none; }
+      a:hover { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+      button { font: inherit; color: inherit; cursor: pointer; }
+      code, pre { font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; font-size: 0.88em; }
+      :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+      .skip-link { position: fixed; top: 10px; left: 10px; z-index: 200; padding: 8px 12px; background: var(--surface); border: 1px solid var(--ink); border-radius: 3px; font-size: 13px; transform: translateY(-160%); }
+      .skip-link:focus { transform: translateY(0); }
+      .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+
+      .app-shell { display: grid; grid-template-columns: 232px minmax(0, 1fr) 328px; min-height: 100dvh; }
+      .spine { position: sticky; top: 0; z-index: 40; display: flex; flex-direction: column; height: 100dvh; padding: 22px 16px 16px; overflow-y: auto; color: #e8efe5; background: var(--ledger-deep); border-right: 1px solid rgba(232, 239, 229, 0.12); }
+      .brand { display: flex; align-items: center; gap: 10px; padding: 0 8px 22px; }
+      .brand:hover { text-decoration: none; }
+      .brand__mark { width: 30px; height: 30px; flex: none; }
+      .brand__mark .mark-paper { fill: none; stroke: currentColor; stroke-width: 1.4; }
+      .brand__mark .mark-rule { stroke: currentColor; stroke-width: 1.2; opacity: 0.65; }
+      .brand__mark .mark-margin { stroke: #e8a99f; stroke-width: 1.6; }
+      .brand__name { display: block; font-family: var(--font-display); font-size: 22px; font-weight: 500; letter-spacing: -0.015em; line-height: 1; }
+      .brand__sub { display: block; margin-top: 4px; font-size: 11px; color: #9fb6a8; line-height: 1; }
+      .spine__meta { padding: 10px 11px; margin-bottom: 18px; font-size: 11.5px; color: #c9d8ce; line-height: 1.45; background: rgba(232, 239, 229, 0.06); border: 1px solid rgba(232, 239, 229, 0.14); border-radius: 3px; }
+      .spine__meta strong { display: block; color: #f4d7d1; font-weight: 500; }
+      .spine__label { display: block; padding: 0 10px; margin-bottom: 7px; font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; color: rgba(232, 239, 229, 0.55); }
+      .nav { display: grid; gap: 2px; }
+      .nav a { position: relative; display: flex; align-items: baseline; gap: 9px; padding: 7px 10px; font-size: 13px; color: #c9d8ce; border-radius: 3px; }
+      .nav a:hover { color: #fff; text-decoration: none; background: rgba(232, 239, 229, 0.06); }
+      .nav a.is-active { color: #fff; background: rgba(232, 239, 229, 0.09); }
+      .nav a.is-active::before { position: absolute; top: 7px; bottom: 7px; left: -16px; width: 2px; content: ""; background: var(--red-ink); }
+      .nav__num { width: 20px; flex: none; font-size: 10.5px; font-variant-numeric: tabular-nums; color: #9fb6a8; }
+      .nav a.is-active .nav__num { color: #e8a99f; }
+      .spine__foot { margin-top: auto; padding: 16px 10px 0; font-size: 11.5px; color: #9fb6a8; border-top: 1px solid rgba(232, 239, 229, 0.12); }
+      .spine__foot a { color: #e8efe5; text-decoration: underline; text-decoration-color: rgba(232, 239, 229, 0.35); text-underline-offset: 3px; }
+      .workspace { display: flex; flex-direction: column; min-width: 0; }
+      .topbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px clamp(16px, 3vw, 34px); background: rgba(237, 241, 232, 0.95); border-bottom: 1px solid var(--rule); backdrop-filter: blur(8px); }
+      .topbar__crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; font-size: 12px; color: var(--ink-soft); }
+      .topbar__crumbs strong { color: var(--ink); font-weight: 500; }
+      .topbar__crumbs span { color: var(--ink-faint); }
+      .topbar__right { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+      .chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; font-size: 11px; line-height: 1.25; color: var(--ink-soft); background: var(--surface); border: 1px solid var(--rule); border-radius: 2px; white-space: nowrap; }
+      .chip--pending { color: var(--amber-ink); background: var(--amber-wash); border-color: #d9c7a5; }
+      .dot { width: 7px; height: 7px; flex: none; background: var(--ink-faint); border-radius: 50%; }
+      .dot--red { background: var(--red-ink); }
+      .dot--amber { background: var(--amber-ink); }
+      .dot--green { background: var(--ledger); }
+
+      .page { width: 100%; max-width: 1120px; padding: clamp(24px, 3.2vw, 44px) clamp(18px, 3vw, 40px) 80px; margin: 0 auto; }
+      .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; padding-bottom: 22px; border-bottom: 1px solid var(--rule); }
+      .eyebrow { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--red-ink); }
+      .page-head h1 { max-width: 700px; margin-top: 7px; font-family: var(--font-display); font-size: clamp(2.4rem, 4.4vw, 3.7rem); font-weight: 500; line-height: 1.02; letter-spacing: -0.028em; text-wrap: balance; }
+      .page-head__meta { max-width: 700px; margin-top: 11px; font-size: 13.5px; color: var(--ink-soft); }
+      .page-head__actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+      .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 34px; padding: 7px 12px; font-size: 12.5px; font-weight: 500; line-height: 1.2; border: 1px solid var(--rule-strong); border-radius: 3px; background: transparent; }
+      .btn:hover { text-decoration: none; background: var(--surface-2); }
+      .btn--primary { color: #fff; background: var(--ledger); border-color: var(--ledger); }
+      .btn--primary:hover { background: var(--ledger-deep); }
+      .link-strip { display: flex; flex-wrap: wrap; gap: 6px 14px; padding: 13px 0 0; font-size: 12.5px; color: var(--ink-soft); }
+      .link-strip a { color: var(--ledger); text-decoration: underline; text-decoration-color: rgba(31, 90, 67, 0.35); text-underline-offset: 3px; }
+      .toc { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0 22px; padding: 16px 0; margin-top: 22px; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); }
+      .toc a { display: flex; align-items: baseline; gap: 8px; padding: 5px 0; font-size: 12.5px; color: var(--ink-soft); }
+      .toc a:hover { color: var(--ink); text-decoration: none; }
+      .toc span { font-size: 10.5px; font-variant-numeric: tabular-nums; color: var(--red-ink); }
+      .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 26px; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); }
+      .stat { padding: 14px 18px 15px 0; border-left: 1px solid var(--rule); }
+      .stat:first-child { padding-left: 0; border-left: 0; }
+      .stat__label { font-size: 11.5px; color: var(--ink-soft); }
+      .stat__value { margin-top: 4px; font-family: var(--font-display); font-size: 28px; font-weight: 500; line-height: 1.1; font-variant-numeric: tabular-nums; }
+      .stat__note { margin-top: 3px; font-size: 11.5px; color: var(--ink-faint); }
+
+      .section { padding-top: 38px; margin-top: 8px; border-top: 1px solid var(--rule); }
+      .section:first-of-type { border-top: 0; }
+      .section__head { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; padding-bottom: 12px; border-bottom: 1px solid var(--rule); }
+      .section__head h2 { font-family: var(--font-display); font-size: clamp(1.75rem, 2.6vw, 2.35rem); font-weight: 500; line-height: 1.08; letter-spacing: -0.02em; }
+      .section__head p { max-width: 560px; margin-top: 5px; font-size: 12.5px; color: var(--ink-soft); }
+      .section__meta { font-size: 11.5px; color: var(--ink-faint); white-space: nowrap; }
+
+      .flow { padding-top: 30px; margin-top: 24px; border-top: 1px solid var(--rule); }
+      .flow:first-of-type { padding-top: 18px; margin-top: 0; border-top: 0; }
+      .flow__head { display: grid; grid-template-columns: 42px minmax(0, 1fr) auto; align-items: start; gap: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--rule-strong); }
+      .flow__index { font-family: var(--font-display); font-size: 25px; line-height: 1; color: var(--red-ink); font-variant-numeric: tabular-nums; }
+      .flow__head h3 { font-family: var(--font-display); font-size: 1.45rem; font-weight: 500; line-height: 1.12; letter-spacing: -0.015em; }
+      .flow__head p { max-width: 680px; margin-top: 4px; font-size: 12.5px; color: var(--ink-soft); }
+      .flow__tag { padding-top: 3px; font-size: 11px; text-align: right; color: var(--ink-faint); }
+      .flow__body { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(230px, 0.75fr); gap: 26px; padding-top: 16px; }
+      .rail { counter-reset: step; }
+      .rail li { position: relative; padding: 0 0 15px 30px; counter-increment: step; border-left: 1px solid var(--rule); }
+      .rail li:last-child { padding-bottom: 0; border-left-color: transparent; }
+      .rail li::before { position: absolute; top: -1px; left: -11px; display: grid; width: 21px; height: 21px; font-size: 10.5px; font-variant-numeric: tabular-nums; color: var(--ledger-deep); content: counter(step); background: var(--surface); border: 1px solid var(--rule-strong); border-radius: 50%; place-items: center; }
+      .rail li.is-write::before { color: #fff; background: var(--ledger); border-color: var(--ledger); }
+      .rail li.is-red::before { color: #fff; background: var(--red-ink); border-color: var(--red-ink); }
+      .rail__title { font-size: 13.5px; font-weight: 500; line-height: 1.35; }
+      .rail__body { margin-top: 2px; font-size: 12.5px; line-height: 1.5; color: var(--ink-soft); }
+      .rail__body code { padding: 1px 4px; color: var(--ledger-deep); background: var(--surface-2); border-radius: 2px; overflow-wrap: anywhere; }
+      .branch { padding: 8px 0 0 12px; margin-top: 6px; font-size: 11.5px; color: var(--ink-soft); border-left: 2px solid var(--red-wash); }
+      .branch strong { color: var(--red-ink); font-weight: 500; }
+      .flow__side { padding-left: 18px; border-left: 1px solid var(--rule); }
+      .side-title { font-size: 10.5px; letter-spacing: 0.07em; text-transform: uppercase; color: var(--red-ink); }
+      .facts { margin-top: 8px; }
+      .facts > div { padding: 7px 0; border-bottom: 1px solid var(--rule); }
+      .facts dt { font-size: 10.5px; color: var(--ink-faint); }
+      .facts dd { margin-top: 2px; font-size: 12px; line-height: 1.45; }
+      .evidence { margin-top: 8px; }
+      .evidence li { position: relative; padding: 5px 0 5px 12px; font-size: 11.5px; line-height: 1.4; color: var(--ink-soft); }
+      .evidence li::before { position: absolute; left: 0; color: var(--ledger); content: "·"; }
+      .evidence code { font-size: 10.5px; overflow-wrap: anywhere; }
+      .callout { padding: 13px 15px; margin-top: 20px; background: var(--surface); border-top: 1px solid var(--rule-strong); border-bottom: 1px solid var(--rule-strong); border-left: 3px solid var(--red-ink); }
+      .callout strong { font-weight: 600; }
+      .callout p { font-size: 12.5px; color: var(--ink-soft); }
+      .callout p + p { margin-top: 6px; }
+
+      .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      .data-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+      .data-table caption { padding: 10px 0 8px; font-size: 11.5px; color: var(--ink-faint); text-align: left; }
+      .data-table th { padding: 8px 10px; font-size: 10.5px; font-weight: 500; letter-spacing: 0.03em; color: var(--ink-soft); text-align: left; white-space: nowrap; border-top: 1px solid var(--rule-strong); border-bottom: 1px solid var(--rule-strong); }
+      .data-table td { padding: 9px 10px; vertical-align: top; border-bottom: 1px solid var(--rule); }
+      .data-table th:first-child, .data-table td:first-child { padding-left: 0; }
+      .data-table th:last-child, .data-table td:last-child { padding-right: 0; }
+      .data-table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+      .data-table .id { font-family: var(--font-display); font-size: 13.5px; white-space: nowrap; }
+      .data-table tbody tr:hover { background: rgba(31, 90, 67, 0.035); }
+      .step-status { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; white-space: nowrap; }
+      .step-status--pass { color: var(--ledger); }
+      .step-status--pending { color: var(--amber-ink); }
+      .step-status--pass .dot { background: var(--ledger); }
+      .step-status--pending .dot { background: var(--amber-ink); }
+      .matrix td:nth-child(3) { min-width: 220px; }
+      .matrix td:nth-child(4) { min-width: 240px; }
+      .matrix td:nth-child(5) { min-width: 190px; }
+      .matrix code { font-size: 10.5px; overflow-wrap: anywhere; }
+      .code-block { padding: 13px 15px; margin-top: 12px; overflow-x: auto; color: #e8efe5; background: var(--ledger-deep); border-radius: 3px; }
+      .code-block pre { margin: 0; font-size: 11.5px; line-height: 1.65; }
+      .code-block .cm { color: #9fb6a8; }
+      .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 30px; }
+      .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 26px; }
+      .panel { padding-top: 14px; }
+      .panel h3 { font-size: 12px; font-weight: 600; }
+      .panel p, .panel li { font-size: 12px; line-height: 1.55; color: var(--ink-soft); }
+      .panel p + p { margin-top: 7px; }
+      .checks { margin-top: 8px; }
+      .checks li { position: relative; padding: 7px 0 7px 24px; font-size: 12.5px; line-height: 1.5; border-bottom: 1px solid var(--rule); }
+      .checks li::before { position: absolute; top: 8px; left: 0; display: grid; width: 15px; height: 15px; font-size: 10px; content: ""; border: 1px solid var(--rule-strong); border-radius: 2px; place-items: center; }
+      .signoff { padding: 22px; margin-top: 22px; background: var(--surface); border: 1px solid var(--rule-strong); border-left: 4px solid var(--amber-ink); }
+      .signoff__head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--rule); }
+      .signoff h3 { font-family: var(--font-display); font-size: 1.35rem; font-weight: 500; }
+      .signoff__grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 24px; padding-top: 14px; }
+      .field { font-size: 11px; color: var(--ink-faint); }
+      .field span { display: block; padding: 8px 0 4px; font-size: 13px; color: var(--ink); border-bottom: 1px solid var(--rule-strong); }
+      .field--wide { grid-column: 1 / -1; }
+      .muted { color: var(--ink-faint); }
+
+      .margin { position: sticky; top: 0; z-index: 30; height: 100dvh; padding: 22px 22px 44px 24px; overflow-y: auto; background: var(--surface); border-left: 2px solid rgba(178, 58, 47, 0.55); }
+      .margin__head { display: flex; align-items: baseline; gap: 8px; padding-bottom: 12px; border-bottom: 1px solid var(--rule); }
+      .margin__title { font-family: var(--font-display); font-size: 21px; font-weight: 500; letter-spacing: -0.01em; }
+      .margin__status { display: flex; align-items: center; gap: 5px; margin-left: auto; font-size: 11px; color: var(--amber-ink); white-space: nowrap; }
+      .margin-note { padding: 16px 0; border-bottom: 1px solid var(--rule); }
+      .margin-note:last-child { border-bottom: 0; }
+      .margin-note__kicker { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--red-ink); }
+      .margin-note__kicker--quiet { color: var(--ink-soft); }
+      .margin-note p { margin-top: 6px; font-size: 12.5px; line-height: 1.55; color: var(--ink); }
+      .margin-note p strong { font-weight: 600; }
+      .margin-note ul { margin-top: 6px; }
+      .margin-note li { padding: 4px 0; font-size: 12px; line-height: 1.45; color: var(--ink-soft); border-top: 1px solid var(--rule); }
+      .margin-note li:first-child { border-top: 0; }
+      .margin-note code { font-size: 10.5px; overflow-wrap: anywhere; }
+      .margin-links { display: grid; gap: 2px; }
+      .margin-links a { padding: 5px 0; font-size: 12px; color: var(--ledger); text-decoration: underline; text-decoration-color: rgba(31, 90, 67, 0.35); text-underline-offset: 3px; }
+      .margin__foot { padding-top: 14px; margin-top: 6px; font-size: 11px; color: var(--ink-faint); border-top: 1px solid var(--rule); }
+
+      @media (max-width: 1280px) {
+        .app-shell { grid-template-columns: 216px minmax(0, 1fr) 306px; }
+        .page { padding-inline: 28px; }
+        .flow__body { grid-template-columns: minmax(0, 1.45fr) minmax(215px, 0.72fr); gap: 20px; }
+      }
+      @media (max-width: 1120px) {
+        .app-shell { grid-template-columns: 216px minmax(0, 1fr); }
+        .margin { position: static; grid-column: 1 / -1; height: auto; padding: 24px clamp(18px, 3vw, 34px) 34px; overflow: visible; border-top: 2px solid rgba(178, 58, 47, 0.55); border-left: 0; }
+        .margin__head, .margin__body, .margin__foot { max-width: 1120px; margin: 0 auto; }
+        .margin__body { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 26px; }
+        .margin-note { border-bottom: 0; border-top: 1px solid var(--rule); }
+        .margin-note:nth-child(-n + 3) { border-top: 0; }
+        .flow__body { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+        .flow__side { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 24px; padding-top: 12px; padding-left: 0; border-top: 1px solid var(--rule); border-left: 0; }
+      }
+      @media (max-width: 860px) {
+        .app-shell { grid-template-columns: minmax(0, 1fr); }
+        .spine { position: sticky; top: 0; z-index: 60; height: auto; padding: 10px 14px 8px; overflow: visible; border-right: 0; border-bottom: 1px solid rgba(232, 239, 229, 0.16); }
+        .brand { padding: 0 0 7px; }
+        .brand__mark { width: 24px; height: 24px; }
+        .brand__name { font-size: 18px; }
+        .brand__sub, .spine__meta, .spine__foot, .spine__label { display: none; }
+        .nav { display: flex; gap: 3px; padding-bottom: 2px; overflow-x: auto; scrollbar-width: thin; }
+        .nav a { flex: none; padding: 6px 9px; font-size: 12px; white-space: nowrap; background: rgba(232, 239, 229, 0.05); }
+        .nav a.is-active::before { top: auto; right: 8px; bottom: 2px; left: 8px; width: auto; height: 2px; }
+        .nav__num { display: none; }
+        .topbar { position: relative; min-height: 44px; padding: 7px 16px; }
+        .topbar__crumbs { font-size: 11px; }
+        .page { padding: 22px 16px 58px; }
+        .page-head { flex-direction: column; align-items: flex-start; gap: 14px; }
+        .page-head__actions { justify-content: flex-start; }
+        .page-head h1 { font-size: clamp(2.15rem, 9vw, 3rem); }
+        .toc { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .stat:nth-child(3) { padding-left: 0; border-left: 0; }
+        .stat:nth-child(n + 3) { border-top: 1px solid var(--rule); }
+        .section__head { flex-direction: column; align-items: flex-start; gap: 5px; }
+        .flow__head { grid-template-columns: 34px minmax(0, 1fr); }
+        .flow__tag { grid-column: 2; padding-top: 0; text-align: left; }
+        .flow__side { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+        .grid-2, .grid-3 { grid-template-columns: minmax(0, 1fr); gap: 0; }
+        .margin__body { grid-template-columns: minmax(0, 1fr); }
+        .margin-note, .margin-note:nth-child(-n + 3) { border-top: 1px solid var(--rule); }
+        .margin-note:first-child { border-top: 0; }
+        .signoff__grid { grid-template-columns: minmax(0, 1fr); }
+        .signoff__grid .field--wide { grid-column: auto; }
+        .matrix td:nth-child(3), .matrix td:nth-child(4), .matrix td:nth-child(5) { min-width: 200px; }
+      }
+      @media (max-width: 560px) {
+        .topbar__right .chip--pending { display: none; }
+        .stats { grid-template-columns: minmax(0, 1fr); }
+        .stat, .stat:nth-child(3) { padding-left: 0; border-left: 0; }
+        .stat:nth-child(n + 2) { border-top: 1px solid var(--rule); }
+        .toc { grid-template-columns: minmax(0, 1fr); }
+        .flow__head h3 { font-size: 1.3rem; }
+        .flow__index { font-size: 21px; }
+        .code-block { font-size: 11px; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        html { scroll-behavior: auto; }
+      }
+      @media print {
+        body { background: #fff; font-size: 10.5pt; }
+        .spine, .margin, .topbar, .page-head__actions, .toc, .code-block { display: none !important; }
+        .app-shell, .workspace { display: block; }
+        .page { max-width: none; padding: 0; }
+        .page-head { padding-top: 0; }
+        .section, .flow, .flow__head, .flow__body { break-inside: avoid; }
+        .data-table { font-size: 8.5pt; }
+        .data-table thead { display: table-header-group; }
+        .signoff { background: #fff; }
+        a { text-decoration: none; }
+      }
+
+      .shell { width: 100%; max-width: 1320px; padding: 0 28px; margin: 0 auto; }
+      .cover { position: relative; overflow: hidden; color: var(--paper); background: var(--ledger-deep); border-bottom: 6px solid var(--red-ink); }
+      .cover::after { position: absolute; top: -160px; right: -120px; width: 520px; height: 520px; pointer-events: none; content: ""; border: 1px solid rgba(237, 241, 232, 0.18); transform: rotate(18deg); }
+      .cover-inner { position: relative; z-index: 1; padding-block: 42px 54px; }
+      .cover .brand { display: flex; align-items: center; gap: 11px; padding: 0; color: var(--paper); font-family: var(--font-display); font-size: 21px; font-weight: 500; letter-spacing: -0.01em; }
+      .cover .brand:hover { text-decoration: none; }
+      .cover .brand__mark { width: 30px; height: 30px; }
+      .cover .brand__mark .mark-paper { stroke: var(--paper); }
+      .cover .brand__mark .mark-rule { stroke: var(--paper); opacity: 0.62; }
+      .cover .brand__mark .mark-margin { stroke: #e8a99f; }
+      .cover .brand__sub { display: block; margin-top: 2px; font-family: var(--font-ui); font-size: 10.5px; letter-spacing: 0.04em; text-transform: uppercase; color: #9fb6a8; }
+      .cover-grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.65fr); gap: 48px; align-items: end; margin-top: 52px; }
+      .cover .eyebrow { color: #e8a99f; }
+      .cover h1 { max-width: 13ch; margin-top: 10px; color: var(--paper); font-family: var(--font-display); font-size: clamp(42px, 6.2vw, 78px); font-weight: 500; line-height: 0.98; letter-spacing: -0.04em; text-wrap: balance; }
+      .cover-lede { max-width: 62ch; margin-top: 22px; font-size: 16.5px; line-height: 1.55; color: #c9d8ce; }
+      .pills { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 26px; }
+      .pill { padding: 5px 10px; font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; color: #e8efe5; border: 1px solid rgba(237, 241, 232, 0.36); border-radius: 2px; }
+      .demo-card { padding: 20px; color: var(--ink); background: var(--paper); border: 1px solid var(--paper); }
+      .demo-card .eyebrow { color: var(--red-ink); }
+      .demo-card h2 { margin-top: 3px; font-family: var(--font-display); font-size: 20px; font-weight: 500; line-height: 1.12; }
+      .demo-card table { margin-top: 12px; width: 100%; table-layout: fixed; }
+      .demo-card th { padding: 6px 0; font-size: 10.5px; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-soft); text-align: left; border-bottom: 1px solid var(--rule-strong); }
+      .demo-card th:nth-child(1), .demo-card td:nth-child(1) { width: 25%; }
+      .demo-card th:nth-child(2), .demo-card td:nth-child(2) { width: 42%; }
+      .demo-card th:nth-child(3), .demo-card td:nth-child(3) { width: 33%; }
+      .demo-card td { padding: 6px 0; font-size: 11.5px; border-bottom: 1px solid var(--rule); overflow-wrap: anywhere; }
+      .demo-card tr:last-child td { border-bottom: 0; }
+      .demo-card code { font-size: 10px; white-space: nowrap; }
+      .demo-note { margin-top: 12px; font-size: 11.5px; line-height: 1.5; color: var(--ink-soft); }
+      .layout { display: grid; grid-template-columns: 238px minmax(0, 1fr); gap: 52px; padding: 46px 0 80px; }
+      .side-toc { position: sticky; top: 26px; align-self: start; padding-top: 12px; border-top: 2px solid var(--ink); }
+      .side-toc__title { margin-bottom: 10px; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); }
+      .side-toc a { display: block; padding: 7px 0; font-size: 12.5px; color: var(--ink); border-bottom: 1px solid var(--rule); }
+      .side-toc a:hover { color: var(--red-ink); text-decoration: none; }
+      .side-toc a.is-active { color: var(--red-ink); }
+      .side-toc .small { font-size: 11.5px; color: var(--ink-soft); }
+      .side-toc__meta { padding: 13px 0 0; margin-top: 6px; font-size: 11.5px; line-height: 1.55; color: var(--ink-soft); border-top: 1px solid var(--rule); }
+      .side-toc__meta strong { display: block; margin-bottom: 4px; color: var(--ink); font-weight: 500; }
+      .side-toc__meta a { display: inline; padding: 0; color: var(--ledger); text-decoration: underline; text-decoration-color: rgba(31, 90, 67, 0.35); text-underline-offset: 3px; border: 0; }
+      .side-toc__status { display: inline-flex; align-items: center; gap: 5px; margin-top: 8px; font-size: 11px; color: var(--amber-ink); }
+      .main { min-width: 0; }
+      .flow-map { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); margin-top: 28px; background: var(--surface); border: 1px solid var(--ink); }
+      .map-step { min-width: 0; padding: 13px 12px 14px; border-left: 1px solid var(--rule); }
+      .map-step:first-child { border-left: 0; }
+      .map-num { display: block; margin-bottom: 4px; font-size: 10px; color: var(--red-ink); }
+      .map-name { display: block; font-size: 12px; font-weight: 600; line-height: 1.3; }
+      .map-hint { display: block; margin-top: 3px; font-size: 10.5px; line-height: 1.35; color: var(--ink-soft); }
+      .prompt-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 18px; }
+      .prompt-card { display: grid; gap: 9px; align-content: start; padding: 13px 14px; background: var(--surface); border: 1px solid var(--rule); }
+      .prompt-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+      .prompt-kind { padding: 2px 5px; font-size: 9.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-soft); border: 1px solid currentColor; white-space: nowrap; }
+      .prompt-kind--read { color: var(--ledger); }
+      .prompt-kind--write { color: var(--red-ink); }
+      .prompt-kind--manage { color: var(--amber-ink); }
+      .prompt-card code { font-size: 11.5px; line-height: 1.5; color: var(--ink); overflow-wrap: anywhere; }
+      .copy { padding: 3px 7px; font-size: 9.5px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-soft); background: transparent; border: 1px solid var(--rule); white-space: nowrap; }
+      .copy:hover { color: var(--ink); border-color: var(--ink); }
+      .copy.is-copied { color: var(--ledger); border-color: var(--ledger); }
+      .tag { display: inline-block; padding: 1px 5px; font-size: 9.5px; letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap; border: 1px solid var(--rule); }
+      .tag--read { color: var(--ledger); border-color: var(--ledger); }
+      .tag--write { color: var(--red-ink); border-color: var(--red-ink); }
+      .tag--manage { color: var(--amber-ink); border-color: var(--amber-ink); }
+      .checklist { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; margin-top: 16px; }
+      .check { display: flex; gap: 9px; align-items: flex-start; padding: 10px 12px; font-size: 12.5px; background: var(--surface); border: 1px solid var(--rule); }
+      .check input { flex: 0 0 auto; margin-top: 4px; accent-color: var(--ledger); }
+      .check span { color: var(--ink-soft); }
+      .check strong { color: var(--ink); font-weight: 600; }
+      .anatomy { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 16px; }
+      .an { padding: 11px 12px; font-size: 12px; background: var(--surface); border-top: 3px solid var(--ink); }
+      .an strong { display: block; margin-bottom: 3px; font-size: 12.5px; }
+      .an span { color: var(--ink-soft); }
+      .an:nth-child(2) { border-top-color: var(--ledger); }
+      .an:nth-child(3) { border-top-color: var(--red-ink); }
+      .product-links { display: flex; flex-wrap: wrap; gap: 5px 14px; padding-top: 8px; font-size: 12px; color: var(--ink-soft); }
+      .product-links a { color: var(--ledger); text-decoration: underline; text-decoration-color: rgba(31, 90, 67, 0.35); text-underline-offset: 3px; }
+      .foot { padding: 24px 0 46px; font-size: 12px; line-height: 1.55; color: var(--ink-soft); border-top: 1px solid var(--rule); }
+      .foot strong { color: var(--ink); font-weight: 500; }
+      @media (max-width: 1120px) {
+        .cover-grid { grid-template-columns: minmax(0, 1fr); gap: 30px; }
+      }
+      @media (max-width: 980px) {
+        .layout { grid-template-columns: minmax(0, 1fr); gap: 26px; }
+        .side-toc { position: static; display: flex; flex-wrap: wrap; gap: 0 18px; padding-top: 10px; }
+        .side-toc__title { width: 100%; margin-bottom: 3px; }
+        .side-toc a { padding: 5px 0; font-size: 12px; border-bottom: 0; }
+        .side-toc__meta { width: 100%; margin-top: 8px; padding-top: 10px; }
+        .flow-map { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+        .map-step:nth-child(5) { border-left: 0; }
+        .map-step:nth-child(n + 5) { border-top: 1px solid var(--rule); }
+      }
+      @media (max-width: 760px) {
+        .shell { padding: 0 18px; }
+        .cover-inner { padding-block: 30px 38px; }
+        .cover-grid { margin-top: 34px; }
+        .cover h1 { font-size: clamp(40px, 12vw, 58px); }
+        .layout { padding-top: 30px; }
+        .flow-map { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .map-step:nth-child(odd) { border-left: 0; }
+        .map-step:nth-child(n + 3) { border-top: 1px solid var(--rule); }
+        .prompt-grid, .checklist, .anatomy { grid-template-columns: minmax(0, 1fr); }
+        .matrix td:nth-child(3), .matrix td:nth-child(4), .matrix td:nth-child(5) { min-width: 190px; }
+      }
+      @media (max-width: 430px) {
+        .demo-card td { font-size: 10.5px; }
+        .demo-card code { font-size: 9px; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        html { scroll-behavior: auto; }
+      }
+      @media print {
+        .cover { color: #000; background: #fff; border-bottom: 2px solid #000; }
+        .cover::after, .side-toc, .copy, .checklist input { display: none !important; }
+        .cover h1, .cover .brand, .cover .eyebrow { color: #000; }
+        .cover-lede, .cover .brand__sub, .pills, .pill { color: #333; }
+        .pill { border-color: #999; }
+        .layout { display: block; padding: 20px 0; }
+        .demo-card { border-color: #999; }
+        .flow-map { break-inside: avoid; }
+      }
+    
+      .chip--live { color: var(--ledger); background: var(--green-wash); border-color: #b9ccb9; }
+      .chip--live .dot { background: var(--ledger); }
+      .data-table code, .env-key { overflow-wrap: anywhere; word-break: break-word; }
+      .data-table .url { min-width: 260px; }
+      .data-table .service { white-space: nowrap; }
+      .signoff--live { border-left-color: var(--ledger); }
+      .deploy-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 28px; margin-top: 18px; }
+      .deploy-card { padding: 14px 15px; background: var(--surface); border-top: 3px solid var(--ledger); }
+      .deploy-card:nth-child(2) { border-top-color: var(--red-ink); }
+      .deploy-card:nth-child(3) { border-top-color: var(--amber-ink); }
+      .deploy-card:nth-child(4) { border-top-color: var(--ledger-mid); }
+      .deploy-card h3 { font-family: var(--font-display); font-size: 1.1rem; font-weight: 500; }
+      .deploy-card p, .deploy-card li { font-size: 12px; line-height: 1.5; color: var(--ink-soft); }
+      .deploy-card ul { margin-top: 6px; }
+      .deploy-card li { padding: 3px 0; border-top: 1px solid var(--rule); }
+      .deploy-card li:first-child { border-top: 0; }
+      .deploy-card code { overflow-wrap: anywhere; }
+      .env-table td:nth-child(1) { min-width: 185px; }
+      .env-table td:nth-child(2) { min-width: 105px; }
+      .env-table td:nth-child(3) { min-width: 250px; }
+      .callout--live { border-left-color: var(--ledger); }
+      .callout--live strong { color: var(--ledger); }
+      .verification .pass { color: var(--ledger); white-space: nowrap; }
+      .verification td:nth-child(2) { min-width: 125px; }
+      .verification td:nth-child(3) { min-width: 250px; }
+      @media (max-width: 760px) {
+        .deploy-grid { grid-template-columns: minmax(0, 1fr); }
+      }
+</style>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="cover">
+      <div class="shell cover-inner">
+        <div class="brand">
+          <svg class="brand__mark" viewBox="0 0 32 32" aria-hidden="true">
+            <rect class="mark-paper" x="4.5" y="3" width="23" height="26" rx="1" />
+            <path class="mark-rule" d="M9 9h14M9 14h14M9 19h9" />
+            <path class="mark-margin" d="M12 3v26" />
+          </svg>
+          <span>
+            Daybook
+            <span class="brand__sub">AI accounting</span>
+          </span>
+        </div>
+
+        <div class="cover-grid">
+          <div>
+            <p class="eyebrow">Production deployment · issue 037 · 17 November 2026</p>
+            <h1>Live, with the books open.</h1>
+            <p class="cover-lede">
+              Daybook is deployed across Vercel, Render, and Neon. The Next.js frontend is on
+              Vercel, the NestJS API and its two supporting services run on Render, and the system
+              of record is a Neon Postgres project. This is a working demo, not a hardening
+              sign-off: synthetic data, public demo credentials, and free-tier trade-offs are
+              called out below.
+            </p>
+            <div class="pills">
+              <span class="pill">Vercel · Next.js</span>
+              <span class="pill">Render · NestJS</span>
+              <span class="pill">Neon · Postgres 16</span>
+              <span class="pill">Render Key Value</span>
+              <span class="pill">MinIO attachments</span>
+              <span class="pill">AI stub</span>
+            </div>
+          </div>
+
+          <aside class="demo-card">
+            <p class="eyebrow">Production endpoints</p>
+            <h2>Open the live demo</h2>
+            <table>
+              <thead><tr><th>Layer</th><th>Service</th><th>Endpoint</th></tr></thead>
+              <tbody>
+                <tr><td>App</td><td>Vercel</td><td><code>ai-accounting-beta.vercel.app</code></td></tr>
+                <tr><td>API</td><td>Render</td><td><code>daybook-api-9nwb.onrender.com</code></td></tr>
+                <tr><td>Database</td><td>Neon</td><td><code>ai-accounting / daybook</code></td></tr>
+                <tr><td>Queue</td><td>Render KV</td><td><code>daybook-redis</code></td></tr>
+                <tr><td>Files</td><td>MinIO</td><td><code>daybook-minio.onrender.com</code></td></tr>
+              </tbody>
+            </table>
+            <p class="demo-note">
+              Sign in with <code>owner@acme.test</code> / <code>Passw0rd!2026</code>. These are
+              published demo credentials; rotate or remove them before real data. Backend health:
+              <code>/api/v1/health</code>.
+            </p>
+          </aside>
+        </div>
+      </div>
+    </header>
+
+    <div class="layout shell" id="top">
+      <aside class="side-toc" aria-label="Deployment navigation">
+        <p class="side-toc__title">Deployment record</p>
+        <a href="#architecture">Architecture</a>
+        <a href="#services">Services</a>
+        <a href="#environment">Environment</a>
+        <a href="#provisioning">Provisioning</a>
+        <a href="#runbook">Deploy runbook</a>
+        <a href="#verification">Verification</a>
+        <a href="#operations">Operations</a>
+        <a href="#limits">Known limits</a>
+        <a href="#hardening">Hardening</a>
+        <a class="small" href="#record">Deployment record</a>
+        <div class="side-toc__meta">
+          <strong>Production is live</strong>
+          <span class="side-toc__status" style="color: var(--ledger)"><span class="dot dot--green"></span>Smoke checks passed · 17 Nov 2026</span><br />
+          Runtime commit 24193a4<br />
+          <a href="AI-Accounting-User-Flows.html">User flows</a> ·
+          <a href="Requirements.md">Requirements</a> ·
+          <a href="issues/037-deployment.md">Issue 037</a> ·
+          <a href="README.md">README</a>
+        </div>
+      </aside>
+
+      <main class="main" id="main">
+        <div class="link-strip">
+          <span>Reference:</span>
+          <a href="AI-Accounting-User-Flows.html">AI-Accounting-User-Flows.html</a>
+          <a href="Requirements.md">Requirements.md</a>
+          <a href="issues/037-deployment.md">issue 037</a>
+          <a href="README.md">README.md</a>
+          <a href="spine.md">spine.md</a>
+        </div>
+
+        <div class="stats" aria-label="Deployment snapshot">
+          <div class="stat">
+            <div class="stat__label">Platforms</div>
+            <div class="stat__value">3</div>
+            <div class="stat__note">Vercel · Render · Neon</div>
+          </div>
+          <div class="stat">
+            <div class="stat__label">Runtime services</div>
+            <div class="stat__value">5</div>
+            <div class="stat__note">Frontend, API, DB, queue, files</div>
+          </div>
+          <div class="stat">
+            <div class="stat__label">Organizations seeded</div>
+            <div class="stat__value">2</div>
+            <div class="stat__note">Acme and Nimbus</div>
+          </div>
+          <div class="stat">
+            <div class="stat__label">Test hooks</div>
+            <div class="stat__value">0</div>
+            <div class="stat__note">AGENT_TEST_HOOKS=0</div>
+          </div>
+        </div>
+
+        <div class="callout callout--live">
+          <p><strong>Runtime note.</strong> Production currently runs commit <code>24193a4</code>. Documentation-only commits after that do not change the running app. Backend auto-deploy is scoped to <code>backend/**</code>; the frontend production deployment is recorded below.</p>
+        </div>
+
+        <section class="section" id="architecture" aria-labelledby="architecture-title">
+          <div class="section__head">
+            <div>
+              <h2 id="architecture-title">Architecture</h2>
+              <p>One browser, one API, one system of record, with queue and object storage isolated on Render.</p>
+            </div>
+            <span class="section__meta">Live topology</span>
+          </div>
+
+          <div class="flow-map" aria-label="Deployment topology">
+            <div class="map-step"><span class="map-num">01</span><span class="map-name">Browser</span><span class="map-hint">Next.js app on the Vercel edge</span></div>
+            <div class="map-step"><span class="map-num">02</span><span class="map-name">Vercel frontend</span><span class="map-hint">Root directory <code>frontend</code>; production alias</span></div>
+            <div class="map-step"><span class="map-num">03</span><span class="map-name">Render API</span><span class="map-hint">NestJS Docker service; <code>/api/v1</code></span></div>
+            <div class="map-step"><span class="map-num">04</span><span class="map-name">Neon Postgres</span><span class="map-hint">System of record; migrations + seed</span></div>
+            <div class="map-step"><span class="map-num">05</span><span class="map-name">KV + MinIO</span><span class="map-hint">BullMQ queue and attachment objects</span></div>
+          </div>
+
+          <div class="grid-2" style="margin-top: 22px">
+            <div class="panel">
+              <h3>Request path</h3>
+              <p>The browser loads the static Next.js app from Vercel. Client-side API calls go to <code>https://daybook-api-9nwb.onrender.com/api/v1</code> with a Bearer token and <code>X-Organization-Id</code>. Render terminates TLS and forwards to the NestJS container on its injected port. Prisma reads and writes Neon over TLS.</p>
+              <p>CORS is pinned to <code>https://ai-accounting-beta.vercel.app</code>; credentials are not used by the app, but the API enables CORS credentials consistently with the NestJS configuration.</p>
+            </div>
+            <div class="panel">
+              <h3>Side paths</h3>
+              <p>Agent jobs are queued in Render Key Value and consumed by the in-process BullMQ worker in the API service. Attachments go to MinIO over HTTPS; the API stores metadata in Postgres and returns 15-minute presigned GET URLs from the public MinIO host.</p>
+              <p>MinIO sits on the public network because the free Render private hostname did not resolve from the API container. The backend therefore uses the public endpoint for both the SDK and presigning.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="section" id="services" aria-labelledby="services-title">
+          <div class="section__head">
+            <div>
+              <h2 id="services-title">Provisioned services</h2>
+              <p>Names, plans, regions, and the exact record created during deployment.</p>
+            </div>
+            <span class="section__meta">All live</span>
+          </div>
+          <div class="table-scroll">
+            <table class="data-table">
+              <caption>Production resources · observed 17 November 2026</caption>
+              <thead><tr><th>Layer</th><th>Resource</th><th>Plan / runtime</th><th>Region</th><th>Address / ID</th></tr></thead>
+              <tbody>
+                <tr><td>Frontend</td><td class="service">ai-accounting</td><td>Vercel Hobby · Next.js</td><td>iad1 functions</td><td class="url"><code>ai-accounting-beta.vercel.app</code><br /><span class="muted">prj_NYU349qjGLbKBMN8Dp4XwDk9U9XI</span></td></tr>
+                <tr><td>API</td><td class="service">daybook-api</td><td>Render free · Docker</td><td>Singapore</td><td class="url"><code>daybook-api-9nwb.onrender.com</code><br /><span class="muted">srv-dbu6legn74is73fjg4sg</span></td></tr>
+                <tr><td>Database</td><td class="service">ai-accounting</td><td>Neon free · Postgres 16</td><td>aws-ap-southeast-1</td><td class="url"><code>daybook</code> database · direct TLS<br /><span class="muted">solitary-dawn-55526067</span></td></tr>
+                <tr><td>Queue</td><td class="service">daybook-redis</td><td>Render Key Value free</td><td>Singapore</td><td class="url"><code>redis://red-dbu6kgon74is73fjd2t0:6379</code><br /><span class="muted">internal URL · no persistence</span></td></tr>
+                <tr><td>Files</td><td class="service">daybook-minio</td><td>Render free · MinIO image</td><td>Singapore</td><td class="url"><code>daybook-minio.onrender.com</code><br /><span class="muted">srv-dbu6kslckfvc73b8pjn0 · ephemeral</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="section" id="environment" aria-labelledby="environment-title">
+          <div class="section__head">
+            <div>
+              <h2 id="environment-title">Environment contract</h2>
+              <p>Secret values live only in the platform dashboards; this document records names, ownership, and non-secret production values.</p>
+            </div>
+            <span class="section__meta">No secrets in repo</span>
+          </div>
+          <div class="table-scroll">
+            <table class="data-table env-table">
+              <thead><tr><th>Variable</th><th>Owner</th><th>Production value / rule</th></tr></thead>
+              <tbody>
+                <tr><td><code>NEXT_PUBLIC_API_URL</code></td><td>Vercel</td><td><code>https://daybook-api-9nwb.onrender.com/api/v1</code> · production, preview, development</td></tr>
+                <tr><td><code>DATABASE_URL</code></td><td>Render API</td><td>Neon direct TLS URI (not pooled) · secret</td></tr>
+                <tr><td><code>JWT_SECRET</code></td><td>Render API</td><td>96-character generated secret · secret</td></tr>
+                <tr><td><code>CORS_ORIGINS</code></td><td>Render API</td><td><code>https://ai-accounting-beta.vercel.app</code></td></tr>
+                <tr><td><code>REDIS_URL</code></td><td>Render API</td><td><code>redis://red-dbu6kgon74is73fjd2t0:6379</code> · internal, unauthenticated by default</td></tr>
+                <tr><td><code>AI_PROVIDER</code></td><td>Render API</td><td><code>stub</code> · deterministic agent; no Gemini key present</td></tr>
+                <tr><td><code>AGENT_QUEUE_DRIVER</code></td><td>Render API</td><td><code>bull</code> · Render Key Value</td></tr>
+                <tr><td><code>AGENT_TEST_HOOKS</code></td><td>Render API</td><td><code>0</code> · guarded hooks disabled</td></tr>
+                <tr><td><code>AGENT_DEFAULT_MODEL</code> / <code>AGENT_MAX_ATTEMPTS</code></td><td>Render API</td><td><code>flash</code> / <code>3</code></td></tr>
+                <tr><td><code>MINIO_ENDPOINT</code> / <code>MINIO_PORT</code> / <code>MINIO_USE_SSL</code></td><td>Render API</td><td><code>daybook-minio.onrender.com</code> / <code>443</code> / <code>true</code></td></tr>
+                <tr><td><code>MINIO_PUBLIC_ENDPOINT</code> / <code>MINIO_PUBLIC_PORT</code> / <code>MINIO_PUBLIC_USE_SSL</code></td><td>Render API</td><td>Same public host / <code>443</code> / <code>true</code> for presigned URLs</td></tr>
+                <tr><td><code>MINIO_BUCKET</code> / <code>MINIO_REGION</code></td><td>Render API</td><td><code>daybook-attachments</code> / <code>us-east-1</code></td></tr>
+                <tr><td><code>MINIO_ACCESS_KEY</code> / <code>MINIO_SECRET_KEY</code></td><td>Render API + MinIO</td><td>Generated pair set in both services · secret</td></tr>
+                <tr><td><code>NODE_ENV</code></td><td>Render API</td><td><code>production</code></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="section" id="provisioning" aria-labelledby="provisioning-title">
+          <div class="section__head">
+            <div>
+              <h2 id="provisioning-title">Provisioning sequence</h2>
+              <p>The order used, including the checks that prevented a broken first connection.</p>
+            </div>
+            <span class="section__meta">Completed</span>
+          </div>
+          <ol class="rail" style="margin-top: 18px">
+            <li><div class="rail__title">Create the Neon project</div><div class="rail__body">Project <code>ai-accounting</code>, Postgres 16, database <code>daybook</code>, role <code>daybook_owner</code>, region <code>aws-ap-southeast-1</code>. Retrieve the direct TLS connection URI; do not use the pooled URI for migrations.</div></li>
+            <li><div class="rail__title">Create Render Key Value</div><div class="rail__body">Free instance <code>daybook-redis</code> in Singapore, maxmemory policy <code>noeviction</code>. Render services use the internal URL; no external access is enabled.</div></li>
+            <li class="is-write"><div class="rail__title">Create the MinIO web service</div><div class="rail__body">Image <code>docker.io/bitnamilegacy/minio:latest</code>, command <code>minio server /bitnami/minio/data --address :10000</code>, health check <code>/minio/health/live</code>. The first <code>/data</code> command failed with file access denied; the writable Bitnami data path fixed it.</div></li>
+            <li><div class="rail__title">Create the Render API</div><div class="rail__body">Docker web service from <code>furqaniq/ai-accounting</code>, branch <code>main</code>, root <code>backend</code>, health check <code>/api/v1/health</code>, free plan. Docker CMD runs <code>prisma migrate deploy</code> before Nest starts.</div></li>
+            <li><div class="rail__title">Set secrets and connect services</div><div class="rail__body">Add Neon, Redis, JWT, CORS, MinIO, and agent variables in Render. MinIO initially used the private hostname; DNS failed with <code>ENOTFOUND daybook-minio</code>, so both SDK and presigning use the public HTTPS endpoint.</div></li>
+            <li><div class="rail__title">Migrate and seed</div><div class="rail__body">Run Prisma against Neon, then run the deterministic seed with <code>AGENT_QUEUE_DRIVER=inline</code>. All migrations applied and both organizations seeded successfully.</div></li>
+            <li><div class="rail__title">Create the Vercel project and deploy</div><div class="rail__body">Project <code>ai-accounting</code>, root <code>frontend</code>, framework Next.js; add <code>NEXT_PUBLIC_API_URL</code> before building; production deployment READY on the alias.</div></li>
+          </ol>
+        </section>
+
+        <section class="section" id="runbook" aria-labelledby="runbook-title">
+          <div class="section__head">
+            <div>
+              <h2 id="runbook-title">Deploy runbook</h2>
+              <p>Repeatable commands and the normal change path. Replace placeholder connection strings; never commit real values.</p>
+            </div>
+            <span class="section__meta">Copy-ready</span>
+          </div>
+          <button class="copy" type="button" data-copy="#deploy-commands" style="margin-top: 12px">Copy commands</button>
+          <div class="code-block" id="deploy-commands">
+<pre><span class="cm"># 1. Apply migrations to Neon (from the repo root)</span>
+cd backend
+DATABASE_URL="postgresql://..." npx prisma migrate deploy
+
+<span class="cm"># 2. Seed the demo organizations without a Redis dependency</span>
+DATABASE_URL="postgresql://..." AGENT_QUEUE_DRIVER=inline npx ts-node prisma/seed.ts
+
+<span class="cm"># 3. Backend and docs: commit and push; Render auto-deploys backend/** changes</span>
+git add -A && git commit -m "..." && git push
+
+<span class="cm"># 4. Health checks</span>
+curl -fsS https://daybook-api-9nwb.onrender.com/api/v1/health
+curl -fsS https://daybook-minio.onrender.com/minio/health/live
+curl -fsSI https://ai-accounting-beta.vercel.app | head -n 1</pre>
+          </div>
+          <div class="deploy-grid">
+            <div class="deploy-card">
+              <h3>Normal deploy</h3>
+              <ul>
+                <li>Backend: push to <code>main</code>; Render builds <code>backend/</code> on the Dockerfile and runs migrations at start.</li>
+                <li>Frontend: create a production deployment from the current <code>main</code> commit in Vercel, or redeploy the previous production deployment.</li>
+                <li>Docs: static root HTML changes do not require a runtime deploy.</li>
+              </ul>
+            </div>
+            <div class="deploy-card">
+              <h3>Database changes</h3>
+              <ul>
+                <li>Add migrations in chronological filename order.</li>
+                <li>Run <code>prisma migrate deploy</code> against Neon before relying on new code.</li>
+                <li>Reseed only when demo fixtures change; the seed is idempotent.</li>
+              </ul>
+            </div>
+            <div class="deploy-card">
+              <h3>Logs</h3>
+              <ul>
+                <li>Render Dashboard → <code>daybook-api</code> → Logs for Nest/Prisma/BullMQ.</li>
+                <li>MinIO logs show startup and object errors.</li>
+                <li>Vercel → Deployments → Build Logs for Next.js failures.</li>
+              </ul>
+            </div>
+            <div class="deploy-card">
+              <h3>Rollback</h3>
+              <ul>
+                <li>Vercel: promote a previous READY production deployment.</li>
+                <li>Render: roll back to the previous live deploy.</li>
+                <li>Neon: restore a branch or point-in-time snapshot; migrations are forward-only.</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <section class="section" id="verification" aria-labelledby="verification-title">
+          <div class="section__head">
+            <div>
+              <h2 id="verification-title">Verification</h2>
+              <p>Production smoke checks run after the final backend restart. No destructive regression suite was run against production.</p>
+            </div>
+            <span class="section__meta">7 / 7 passed</span>
+          </div>
+          <div class="table-scroll">
+            <table class="data-table verification">
+              <thead><tr><th>Check</th><th>Result</th><th>Evidence</th></tr></thead>
+              <tbody>
+                <tr><td>Frontend alias</td><td class="pass">200</td><td>Vercel production alias serves the Daybook login page.</td></tr>
+                <tr><td>Backend health</td><td class="pass">200</td><td><code>{"status":"ok"}</code> from <code>/api/v1/health</code>.</td></tr>
+                <tr><td>Auth + tenancy</td><td class="pass">200</td><td>Owner login returns two memberships; CORS echoes the Vercel origin.</td></tr>
+                <tr><td>Dashboard</td><td class="pass">$5,000.00</td><td>Acme cash across two accounts; receivables $1,274.25; payables $1,124.50.</td></tr>
+                <tr><td>Agent queue</td><td class="pass">COMPLETED</td><td>Prompt queued via Render Key Value; deterministic stub returned the cash summary.</td></tr>
+                <tr><td>Object storage</td><td class="pass">201 / 200</td><td>Attachment upload, list, presigned GET, download, and delete all succeeded; test object removed.</td></tr>
+                <tr><td>Browser UI</td><td class="pass">No errors</td><td>Chrome loaded login, Overview ($5,000.00), Reports, and Clerk with no console or page errors.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="callout">
+            <p><strong>Existing suite unchanged.</strong> Local verification remains Jest <strong>262 passed / 42 suites</strong> and Playwright <strong>47 passed / 29 specs</strong> from issue 035. The production checks above are additive; they do not replace the local regression suite.</p>
+          </div>
+        </section>
+
+        <section class="section" id="operations" aria-labelledby="operations-title">
+          <div class="section__head">
+            <div>
+              <h2 id="operations-title">Operations</h2>
+              <p>The demo works now; these are the tasks that keep it trustworthy.</p>
+            </div>
+            <span class="section__meta">Runbook</span>
+          </div>
+          <div class="grid-2">
+            <div class="panel">
+              <h3>Backups and recovery</h3>
+              <p>Neon is the system of record. Use Neon branches and point-in-time restore before destructive changes. Attachments are not backed up: the free MinIO service has no persistent disk, so objects disappear on a restart or redeploy. Add a Render disk or move objects to durable S3-compatible storage before storing real receipts.</p>
+              <h3 style="margin-top: 14px">Queue recovery</h3>
+              <p>Render Key Value free has no persistence. In-flight jobs can be lost on restart. Cron definitions live in Postgres and the backend re-registers enabled rows at startup; historical agent logs and jobs are in Postgres and survive.</p>
+            </div>
+            <div class="panel">
+              <h3>Secret rotation</h3>
+              <p>Rotate <code>JWT_SECRET</code> to invalidate sessions; rotate the MinIO pair in both MinIO and the API together; rotate the Neon role password and update <code>DATABASE_URL</code>. Never add real credentials to this document or the repository.</p>
+              <h3 style="margin-top: 14px">Monitoring</h3>
+              <p>Use Render health checks for the API and MinIO, Vercel deployment status for the frontend, and Neon metrics for compute/storage. The API has no external uptime monitor or alert routing yet.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="section" id="limits" aria-labelledby="limits-title">
+          <div class="section__head">
+            <div>
+              <h2 id="limits-title">Known limits</h2>
+              <p>What this deployment is, and what it is not.</p>
+            </div>
+            <span class="section__meta">Read before real data</span>
+          </div>
+          <div class="table-scroll">
+            <table class="data-table">
+              <thead><tr><th>Area</th><th>Current behaviour</th><th>Before production use</th></tr></thead>
+              <tbody>
+                <tr><td>Demo accounts</td><td>Six seeded logins use the published password <code>Passw0rd!2026</code>.</td><td>Rotate passwords or replace the demo seed with real onboarding.</td></tr>
+                <tr><td>AI provider</td><td><code>AI_PROVIDER=stub</code>; deterministic answers, no Gemini calls.</td><td>Add a billed Gemini key and set <code>AI_PROVIDER=auto</code> or <code>gemini</code>; review data-use terms.</td></tr>
+                <tr><td>Attachments</td><td>MinIO free service with no disk; objects are ephemeral.</td><td>Attach a persistent disk on a paid Render plan or use durable S3-compatible storage.</td></tr>
+                <tr><td>Queue</td><td>Render Key Value free; no persistence; jobs may be lost on restart.</td><td>Use a paid Key Value plan with persistence for automation reliability.</td></tr>
+                <tr><td>Compute</td><td>Render free services sleep after idle; first request is cold.</td><td>Use paid always-on instances for cron/event SLAs and low latency.</td></tr>
+                <tr><td>Database</td><td>Neon free with auto-suspend; single direct endpoint.</td><td>Add pooled runtime access if connection volume grows; review backup/PITR plan.</td></tr>
+                <tr><td>Frontend</td><td>Default <code>ai-accounting-beta.vercel.app</code> domain; tokens in localStorage.</td><td>Add a custom domain, security headers, and a session-hardening review.</td></tr>
+                <tr><td>Scale</td><td>One API instance; in-process BullMQ workers.</td><td>Separate worker instances before scaling API replicas.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="section" id="hardening" aria-labelledby="hardening-title">
+          <div class="section__head">
+            <div>
+              <h2 id="hardening-title">Hardening checklist</h2>
+              <p>Complete these before this deployment holds real financial data.</p>
+            </div>
+            <span class="section__meta">Not yet complete</span>
+          </div>
+          <ul class="checks">
+            <li>Rotate all six demo passwords and remove the demo-account picker from the sign-in page.</li>
+            <li>Replace <code>AI_PROVIDER=stub</code> with a billed provider and confirm the data-processing terms.</li>
+            <li>Attach persistent storage to MinIO or move attachments to durable S3-compatible storage.</li>
+            <li>Move Key Value and the API to plans that do not sleep or drop queue state.</li>
+            <li>Add uptime checks, error tracking, and alert routing for the API, database, and frontend.</li>
+            <li>Review CORS, JWT lifetime, refresh-token rotation, and localStorage token storage with a security pass.</li>
+            <li>Define Neon backup/PITR retention and rehearse a restore.</li>
+            <li>Remove or disable <code>AGENT_TEST_HOOKS</code> in every non-test environment (currently <code>0</code>).</li>
+          </ul>
+        </section>
+
+        <section class="section" id="record" aria-labelledby="record-title">
+          <div class="section__head">
+            <div>
+              <h2 id="record-title">Deployment record</h2>
+              <p>The observed state on 17 November 2026.</p>
+            </div>
+            <span class="section__meta">Live</span>
+          </div>
+          <div class="signoff signoff--live">
+            <div class="signoff__head">
+              <h3>Production deployment · issue 037</h3>
+              <span class="step-status" style="color: var(--ledger)"><span class="dot dot--green"></span>Deployed and smoke-tested</span>
+            </div>
+            <div class="signoff__grid">
+              <label class="field">Frontend<span><code>ai-accounting-beta.vercel.app</code></span></label>
+              <label class="field">Backend<span><code>daybook-api-9nwb.onrender.com</code></span></label>
+              <label class="field">Database<span>Neon <code>ai-accounting</code> · <code>daybook</code></span></label>
+              <label class="field">Queue<span>Render Key Value <code>daybook-redis</code></span></label>
+              <label class="field">Files<span>MinIO <code>daybook-minio</code></span></label>
+              <label class="field">Runtime commit<span><code>24193a4</code></span></label>
+              <label class="field field--wide">Decision<span>Live demo accepted for client walkthrough; production hardening items remain open.</span></label>
+            </div>
+            <p style="margin-top: 14px; font-size: 11.5px; color: var(--ink-faint)">
+              This record proves the deployment exists and passed the checks above. It is not a
+              security certification, a backup guarantee, or approval to store real customer data.
+            </p>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <footer class="foot">
+      <div class="shell">
+        <strong>Daybook</strong> · AI accounting MVP · production deployment record 037 · Vercel + Render + Neon.
+        This file is self-contained: one static HTML document with inline CSS and JavaScript, no build step, no server requirement.
+        <br />
+        Prepared 17 November 2026 · synthetic demo data only · secrets excluded · <a href="AI-Accounting-User-Flows.html">User flows</a> · <a href="#top">Back to top</a>
+      </div>
+    </footer>
+
+    <script>
+      (() => {
+        const links = [...document.querySelectorAll('.side-toc a[href^="#"]')];
+        const targets = links.map((link) => document.querySelector(link.getAttribute('href'))).filter(Boolean);
+        if ('IntersectionObserver' in window) {
+          const observer = new IntersectionObserver((entries) => {
+            const visible = entries.filter((entry) => entry.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+            if (!visible) return;
+            links.forEach((link) => link.classList.toggle('is-active', link.getAttribute('href') === '#' + visible.target.id));
+          }, { rootMargin: '-20% 0px -65% 0px', threshold: [0.1, 0.4] });
+          targets.forEach((target) => observer.observe(target));
+        }
+        document.querySelectorAll('[data-copy]').forEach((button) => {
+          button.addEventListener('click', async () => {
+            const source = document.querySelector(button.dataset.copy);
+            const text = source ? source.innerText : '';
+            try {
+              await navigator.clipboard.writeText(text);
+              const old = button.textContent;
+              button.textContent = 'Copied';
+              button.classList.add('is-copied');
+              setTimeout(() => { button.textContent = old; button.classList.remove('is-copied'); }, 1600);
+            } catch {
+              button.textContent = 'Copy failed';
+              setTimeout(() => { button.textContent = 'Copy commands'; }, 1600);
+            }
+          });
+        });
+      })();
+    </script>
+  </body>
+</html>
