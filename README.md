@@ -9,8 +9,29 @@ validated, permission-checked, tenant-scoped tool registry. The spec of record i
 
 Open [`AI-Accounting-User-Flows.html`](AI-Accounting-User-Flows.html) directly in a browser (no
 build step) for the ten documented flows, copy-ready AI prompts, the AI-01–AI-17 test matrix with
-evidence, and the responsive/label review record. It is the single static 036 review package and
-is **awaiting client/design sign-off**.
+evidence, and the responsive/label review record. The client approved it on 2026-11-17.
+
+Deployment architecture and the production setup are documented in
+[`AI-Accounting-Deployment.html`](AI-Accounting-Deployment.html).
+
+## Production deployment
+
+The demo is live on the client-requested split:
+
+| Layer | Service | Address |
+| --- | --- | --- |
+| Frontend | Vercel | <https://ai-accounting-beta.vercel.app> |
+| Backend | Render | <https://daybook-api-9nwb.onrender.com> |
+| Database | Neon Postgres | project `ai-accounting`, database `daybook` |
+| Queue | Render Key Value | `daybook-redis` |
+| Attachments | Render MinIO | <https://daybook-minio.onrender.com> |
+
+Open [`AI-Accounting-Deployment.html`](AI-Accounting-Deployment.html) for the full service
+inventory, environment contract (no secrets), deploy runbook, verification log, and known limits.
+The deployment is a free-tier demo: Render services can sleep, Key Value has no persistence, and
+MinIO has no persistent disk, so attachments are lost on restart/redeploy. The seeded demo
+credentials above are published and must be rotated before real data. The agent is running on the
+deterministic stub; set `GEMINI_API_KEY` and `AI_PROVIDER=auto` to enable Gemini.
 
 ## Quick start (local/demo)
 
